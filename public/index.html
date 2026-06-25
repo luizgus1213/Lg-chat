@@ -1,0 +1,1060 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>LG Chat</title>
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+
+  <body>
+    <div class="app-shell">
+      <section id="authArea" class="auth-page">
+        <div class="brand">
+          <div class="brand-logo">LG</div>
+
+          <div>
+            <h1>LG Chat</h1>
+            <p>Converse em tempo real com segurança.</p>
+          </div>
+        </div>
+
+        <div class="auth-grid">
+          <div class="auth-card">
+            <h2>Entrar</h2>
+            <p class="muted">Acesse sua conta para continuar.</p>
+
+            <label>
+              Email
+              <input id="loginEmail" type="email" placeholder="seu@email.com" />
+            </label>
+
+            <label>
+              Senha
+              <input id="loginSenha" type="password" placeholder="Sua senha" />
+            </label>
+
+            <button type="button" class="primary-button" onclick="login()">
+              Entrar
+            </button>
+          </div>
+
+          <div class="auth-card">
+            <h2>Criar conta</h2>
+            <p class="muted">Crie uma conta para testar o chat.</p>
+
+            <label>
+              Nome
+              <input id="registerNome" placeholder="Seu nome" />
+            </label>
+
+            <label>
+              Email
+              <input
+                id="registerEmail"
+                type="email"
+                placeholder="seu@email.com"
+              />
+            </label>
+
+            <label>
+              Senha
+              <input
+                id="registerSenha"
+                type="password"
+                placeholder="Mínimo 8 caracteres"
+              />
+            </label>
+
+            <button type="button" class="secondary-button" onclick="register()">
+              Criar conta
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <section id="chatArea" class="chat-page hidden">
+        <aside class="sidebar">
+          <div class="sidebar-header">
+            <div>
+              <h2>LG Chat</h2>
+              <p id="currentUserText">Carregando...</p>
+            </div>
+
+            <button
+              type="button"
+              class="icon-button danger"
+              onclick="logout()"
+              title="Sair"
+            >
+              Sair
+            </button>
+          </div>
+
+          <div class="sidebar-actions">
+            <button type="button" onclick="openCreateGroupPanel()">
+              + Grupo
+            </button>
+
+            <button type="button" onclick="toggleUsersPanel()">
+              + Privado
+            </button>
+          </div>
+
+          <div class="search-box">
+            <input
+              id="chatSearch"
+              placeholder="Buscar chats..."
+              oninput="renderChats()"
+            />
+          </div>
+
+          <div id="chatsList" class="chat-list"></div>
+        </aside>
+
+        <main class="chat-main">
+          <header class="chat-header">
+            <div>
+              <h2 id="chatTitle">Escolha uma conversa</h2>
+              <p id="chatSubtitle">Nenhum chat selecionado</p>
+            </div>
+
+            <div class="header-actions">
+              <button type="button" class="ghost-button" onclick="loadChats()">
+                Atualizar
+              </button>
+
+              <button
+                type="button"
+                class="ghost-button"
+                onclick="toggleInfoPanel()"
+              >
+                Info
+              </button>
+            </div>
+          </header>
+
+          <div id="messages" class="messages empty-state">
+            <div>
+              <h3>Bem-vindo ao LG Chat</h3>
+              <p>Crie um grupo ou escolha uma conversa para começar.</p>
+            </div>
+          </div>
+
+          <div id="typingText" class="typing-text"></div>
+
+          <footer class="message-form">
+            <input
+              id="messageInput"
+              placeholder="Digite sua mensagem..."
+              oninput="handleTyping()"
+              onkeydown="handleMessageKeydown(event)"
+            />
+
+            <button type="button" onclick="sendMessage()">Enviar</button>
+          </footer>
+        </main>
+
+        <aside id="infoPanel" class="info-panel">
+          <div class="panel-header">
+            <h3>Detalhes</h3>
+
+            <button
+              type="button"
+              class="icon-button"
+              onclick="toggleInfoPanel()"
+            >
+              ×
+            </button>
+          </div>
+
+          <div id="chatInfoBox" class="info-content">
+            <p class="muted">Selecione um chat para ver os detalhes.</p>
+          </div>
+        </aside>
+      </section>
+    </div>
+
+    <div id="usersPanel" class="modal hidden">
+      <div class="modal-content">
+        <div class="panel-header">
+          <h3>Criar conversa privada</h3>
+
+          <button
+            type="button"
+            class="icon-button"
+            onclick="toggleUsersPanel()"
+          >
+            ×
+          </button>
+        </div>
+
+        <input
+          id="userSearch"
+          placeholder="Buscar usuário..."
+          oninput="renderUsersForPrivateChat()"
+        />
+
+        <div id="usersList" class="users-list"></div>
+      </div>
+    </div>
+
+    <div id="groupPanel" class="modal hidden">
+      <div class="modal-content large">
+        <div class="panel-header">
+          <h3>Criar grupo</h3>
+
+          <button
+            type="button"
+            class="icon-button"
+            onclick="closeCreateGroupPanel()"
+          >
+            ×
+          </button>
+        </div>
+
+        <label>
+          Nome do grupo
+          <input id="groupName" placeholder="Ex: Doidos do LG Chat" />
+        </label>
+
+        <label>
+          Descrição
+          <input id="groupDescription" placeholder="Descrição opcional" />
+        </label>
+
+        <p class="muted">Escolha membros para adicionar:</p>
+
+        <div id="groupUsersList" class="users-list"></div>
+
+        <button
+          id="createGroupButton"
+          type="button"
+          class="primary-button"
+          onclick="createGroup()"
+        >
+          Criar grupo
+        </button>
+      </div>
+    </div>
+
+    <div id="toastContainer" class="toast-container"></div>
+
+    <script src="/socket.io/socket.io.js"></script>
+
+    <script>
+      (() => {
+        const state = {
+          token: localStorage.getItem("token"),
+          currentUser: null,
+          socket: null,
+          allChats: [],
+          allUsers: [],
+          selectedChat: null,
+          typingTimeout: null,
+          isCreateGroupLoading: false,
+          notificationPermission: Notification.permission,
+        };
+
+        const authArea = document.getElementById("authArea");
+        const chatArea = document.getElementById("chatArea");
+        const chatsList = document.getElementById("chatsList");
+        const usersList = document.getElementById("usersList");
+        const groupUsersList = document.getElementById("groupUsersList");
+        const messagesBox = document.getElementById("messages");
+        const chatTitle = document.getElementById("chatTitle");
+        const chatSubtitle = document.getElementById("chatSubtitle");
+        const chatInfoBox = document.getElementById("chatInfoBox");
+        const typingText = document.getElementById("typingText");
+
+        function requestNotificationPermission() {
+          if (!("Notification" in window)) {
+            console.warn("Notificações não são suportadas neste navegador.");
+            return;
+          }
+
+          if (state.notificationPermission === "granted") {
+            return;
+          }
+
+          Notification.requestPermission().then((permission) => {
+            state.notificationPermission = permission;
+            if (permission === "granted") {
+              console.log("Permissão para notificações concedida.");
+            } else {
+              console.log("Permissão para notificações negada.");
+            }
+          });
+        }
+
+        requestNotificationPermission();
+
+        function makeClientId() {
+          if (crypto && typeof crypto.randomUUID === "function") {
+            return crypto.randomUUID();
+          }
+
+          return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+        }
+
+        function showToast(type, message) {
+          const container = document.getElementById("toastContainer");
+          const toast = document.createElement("div");
+
+          toast.className = `toast ${type}`;
+          toast.textContent = message || "Erro inesperado.";
+
+          if (type === "error") {
+            console.error("Erro no site:", message);
+          }
+
+          container.appendChild(toast);
+
+          setTimeout(() => {
+            toast.classList.add("hide");
+
+            setTimeout(() => {
+              toast.remove();
+            }, 250);
+          }, 4000);
+        }
+
+        function getErrorMessage(data, fallback = "Erro na requisição.") {
+          if (data && data.error && Array.isArray(data.error.fields)) {
+            return data.error.fields
+              .map((field) => `${field.path}: ${field.message}`)
+              .join(" | ");
+          }
+
+          if (data && data.error && data.error.message) {
+            return data.error.message;
+          }
+
+          return fallback;
+        }
+
+        async function api(path, options = {}) {
+          const response = await fetch(path, {
+            ...options,
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: state.token ? `Bearer ${state.token}` : "",
+              ...(options.headers || {}),
+            },
+          });
+
+          const data = await response.json().catch(() => null);
+
+          if (!response.ok || data?.success === false) {
+            throw new Error(getErrorMessage(data));
+          }
+
+          return data;
+        }
+
+        function setLoading(element, message = "Carregando...") {
+          element.innerHTML = "";
+
+          const div = document.createElement("div");
+          div.className = "loading";
+          div.textContent = message;
+
+          element.appendChild(div);
+        }
+
+        async function register() {
+          try {
+            const nome = document.getElementById("registerNome").value;
+            const email = document.getElementById("registerEmail").value;
+            const senha = document.getElementById("registerSenha").value;
+
+            const data = await api("/api/auth/register", {
+              method: "POST",
+              body: JSON.stringify({
+                nome,
+                email,
+                senha,
+              }),
+            });
+
+            state.token = data.data.token;
+            state.currentUser = data.data.user;
+
+            localStorage.setItem("token", state.token);
+
+            showToast("success", "Conta criada com sucesso.");
+            await startApp();
+          } catch (error) {
+            showToast("error", error.message);
+          }
+        }
+
+        async function login() {
+          try {
+            const email = document.getElementById("loginEmail").value;
+            const senha = document.getElementById("loginSenha").value;
+
+            const data = await api("/api/auth/login", {
+              method: "POST",
+              body: JSON.stringify({
+                email,
+                senha,
+              }),
+            });
+
+            state.token = data.data.token;
+            state.currentUser = data.data.user;
+
+            localStorage.setItem("token", state.token);
+
+            showToast("success", "Login realizado com sucesso.");
+            await startApp();
+          } catch (error) {
+            showToast("error", error.message);
+          }
+        }
+
+        async function startApp() {
+          try {
+            authArea.classList.add("hidden");
+            chatArea.classList.remove("hidden");
+
+            await loadMe();
+            connectSocket();
+
+            await Promise.all([loadUsers(), loadChats()]);
+          } catch (error) {
+            showToast("error", error.message);
+            logout();
+          }
+        }
+
+        async function loadMe() {
+          const data = await api("/api/auth/me");
+
+          state.currentUser = data.data.user;
+
+          document.getElementById("currentUserText").textContent =
+            `${state.currentUser.nome} • ${state.currentUser.email}`;
+        }
+
+        async function loadUsers() {
+          const data = await api("/api/users");
+
+          state.allUsers = data.data || [];
+
+          renderUsersForPrivateChat();
+          renderUsersForGroup();
+        }
+
+        async function loadChats() {
+          setLoading(chatsList, "Carregando chats...");
+
+          const data = await api("/api/chats");
+
+          state.allChats = data.data || [];
+
+          renderChats();
+        }
+
+        function renderChats() {
+          const search = document
+            .getElementById("chatSearch")
+            .value.toLowerCase()
+            .trim();
+
+          const filtered = state.allChats.filter((chat) => {
+            return getChatName(chat).toLowerCase().includes(search);
+          });
+
+          chatsList.innerHTML = "";
+
+          if (!filtered.length) {
+            const empty = document.createElement("div");
+            empty.className = "empty-small";
+            empty.textContent = "Nenhum chat encontrado.";
+            chatsList.appendChild(empty);
+            return;
+          }
+
+          filtered.forEach((chat) => {
+            const item = document.createElement("button");
+            item.type = "button";
+            item.className = "chat-item";
+
+            if (state.selectedChat && state.selectedChat.id === chat.id) {
+              item.classList.add("active");
+            }
+
+            const avatar = document.createElement("div");
+            avatar.className = "chat-avatar";
+            avatar.textContent = getChatInitial(chat);
+
+            const content = document.createElement("div");
+            content.className = "chat-item-content";
+
+            const title = document.createElement("strong");
+            title.textContent = getChatName(chat);
+
+            const subtitle = document.createElement("span");
+            subtitle.textContent =
+              chat.type === "group"
+                ? `Grupo • ${chat.myRole || "member"}`
+                : "Conversa privada";
+
+            content.appendChild(title);
+            content.appendChild(subtitle);
+
+            item.appendChild(avatar);
+            item.appendChild(content);
+
+            item.addEventListener("click", () => openChat(chat));
+
+            chatsList.appendChild(item);
+          });
+        }
+
+        function getChatName(chat) {
+          if (chat.name) {
+            return chat.name;
+          }
+
+          if (chat.type === "private") {
+            return `Conversa privada #${chat.id}`;
+          }
+
+          return `Chat #${chat.id}`;
+        }
+
+        function getChatInitial(chat) {
+          return getChatName(chat).charAt(0).toUpperCase();
+        }
+
+        async function openChat(chat) {
+          try {
+            state.selectedChat = chat;
+
+            renderChats();
+
+            chatTitle.textContent = getChatName(chat);
+            chatSubtitle.textContent =
+              chat.type === "group" ? "Grupo" : "Conversa privada";
+
+            messagesBox.classList.remove("empty-state");
+            setLoading(messagesBox, "Carregando mensagens...");
+
+            if (state.socket && state.socket.connected) {
+              state.socket.emit("join_chat", {
+                chatId: chat.id,
+              });
+            }
+
+            await Promise.all([
+              loadChatMessages(chat.id),
+              loadChatInfo(chat.id),
+            ]);
+          } catch (error) {
+            showToast("error", error.message);
+          }
+        }
+
+        async function loadChatMessages(chatId) {
+          const data = await api(`/api/chats/${chatId}/messages?limit=80`);
+          const messages = data.data || [];
+
+          messagesBox.innerHTML = "";
+
+          if (!messages.length) {
+            const empty = document.createElement("div");
+            empty.className = "empty-chat";
+            empty.textContent =
+              "Nenhuma mensagem ainda. Seja o primeiro a enviar.";
+
+            messagesBox.appendChild(empty);
+            return;
+          }
+
+          messages.forEach(addMessage);
+          scrollToBottom();
+        }
+
+        async function loadChatInfo(chatId) {
+          const [chatData, membersData] = await Promise.all([
+            api(`/api/chats/${chatId}`),
+            api(`/api/chats/${chatId}/members`),
+          ]);
+
+          const chat = chatData.data;
+          const members = membersData.data || [];
+
+          chatInfoBox.innerHTML = "";
+
+          const title = document.createElement("h4");
+          title.textContent = getChatName(chat);
+
+          const type = document.createElement("p");
+          type.className = "muted";
+          type.textContent =
+            chat.type === "group" ? "Grupo" : "Conversa privada";
+
+          chatInfoBox.appendChild(title);
+          chatInfoBox.appendChild(type);
+
+          if (chat.description) {
+            const description = document.createElement("p");
+            description.textContent = chat.description;
+            chatInfoBox.appendChild(description);
+          }
+
+          const membersTitle = document.createElement("h4");
+          membersTitle.textContent = "Membros";
+          chatInfoBox.appendChild(membersTitle);
+
+          const list = document.createElement("div");
+          list.className = "member-list";
+
+          members.forEach((member) => {
+            const item = document.createElement("div");
+            item.className = "member-item";
+
+            const user = member.user || {};
+
+            const avatar = document.createElement("div");
+            avatar.className = "mini-avatar";
+            avatar.textContent = (user.nome || "?").charAt(0).toUpperCase();
+
+            const content = document.createElement("div");
+
+            const name = document.createElement("strong");
+            name.textContent = user.nome || `Usuário ${member.userId}`;
+
+            const role = document.createElement("span");
+            role.textContent = member.role;
+
+            content.appendChild(name);
+            content.appendChild(role);
+
+            item.appendChild(avatar);
+            item.appendChild(content);
+
+            list.appendChild(item);
+          });
+
+          chatInfoBox.appendChild(list);
+        }
+
+        function addMessage(message) {
+          const div = document.createElement("div");
+          div.className = "message";
+
+          if (message.type === "system") {
+            div.classList.add("system");
+            div.textContent = message.text;
+
+            messagesBox.appendChild(div);
+            return;
+          }
+
+          if (
+            state.currentUser &&
+            message.fromUserId === state.currentUser.id
+          ) {
+            div.classList.add("mine");
+          }
+
+          if (message.deletedAt) {
+            div.classList.add("deleted");
+          }
+
+          const bubble = document.createElement("div");
+          bubble.className = "bubble";
+
+          const text = document.createElement("p");
+          text.textContent = message.text;
+
+          const time = document.createElement("span");
+          time.className = "message-time";
+          time.textContent = formatDate(message.createdAt);
+
+          bubble.appendChild(text);
+          bubble.appendChild(time);
+
+          div.appendChild(bubble);
+          messagesBox.appendChild(div);
+        }
+
+        function formatDate(value) {
+          if (!value) {
+            return "";
+          }
+
+          const date = new Date(value);
+
+          return date.toLocaleTimeString("pt-BR", {
+            hour: "2-digit",
+            minute: "2-digit",
+          });
+        }
+
+        function scrollToBottom() {
+          messagesBox.scrollTop = messagesBox.scrollHeight;
+        }
+
+        function connectSocket() {
+          if (state.socket) {
+            state.socket.disconnect();
+          }
+
+          state.socket = io({
+            auth: {
+              token: state.token,
+            },
+          });
+
+          state.socket.on("connect", () => {
+            console.log("Socket conectado:", state.socket.id);
+          });
+
+          state.socket.on("connect_error", (error) => {
+            showToast("error", error.message || "Erro ao conectar no socket.");
+          });
+
+          state.socket.on("server_error", (error) => {
+            showToast("error", error.message || "Erro recebido do servidor.");
+          });
+
+          state.socket.on("chat_message", (message) => {
+            if (
+              !state.selectedChat ||
+              message.chatId !== state.selectedChat.id
+            ) {
+              showToast("success", "Nova mensagem recebida.");
+              new Notification("Nova mensagem", {
+                body: message.text,
+              });
+              return;
+            }
+
+            addMessage(message);
+            scrollToBottom();
+          });
+
+          state.socket.on("typing_start", (payload) => {
+            if (
+              !state.selectedChat ||
+              payload.chatId !== state.selectedChat.id
+            ) {
+              return;
+            }
+
+            if (state.currentUser && payload.userId === state.currentUser.id) {
+              return;
+            }
+
+            typingText.textContent = `${payload.nome} está digitando...`;
+          });
+
+          state.socket.on("typing_stop", (payload) => {
+            if (
+              !state.selectedChat ||
+              payload.chatId !== state.selectedChat.id
+            ) {
+              return;
+            }
+
+            typingText.textContent = "";
+          });
+        }
+
+        function sendMessage() {
+          if (!state.selectedChat) {
+            showToast(
+              "error",
+              "Escolha uma conversa antes de enviar mensagem.",
+            );
+            return;
+          }
+
+          if (!state.socket || !state.socket.connected) {
+            showToast("error", "Socket desconectado. Recarregue a página.");
+            return;
+          }
+
+          const input = document.getElementById("messageInput");
+          const text = input.value.trim();
+
+          if (!text) {
+            showToast("error", "Digite uma mensagem.");
+            return;
+          }
+
+          state.socket.emit(
+            "chat_message",
+            {
+              chatId: state.selectedChat.id,
+              text,
+              clientId: makeClientId(),
+            },
+            (response) => {
+              if (!response || !response.success) {
+                showToast(
+                  "error",
+                  response?.error?.message || "Erro ao enviar mensagem.",
+                );
+
+                return;
+              }
+
+              input.value = "";
+              typingText.textContent = "";
+            },
+          );
+        }
+
+        function handleMessageKeydown(event) {
+          if (event.key === "Enter" && !event.shiftKey) {
+            event.preventDefault();
+            sendMessage();
+          }
+        }
+
+        function handleTyping() {
+          if (!state.selectedChat || !state.socket || !state.socket.connected) {
+            return;
+          }
+
+          state.socket.emit("typing_start", {
+            chatId: state.selectedChat.id,
+          });
+
+          clearTimeout(state.typingTimeout);
+
+          state.typingTimeout = setTimeout(() => {
+            if (!state.socket || !state.selectedChat) {
+              return;
+            }
+
+            state.socket.emit("typing_stop", {
+              chatId: state.selectedChat.id,
+            });
+          }, 900);
+        }
+
+        function toggleUsersPanel() {
+          document.getElementById("usersPanel").classList.toggle("hidden");
+          renderUsersForPrivateChat();
+        }
+
+        function renderUsersForPrivateChat() {
+          if (!usersList) {
+            return;
+          }
+
+          const search =
+            document.getElementById("userSearch")?.value.toLowerCase().trim() ||
+            "";
+
+          usersList.innerHTML = "";
+
+          const filtered = state.allUsers.filter((user) => {
+            return (
+              user.nome.toLowerCase().includes(search) ||
+              user.email.toLowerCase().includes(search)
+            );
+          });
+
+          if (!filtered.length) {
+            const empty = document.createElement("div");
+            empty.className = "empty-small";
+            empty.textContent = "Nenhum usuário encontrado.";
+
+            usersList.appendChild(empty);
+            return;
+          }
+
+          filtered.forEach((user) => {
+            const button = document.createElement("button");
+            button.type = "button";
+            button.className = "user-row";
+
+            const avatar = document.createElement("div");
+            avatar.className = "mini-avatar";
+            avatar.textContent = user.nome.charAt(0).toUpperCase();
+
+            const content = document.createElement("div");
+
+            const name = document.createElement("strong");
+            name.textContent = user.nome;
+
+            const email = document.createElement("span");
+            email.textContent = user.email;
+
+            content.appendChild(name);
+            content.appendChild(email);
+
+            button.appendChild(avatar);
+            button.appendChild(content);
+
+            button.addEventListener("click", () => createPrivateChat(user.id));
+
+            usersList.appendChild(button);
+          });
+        }
+
+        async function createPrivateChat(userId) {
+          try {
+            const data = await api("/api/chats/private", {
+              method: "POST",
+              body: JSON.stringify({
+                userId,
+              }),
+            });
+
+            showToast("success", "Conversa criada.");
+            toggleUsersPanel();
+
+            await loadChats();
+            await openChat(data.data);
+          } catch (error) {
+            showToast("error", error.message);
+          }
+        }
+
+        function openCreateGroupPanel() {
+          document.getElementById("groupPanel").classList.remove("hidden");
+          renderUsersForGroup();
+        }
+
+        function closeCreateGroupPanel() {
+          document.getElementById("groupPanel").classList.add("hidden");
+        }
+
+        function renderUsersForGroup() {
+          if (!groupUsersList) {
+            return;
+          }
+
+          groupUsersList.innerHTML = "";
+
+          if (!state.allUsers.length) {
+            const empty = document.createElement("div");
+            empty.className = "empty-small";
+            empty.textContent = "Nenhum usuário disponível.";
+
+            groupUsersList.appendChild(empty);
+            return;
+          }
+
+          state.allUsers.forEach((user) => {
+            const label = document.createElement("label");
+            label.className = "check-row";
+
+            const checkbox = document.createElement("input");
+            checkbox.type = "checkbox";
+            checkbox.value = user.id;
+            checkbox.className = "group-user-checkbox";
+
+            const span = document.createElement("span");
+            span.textContent = `${user.nome} • ${user.email}`;
+
+            label.appendChild(checkbox);
+            label.appendChild(span);
+
+            groupUsersList.appendChild(label);
+          });
+        }
+
+        async function createGroup() {
+          const button = document.getElementById("createGroupButton");
+          try {
+            if (state.isCreateGroupLoading === true) {
+              button.disabled = true;
+              button.textContent = "Criando grupo...";
+              return;
+            }
+            state.isCreateGroupLoading = true;
+            const name = document.getElementById("groupName").value.trim();
+
+            const description = document
+              .getElementById("groupDescription")
+              .value.trim();
+
+            const memberIds = Array.from(
+              document.querySelectorAll(".group-user-checkbox:checked"),
+            ).map((input) => Number(input.value));
+
+            const data = await api("/api/chats/groups", {
+              method: "POST",
+              body: JSON.stringify({
+                name,
+                description: description || null,
+                memberIds,
+              }),
+            });
+
+            document.getElementById("groupName").value = "";
+            document.getElementById("groupDescription").value = "";
+
+            closeCreateGroupPanel();
+            showToast("success", "Grupo criado com sucesso.");
+
+            await loadChats();
+            await openChat(data.data);
+          } catch (error) {
+            showToast("error", error.message);
+          } finally {
+            setTimeout(() => {
+              state.isCreateGroupLoading = false;
+              button.disabled = true;
+              button.textContent = "Criar grupo";
+            }, 2000);
+          }
+        }
+
+        function toggleInfoPanel() {
+          document.getElementById("infoPanel").classList.toggle("open");
+        }
+
+        function logout() {
+          localStorage.removeItem("token");
+
+          state.token = null;
+          state.currentUser = null;
+          state.selectedChat = null;
+          state.allChats = [];
+          state.allUsers = [];
+
+          if (state.socket) {
+            state.socket.disconnect();
+            state.socket = null;
+          }
+
+          authArea.classList.remove("hidden");
+          chatArea.classList.add("hidden");
+
+          messagesBox.innerHTML = "";
+          chatInfoBox.innerHTML = '<p class="muted">Selecione um chat.</p>';
+        }
+
+        window.register = register;
+        window.login = login;
+        window.logout = logout;
+        window.loadChats = loadChats;
+        window.sendMessage = sendMessage;
+        window.handleTyping = handleTyping;
+        window.handleMessageKeydown = handleMessageKeydown;
+        window.toggleUsersPanel = toggleUsersPanel;
+        window.renderUsersForPrivateChat = renderUsersForPrivateChat;
+        window.openCreateGroupPanel = openCreateGroupPanel;
+        window.closeCreateGroupPanel = closeCreateGroupPanel;
+        window.createGroup = createGroup;
+        window.toggleInfoPanel = toggleInfoPanel;
+        window.renderChats = renderChats;
+
+        if (state.token) {
+          startApp();
+        }
+      })();
+    </script>
+  </body>
+</html>

@@ -1,0 +1,38 @@
+{
+  "name": "lgchat",
+  "version": "1.0.0",
+  "main": "dist/server.js",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "db:migrate": "sequelize-cli db:migrate",
+    "db:undo": "sequelize-cli db:migrate:undo",
+    "db:undo:all": "sequelize-cli db:migrate:undo:all"
+  },
+  "dependencies": {
+    "bcryptjs": "latest",
+    "cors": "latest",
+    "dotenv": "latest",
+    "express": "latest",
+    "express-rate-limit": "latest",
+    "helmet": "latest",
+    "jsonwebtoken": "latest",
+    "pg": "latest",
+    "pg-hstore": "latest",
+    "pino": "latest",
+    "pino-pretty": "latest",
+    "sequelize": "latest",
+    "socket.io": "latest",
+    "zod": "latest"
+  },
+  "devDependencies": {
+    "@types/cors": "latest",
+    "@types/express": "latest",
+    "@types/jsonwebtoken": "latest",
+    "@types/node": "latest",
+    "sequelize-cli": "latest",
+    "tsx": "latest",
+    "typescript": "latest"
+  }
+}

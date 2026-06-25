@@ -1,0 +1,104 @@
+# =========================
+# NODE / NPM
+# =========================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# =========================
+# BUILD / DIST
+# =========================
+dist/
+build/
+.cache/
+.tmp/
+temp/
+coverage/
+
+# =========================
+# ENV / SECRETS
+# =========================
+.env
+.env.local
+.env.development
+.env.production
+.env.test
+*.env
+
+# Nunca subir arquivos com senhas/chaves
+*.pem
+*.key
+*.cert
+*.crt
+
+# =========================
+# TYPESCRIPT
+# =========================
+*.tsbuildinfo
+
+# =========================
+# LOGS
+# =========================
+logs/
+*.log
+
+# =========================
+# DATABASE
+# =========================
+*.sqlite
+*.sqlite3
+*.db
+*.db-journal
+
+# =========================
+# SEQUELIZE / MIGRATIONS TEMP
+# =========================
+.sequelize-meta-backup
+sequelize-data.json
+
+# =========================
+# UPLOADS / PUBLIC FILES GERADOS
+# =========================
+uploads/
+public/uploads/
+storage/
+
+# =========================
+# EDITOR / IDE
+# =========================
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# =========================
+# WINDOWS / MAC
+# =========================
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# =========================
+# PACKAGE MANAGERS
+# =========================
+.pnpm-store/
+.yarn/
+.yarn-cache/
+
+# =========================
+# TEST / CACHE
+# =========================
+.nyc_output/
+jest-cache/
+eslintcache
+.eslintcache
+
+# =========================
+# DOCKER
+# =========================
+docker-data/
