@@ -2,12 +2,17 @@ import { initUserModel, User } from "./User";
 import { initMessageModel, Message } from "./Message";
 import { initChatModel, Chat } from "./Chat";
 import { initChatMemberModel, ChatMember } from "./ChatMember";
-
+import { initUserBlockModel, UserBlock } from "./UserBlock";
+import { initStatusPostModel, StatusPost } from "./StatusPost";
+import { initStatusViewModel, StatusView } from "./StatusView";
 export function initModels() {
   initUserModel();
   initChatModel();
   initChatMemberModel();
   initMessageModel();
+  initUserBlockModel();
+  initStatusPostModel();
+  initStatusViewModel();
 
   User.hasMany(Message, {
     foreignKey: "senderId",
@@ -58,4 +63,54 @@ export function initModels() {
     foreignKey: "createdById",
     as: "creator",
   });
+
+  User.hasMany(UserBlock, {
+    foreignKey: "blockerId",
+    as: "blockedUsers",
+  });
+
+  UserBlock.belongsTo(User, {
+    foreignKey: "blockerId",
+    as: "blocker",
+  });
+
+  User.hasMany(UserBlock, {
+    foreignKey: "blockedId",
+    as: "blockedByUsers",
+  });
+
+  UserBlock.belongsTo(User, {
+    foreignKey: "blockedId",
+    as: "blocked",
+  });
+  User.hasMany(StatusPost, {
+    foreignKey: "userId",
+    as: "statusPosts",
+  });
+
+  StatusPost.belongsTo(User, {
+    foreignKey: "userId",
+    as: "author",
+  });
+
+  StatusPost.hasMany(StatusView, {
+    foreignKey: "statusPostId",
+    as: "views",
+  });
+
+  StatusView.belongsTo(StatusPost, {
+    foreignKey: "statusPostId",
+    as: "statusPost",
+  });
+
+  User.hasMany(StatusView, {
+    foreignKey: "viewerId",
+    as: "statusViews",
+  });
+
+  StatusView.belongsTo(User, {
+    foreignKey: "viewerId",
+    as: "viewer",
+  });
+
 }

@@ -1,5 +1,13 @@
 require("dotenv").config();
 
+const requiredEnv = ["DB_NAME", "DB_USER", "DB_PASS", "DB_HOST", "DB_PORT"];
+
+for (const key of requiredEnv) {
+  if (!process.env[key]) {
+    throw new Error(`Variável de ambiente ausente: ${key}`);
+  }
+}
+
 module.exports = {
   development: {
     username: process.env.DB_USER,
@@ -8,7 +16,6 @@ module.exports = {
     host: process.env.DB_HOST,
     port: Number(process.env.DB_PORT),
     dialect: "postgres",
-    logging: false,
   },
 
   test: {
@@ -18,7 +25,6 @@ module.exports = {
     host: process.env.DB_HOST,
     port: Number(process.env.DB_PORT),
     dialect: "postgres",
-    logging: false,
   },
 
   production: {
@@ -28,6 +34,14 @@ module.exports = {
     host: process.env.DB_HOST,
     port: Number(process.env.DB_PORT),
     dialect: "postgres",
-    logging: false,
+    dialectOptions: {
+      ssl:
+        process.env.DB_SSL === "true"
+          ? {
+              require: true,
+              rejectUnauthorized: false,
+            }
+          : false,
+    },
   },
 };

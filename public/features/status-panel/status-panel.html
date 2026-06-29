@@ -1,0 +1,101 @@
+<section id="statusPanel" class="status-panel modal hidden" aria-label="Status">
+  <div class="status-panel-card">
+    <header class="status-panel-header">
+      <div>
+        <h3>Status</h3>
+        <p>Publique fotos, vídeos ou textos que somem em 24 horas.</p>
+      </div>
+
+      <button id="closeStatusPanelButton" type="button" class="icon-button">
+        ×
+      </button>
+    </header>
+
+    <div class="status-create-box">
+      <label>
+        Novo status de texto
+        <textarea
+          id="statusTextInput"
+          maxlength="700"
+          placeholder="Escreva uma atualização..."
+        ></textarea>
+      </label>
+
+      <div class="status-create-actions">
+        <button id="createTextStatusButton" type="button">
+          Publicar texto
+        </button>
+
+        <button id="pickStatusMediaButton" type="button" class="ghost-button">
+          Foto/vídeo
+        </button>
+
+        <input
+          id="statusMediaInput"
+          type="file"
+          accept="image/jpeg,image/jpg,image/png,image/webp,image/gif,video/mp4,video/webm,video/quicktime"
+          class="hidden"
+        />
+      </div>
+
+      <input
+        id="statusMediaCaptionInput"
+        maxlength="700"
+        placeholder="Legenda para foto/vídeo..."
+      />
+    </div>
+
+    <div class="status-panel-body">
+      <div>
+        <h4>Meu status</h4>
+        <div id="myStatusList" class="status-list"></div>
+      </div>
+
+      <div>
+        <h4>Atualizações recentes</h4>
+        <div id="recentStatusList" class="status-list"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="statusViewer" class="status-viewer hidden" aria-label="Visualizador de status">
+  <div class="status-viewer-progress">
+    <div id="statusViewerProgressBar"></div>
+  </div>
+
+  <header class="status-viewer-header">
+    <div id="statusViewerAvatar" class="status-viewer-avatar">?</div>
+
+    <div class="status-viewer-title">
+      <strong id="statusViewerName">Status</strong>
+      <span id="statusViewerTime">Agora</span>
+    </div>
+
+    <button id="deleteStatusButton" type="button" class="status-viewer-delete hidden">
+      Apagar
+    </button>
+
+    <button id="closeStatusViewerButton" type="button" class="status-viewer-close">
+      ×
+    </button>
+  </header>
+
+  <button id="previousStatusButton" type="button" class="status-nav-button previous">
+    ‹
+  </button>
+
+  <div id="statusViewerBody" class="status-viewer-body"></div>
+
+  <button id="nextStatusButton" type="button" class="status-nav-button next">
+    ›
+  </button>
+
+  <footer id="statusViewerFooter" class="status-viewer-footer">
+    <button id="showStatusViewsButton" type="button" class="ghost-button hidden">
+      Visualizações
+    </button>
+
+    <div id="statusViewsList" class="status-views-list hidden"></div>
+  </footer>
+</section>

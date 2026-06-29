@@ -18,6 +18,7 @@ import { authRoutes } from "./routes/auth.routes";
 import { usersRoutes } from "./routes/users.routes";
 import { messagesRoutes } from "./routes/messages.routes";
 import { chatRoutes } from "./routes/chat.routes";
+import { statusRoutes } from "./routes/status.routes";
 
 import { setupSocket } from "./sockets";
 
@@ -117,6 +118,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/users", usersRoutes);
 app.use("/api/messages", messagesRoutes);
 app.use("/api/chats", chatRoutes);
+app.use("/api/status", statusRoutes);
 
 app.use((req, _res, next) => {
   return next(

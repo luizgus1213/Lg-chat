@@ -10,6 +10,10 @@ declare global {
         id: number;
         nome: string;
         email: string;
+        avatarUrl: string | null;
+        about: string | null;
+        isOnline: boolean;
+        lastSeenAt: Date | null;
       };
     }
   }
@@ -31,7 +35,15 @@ export async function authMiddleware(
     const payload = verificarToken(token);
 
     const user = await User.findByPk(payload.id, {
-      attributes: ["id", "nome", "email"],
+      attributes: [
+        "id",
+        "nome",
+        "email",
+        "avatarUrl",
+        "about",
+        "isOnline",
+        "lastSeenAt",
+      ],
     });
 
     if (!user) {
@@ -42,6 +54,10 @@ export async function authMiddleware(
       id: user.id,
       nome: user.nome,
       email: user.email,
+      avatarUrl: user.avatarUrl ?? null,
+      about: user.about ?? "Disponível",
+      isOnline: Boolean(user.isOnline),
+      lastSeenAt: user.lastSeenAt ?? null,
     };
 
     return next();

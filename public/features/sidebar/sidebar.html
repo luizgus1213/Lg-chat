@@ -1,0 +1,105 @@
+<aside class="sidebar">
+  <header class="sidebar-header">
+    <button id="openProfileButton" type="button" class="current-user-card">
+      <div id="currentUserAvatar" class="current-user-avatar">?</div>
+
+      <div class="current-user-info">
+        <h2>LG Chat</h2>
+        <p id="currentUserText">Carregando...</p>
+      </div>
+    </button>
+
+    <button id="logoutButton" type="button" class="icon-button danger">
+      Sair
+    </button>
+  </header>
+
+  <div class="sidebar-actions">
+    <button id="openGroupButton" type="button">+ Grupo</button>
+    <button id="openUsersButton" type="button">+ Privado</button>
+    <button id="toggleArchivedChatsButton" type="button" class="ghost-button archived-toggle-button">
+      Arquivadas
+    </button>
+  </div>
+
+  <div class="app-tools-panel">
+    <button id="installAppButton" type="button" class="ghost-button install-app-button hidden">
+      Instalar app
+    </button>
+
+    <button id="toggleSoundButton" type="button" class="ghost-button app-tool-button">
+      Som: ligado
+    </button>
+
+    <button id="enableNotificationsButton" type="button" class="ghost-button app-tool-button">
+      Ativar notificações
+    </button>
+  </div>
+
+  <section class="status-sidebar-section">
+    <button id="openStatusPanelButton" type="button" class="status-sidebar-main">
+      <div id="myStatusAvatar" class="status-sidebar-avatar">+</div>
+
+      <div class="status-sidebar-text">
+        <strong>Status</strong>
+        <span id="myStatusText">Publique ou veja atualizações</span>
+      </div>
+    </button>
+
+    <div id="statusContactsList" class="status-contacts-list"></div>
+  </section>
+
+  <div class="search-box">
+    <input id="chatSearch" placeholder="Buscar chats..." />
+  </div>
+
+  <div id="chatsList" class="chat-list"></div>
+
+  <div id="profilePanel" class="modal hidden">
+    <div class="modal-content profile-modal-content">
+      <header class="profile-modal-header">
+        <h3>Meu perfil</h3>
+
+        <button id="closeProfilePanelButton" type="button" class="icon-button">
+          ×
+        </button>
+      </header>
+
+      <form id="profileForm" class="profile-form">
+        <div class="profile-avatar-area">
+          <button id="changeProfileAvatarButton" type="button" class="profile-avatar-preview">
+            <div id="profileAvatarPreview" class="profile-avatar-preview-inner">?</div>
+            <span>Alterar foto</span>
+          </button>
+
+          <input
+            id="profileAvatarInput"
+            type="file"
+            accept="image/jpeg,image/jpg,image/png,image/webp"
+            class="hidden"
+          />
+
+          <p id="profileEmail" class="profile-email muted"></p>
+        </div>
+
+        <label>
+          Nome
+          <input id="profileNome" maxlength="120" placeholder="Seu nome" />
+        </label>
+
+        <label>
+          Recado
+          <input
+            id="profileAbout"
+            maxlength="140"
+            placeholder="Disponível"
+          />
+        </label>
+
+        <button id="saveProfileButton" type="submit">
+          Salvar perfil
+        </button>
+      </form>
+    </div>
+  </div>
+</aside>

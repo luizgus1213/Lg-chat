@@ -10,11 +10,15 @@ import type { registerSchema, loginSchema } from "../validators/AuthValidator";
 type RegisterInput = z.infer<typeof registerSchema>;
 type LoginInput = z.infer<typeof loginSchema>;
 
-function publicUser(user: User) {
+function publicAuthUser(user: User) {
   return {
     id: user.id,
     nome: user.nome,
     email: user.email,
+    avatarUrl: user.avatarUrl ?? null,
+    about: user.about ?? "Disponível",
+    isOnline: Boolean(user.isOnline),
+    lastSeenAt: user.lastSeenAt ?? null,
   };
 }
 
@@ -36,6 +40,10 @@ export async function registerUser(data: RegisterInput) {
       nome: data.nome,
       email: data.email,
       senha: senhaCriptografada,
+      about: "Disponível",
+      isOnline: false,
+      lastSeenAt: null,
+      avatarUrl: null,
     });
 
     const token = gerarToken({
@@ -46,7 +54,7 @@ export async function registerUser(data: RegisterInput) {
 
     return {
       token,
-      user: publicUser(user),
+      user: publicAuthUser(user),
     };
   } catch (error) {
     if (error instanceof UniqueConstraintError) {
@@ -82,6 +90,6 @@ export async function loginUser(data: LoginInput) {
 
   return {
     token,
-    user: publicUser(user),
+    user: publicAuthUser(user),
   };
 }

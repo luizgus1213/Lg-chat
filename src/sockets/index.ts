@@ -1,12 +1,16 @@
 import type { Server, Socket } from "socket.io";
+import { randomUUID } from "crypto";
 import { AppError, toClientError } from "../errors/AppError";
 import { verificarToken } from "../utils/jwt";
 import { logger } from "../utils/logger";
 import { User } from "../models/User";
+import { Chat } from "../models/Chat";
 import { ChatMember } from "../models/ChatMember";
+import { UserBlock } from "../models/UserBlock";
 import { sendChatMessageSchema } from "../validators/chatValidator";
 import { assertChatMember, sendMessageToChat } from "../services/ChatService";
-
+import { setSocketServer } from "./socketServer";
+import { setUserOnlineStatus } from "../services/UserService";
 type AuthenticatedUser = {
   id: number;
   nome: string;
@@ -43,7 +47,199 @@ async function authenticateSocket(socket: Socket): Promise<AuthenticatedUser> {
   };
 }
 
+function getChatIdFromPayload(payload: unknown) {
+  if (!payload || typeof payload !== "object" || !("chatId" in payload)) {
+    throw new AppError(400, "Chat inválido.", "INVALID_CHAT_ID");
+  }
+
+  const chatId = Number((payload as { chatId?: unknown }).chatId);
+
+  if (!Number.isInteger(chatId) || chatId <= 0) {
+    throw new AppError(400, "Chat inválido.", "INVALID_CHAT_ID");
+  }
+
+  return chatId;
+}
+
+function sendAckError(ack: ClientAck | undefined, error: unknown) {
+  const clientError = toClientError(error);
+
+  if (typeof ack === "function") {
+    ack({
+      success: false,
+      error: clientError,
+    });
+  }
+
+  return clientError;
+}
+
+
+type CallType = "voice" | "video";
+
+type ActiveCall = {
+  id: string;
+  chatId: number;
+  callerId: number;
+  receiverId: number;
+  type: CallType;
+  startedAt: string;
+  acceptedAt?: string;
+};
+
+const activeCalls = new Map<string, ActiveCall>();
+
+function getObjectPayload(payload: unknown) {
+  if (!payload || typeof payload !== "object") {
+    throw new AppError(400, "Dados da chamada inválidos.", "INVALID_CALL_PAYLOAD");
+  }
+
+  return payload as Record<string, unknown>;
+}
+
+function getCallType(payload: Record<string, unknown>): CallType {
+  const type = payload.type;
+
+  if (type !== "voice" && type !== "video") {
+    throw new AppError(400, "Tipo de chamada inválido.", "INVALID_CALL_TYPE");
+  }
+
+  return type;
+}
+
+function getCallId(payload: Record<string, unknown>) {
+  const callId = String(payload.callId || "").trim();
+
+  if (!callId || callId.length > 120) {
+    throw new AppError(400, "Chamada inválida.", "INVALID_CALL_ID");
+  }
+
+  return callId;
+}
+
+function getSignalPayload(payload: Record<string, unknown>) {
+  const signal = payload.signal;
+
+  if (!signal || typeof signal !== "object") {
+    throw new AppError(400, "Sinal da chamada inválido.", "INVALID_CALL_SIGNAL");
+  }
+
+  return signal;
+}
+
+async function getPrivateCallTarget(chatId: number, currentUserId: number) {
+  const chat = await Chat.findByPk(chatId, {
+    attributes: ["id", "type"],
+  });
+
+  if (!chat) {
+    throw new AppError(404, "Chat não encontrado.", "CHAT_NOT_FOUND");
+  }
+
+  if (chat.type !== "private") {
+    throw new AppError(
+      400,
+      "Chamadas estão disponíveis somente em conversas privadas.",
+      "CALL_ONLY_PRIVATE_CHAT",
+    );
+  }
+
+  await assertChatMember(chatId, currentUserId);
+
+  const members = await ChatMember.findAll({
+    where: {
+      chatId,
+      leftAt: null,
+    },
+    attributes: ["userId"],
+  });
+
+  const otherMember = members.find((member) => member.userId !== currentUserId);
+
+  if (!otherMember) {
+    throw new AppError(
+      404,
+      "Contato da conversa não encontrado.",
+      "CALL_TARGET_NOT_FOUND",
+    );
+  }
+
+  const [blockedByMe, blockedMe] = await Promise.all([
+    UserBlock.findOne({
+      where: {
+        blockerId: currentUserId,
+        blockedId: otherMember.userId,
+      },
+    }),
+    UserBlock.findOne({
+      where: {
+        blockerId: otherMember.userId,
+        blockedId: currentUserId,
+      },
+    }),
+  ]);
+
+  if (blockedByMe) {
+    throw new AppError(
+      403,
+      "Você bloqueou esse contato. Desbloqueie para iniciar chamada.",
+      "CALL_CONTACT_BLOCKED_BY_ME",
+    );
+  }
+
+  if (blockedMe) {
+    throw new AppError(
+      403,
+      "Você não pode iniciar chamada com esse contato.",
+      "CALL_CONTACT_BLOCKED_ME",
+    );
+  }
+
+  const targetUser = await User.findByPk(otherMember.userId, {
+    attributes: ["id", "nome", "email"],
+  });
+
+  if (!targetUser) {
+    throw new AppError(404, "Usuário da chamada não encontrado.", "CALL_USER_NOT_FOUND");
+  }
+
+  return {
+    targetUserId: targetUser.id,
+    targetUser: {
+      id: targetUser.id,
+      nome: targetUser.nome,
+      email: targetUser.email,
+    },
+  };
+}
+
+function assertCallParticipant(call: ActiveCall, userId: number) {
+  if (call.callerId !== userId && call.receiverId !== userId) {
+    throw new AppError(403, "Você não participa dessa chamada.", "CALL_ACCESS_DENIED");
+  }
+}
+
+function getOtherCallUserId(call: ActiveCall, userId: number) {
+  assertCallParticipant(call, userId);
+
+  return call.callerId === userId ? call.receiverId : call.callerId;
+}
+
+function callPublicDTO(call: ActiveCall) {
+  return {
+    callId: call.id,
+    chatId: call.chatId,
+    callerId: call.callerId,
+    receiverId: call.receiverId,
+    type: call.type,
+    startedAt: call.startedAt,
+    acceptedAt: call.acceptedAt ?? null,
+  };
+}
+
+
 export function setupSocket(io: Server) {
+  setSocketServer(io);
   io.use(async (socket, next) => {
     try {
       const user = await authenticateSocket(socket);
@@ -59,42 +255,58 @@ export function setupSocket(io: Server) {
   io.on("connection", async (socket) => {
     const user = socket.data.user as AuthenticatedUser;
 
-    socket.join(`user:${user.id}`);
+    try {
+      socket.join(`user:${user.id}`);
 
-    const memberships = await ChatMember.findAll({
-      where: {
+      const memberships = await ChatMember.findAll({
+        where: {
+          userId: user.id,
+          leftAt: null,
+        },
+        attributes: ["chatId"],
+      });
+
+      for (const membership of memberships) {
+        socket.join(`chat:${membership.chatId}`);
+      }
+
+      logger.info(
+        {
+          socketId: socket.id,
+          userId: user.id,
+          email: user.email,
+        },
+        "Cliente conectado no socket",
+      );
+
+      const onlineUser = await setUserOnlineStatus({
         userId: user.id,
-        leftAt: null,
-      },
-      attributes: ["chatId"],
-    });
+        isOnline: true,
+      });
 
-    for (const membership of memberships) {
-      socket.join(`chat:${membership.chatId}`);
+      io.emit("user_status", {
+        userId: user.id,
+        isOnline: true,
+        lastSeenAt: onlineUser.lastSeenAt,
+      });
+    } catch (error) {
+      logger.error(
+        {
+          err: error,
+          socketId: socket.id,
+          userId: user.id,
+        },
+        "Erro ao preparar salas do socket",
+      );
+
+      socket.emit("server_error", toClientError(error));
+      socket.disconnect(true);
+      return;
     }
-
-    logger.info(
-      {
-        socketId: socket.id,
-        userId: user.id,
-        email: user.email,
-      },
-      "Cliente conectado no socket",
-    );
 
     socket.on("join_chat", async (payload: unknown, ack?: ClientAck) => {
       try {
-        const chatId =
-          typeof payload === "object" &&
-          payload &&
-          "chatId" in payload &&
-          typeof (payload as { chatId?: unknown }).chatId === "number"
-            ? (payload as { chatId: number }).chatId
-            : null;
-
-        if (!chatId) {
-          throw new AppError(400, "Chat inválido.", "INVALID_CHAT_ID");
-        }
+        const chatId = getChatIdFromPayload(payload);
 
         await assertChatMember(chatId, user.id);
 
@@ -110,14 +322,16 @@ export function setupSocket(io: Server) {
           });
         }
       } catch (error) {
-        const clientError = toClientError(error);
+        const clientError = sendAckError(ack, error);
 
-        if (typeof ack === "function") {
-          ack({
-            success: false,
-            error: clientError,
-          });
-        }
+        logger.warn(
+          {
+            err: error,
+            userId: user.id,
+            payload,
+          },
+          "Erro ao entrar no chat pelo socket",
+        );
 
         socket.emit("server_error", clientError);
       }
@@ -126,17 +340,9 @@ export function setupSocket(io: Server) {
     socket.on("chat_message", async (payload: unknown, ack?: ClientAck) => {
       try {
         const rawPayload =
-          typeof payload === "object" && payload ? payload : {};
+          typeof payload === "object" && payload !== null ? payload : {};
 
-        const chatId =
-          "chatId" in rawPayload
-            ? Number((rawPayload as { chatId?: unknown }).chatId)
-            : 0;
-
-        if (!Number.isInteger(chatId) || chatId <= 0) {
-          throw new AppError(400, "Chat inválido.", "INVALID_CHAT_ID");
-        }
-
+        const chatId = getChatIdFromPayload(rawPayload);
         const data = sendChatMessageSchema.parse(rawPayload);
 
         const message = await sendMessageToChat({
@@ -144,9 +350,15 @@ export function setupSocket(io: Server) {
           chatId,
           text: data.text,
           clientId: data.clientId,
+          replyToMessageId: data.replyToMessageId,
         });
 
         io.to(`chat:${chatId}`).emit("chat_message", message);
+
+        io.to(`chat:${chatId}`).emit("chat_updated", {
+          chatId,
+          updatedAt: message.createdAt,
+        });
 
         if (typeof ack === "function") {
           ack({
@@ -155,7 +367,7 @@ export function setupSocket(io: Server) {
           });
         }
       } catch (error) {
-        const clientError = toClientError(error);
+        const clientError = sendAckError(ack, error);
 
         logger.error(
           {
@@ -178,25 +390,318 @@ export function setupSocket(io: Server) {
           "Erro ao enviar mensagem pelo socket",
         );
 
+        socket.emit("server_error", clientError);
+      }
+    });
+
+
+    socket.on("call:start", async (payload: unknown, ack?: ClientAck) => {
+      try {
+        const rawPayload = getObjectPayload(payload);
+        const chatId = getChatIdFromPayload(rawPayload);
+        const type = getCallType(rawPayload);
+        const { targetUserId, targetUser } = await getPrivateCallTarget(chatId, user.id);
+
+        const call: ActiveCall = {
+          id: randomUUID(),
+          chatId,
+          callerId: user.id,
+          receiverId: targetUserId,
+          type,
+          startedAt: new Date().toISOString(),
+        };
+
+        activeCalls.set(call.id, call);
+
+        io.to(`user:${targetUserId}`).emit("call:incoming", {
+          ...callPublicDTO(call),
+          fromUser: {
+            id: user.id,
+            nome: user.nome,
+            email: user.email,
+          },
+        });
+
         if (typeof ack === "function") {
           ack({
-            success: false,
-            error: clientError,
+            success: true,
+            data: {
+              ...callPublicDTO(call),
+              targetUser,
+            },
           });
         }
+
+        logger.info(
+          {
+            callId: call.id,
+            chatId,
+            callerId: user.id,
+            receiverId: targetUserId,
+            type,
+          },
+          "Chamada iniciada",
+        );
+      } catch (error) {
+        const clientError = sendAckError(ack, error);
+
+        logger.warn(
+          {
+            err: error,
+            userId: user.id,
+            payload,
+          },
+          "Erro ao iniciar chamada",
+        );
 
         socket.emit("server_error", clientError);
       }
     });
 
+    socket.on("call:accept", async (payload: unknown, ack?: ClientAck) => {
+      try {
+        const rawPayload = getObjectPayload(payload);
+        const callId = getCallId(rawPayload);
+        const call = activeCalls.get(callId);
+
+        if (!call) {
+          throw new AppError(404, "Chamada não encontrada ou encerrada.", "CALL_NOT_FOUND");
+        }
+
+        if (call.receiverId !== user.id) {
+          throw new AppError(403, "Apenas quem recebeu a chamada pode aceitar.", "CALL_ACCEPT_DENIED");
+        }
+
+        call.acceptedAt = new Date().toISOString();
+        activeCalls.set(call.id, call);
+
+        io.to(`user:${call.callerId}`).emit("call:accepted", {
+          ...callPublicDTO(call),
+          acceptedBy: user.id,
+        });
+
+        if (typeof ack === "function") {
+          ack({
+            success: true,
+            data: callPublicDTO(call),
+          });
+        }
+
+        logger.info(
+          {
+            callId: call.id,
+            chatId: call.chatId,
+            userId: user.id,
+          },
+          "Chamada aceita",
+        );
+      } catch (error) {
+        const clientError = sendAckError(ack, error);
+
+        logger.warn(
+          {
+            err: error,
+            userId: user.id,
+            payload,
+          },
+          "Erro ao aceitar chamada",
+        );
+
+        socket.emit("server_error", clientError);
+      }
+    });
+
+    socket.on("call:reject", async (payload: unknown, ack?: ClientAck) => {
+      try {
+        const rawPayload = getObjectPayload(payload);
+        const callId = getCallId(rawPayload);
+        const call = activeCalls.get(callId);
+
+        if (!call) {
+          throw new AppError(404, "Chamada não encontrada ou encerrada.", "CALL_NOT_FOUND");
+        }
+
+        assertCallParticipant(call, user.id);
+
+        const otherUserId = getOtherCallUserId(call, user.id);
+        activeCalls.delete(call.id);
+
+        io.to(`user:${otherUserId}`).emit("call:rejected", {
+          ...callPublicDTO(call),
+          rejectedBy: user.id,
+        });
+
+        if (typeof ack === "function") {
+          ack({
+            success: true,
+            data: {
+              ended: true,
+              callId: call.id,
+            },
+          });
+        }
+
+        logger.info(
+          {
+            callId: call.id,
+            chatId: call.chatId,
+            userId: user.id,
+          },
+          "Chamada recusada/cancelada",
+        );
+      } catch (error) {
+        const clientError = sendAckError(ack, error);
+
+        logger.warn(
+          {
+            err: error,
+            userId: user.id,
+            payload,
+          },
+          "Erro ao recusar/cancelar chamada",
+        );
+
+        socket.emit("server_error", clientError);
+      }
+    });
+
+    socket.on("call:end", async (payload: unknown, ack?: ClientAck) => {
+      try {
+        const rawPayload = getObjectPayload(payload);
+        const callId = getCallId(rawPayload);
+        const call = activeCalls.get(callId);
+
+        if (!call) {
+          if (typeof ack === "function") {
+            ack({
+              success: true,
+              data: {
+                ended: true,
+                callId,
+              },
+            });
+          }
+
+          return;
+        }
+
+        assertCallParticipant(call, user.id);
+
+        const otherUserId = getOtherCallUserId(call, user.id);
+        activeCalls.delete(call.id);
+
+        io.to(`user:${otherUserId}`).emit("call:ended", {
+          ...callPublicDTO(call),
+          endedBy: user.id,
+        });
+
+        if (typeof ack === "function") {
+          ack({
+            success: true,
+            data: {
+              ended: true,
+              callId: call.id,
+            },
+          });
+        }
+
+        logger.info(
+          {
+            callId: call.id,
+            chatId: call.chatId,
+            userId: user.id,
+          },
+          "Chamada encerrada",
+        );
+      } catch (error) {
+        const clientError = sendAckError(ack, error);
+
+        logger.warn(
+          {
+            err: error,
+            userId: user.id,
+            payload,
+          },
+          "Erro ao encerrar chamada",
+        );
+
+        socket.emit("server_error", clientError);
+      }
+    });
+
+    socket.on("call:signal", async (payload: unknown, ack?: ClientAck) => {
+      try {
+        const rawPayload = getObjectPayload(payload);
+        const callId = getCallId(rawPayload);
+        const signal = getSignalPayload(rawPayload);
+        const call = activeCalls.get(callId);
+
+        if (!call) {
+          throw new AppError(404, "Chamada não encontrada ou encerrada.", "CALL_NOT_FOUND");
+        }
+
+        assertCallParticipant(call, user.id);
+
+        const otherUserId = getOtherCallUserId(call, user.id);
+
+        io.to(`user:${otherUserId}`).emit("call:signal", {
+          callId: call.id,
+          chatId: call.chatId,
+          fromUserId: user.id,
+          signal,
+        });
+
+        if (typeof ack === "function") {
+          ack({
+            success: true,
+            data: {
+              delivered: true,
+              callId: call.id,
+            },
+          });
+        }
+      } catch (error) {
+        const clientError = sendAckError(ack, error);
+
+        logger.warn(
+          {
+            err: error,
+            userId: user.id,
+            payload,
+          },
+          "Erro ao enviar sinal da chamada",
+        );
+
+        socket.emit("server_error", clientError);
+      }
+    });
+
+    socket.on("disconnect", async () => {
+      try {
+        const offlineUser = await setUserOnlineStatus({
+          userId: user.id,
+          isOnline: false,
+        });
+
+        io.emit("user_status", {
+          userId: user.id,
+          isOnline: false,
+          lastSeenAt: offlineUser.lastSeenAt,
+        });
+      } catch (error) {
+        logger.warn(
+          {
+            err: error,
+            userId: user.id,
+          },
+          "Erro ao atualizar status offline do usuário",
+        );
+      }
+    });
+
     socket.on("typing_start", async (payload: unknown) => {
       try {
-        const chatId =
-          typeof payload === "object" && payload && "chatId" in payload
-            ? Number((payload as { chatId?: unknown }).chatId)
-            : 0;
-
-        if (!Number.isInteger(chatId) || chatId <= 0) return;
+        const chatId = getChatIdFromPayload(payload);
 
         await assertChatMember(chatId, user.id);
 
@@ -206,18 +711,13 @@ export function setupSocket(io: Server) {
           nome: user.nome,
         });
       } catch {
-        // Não derruba socket por erro de typing
+        // Erro de typing não deve derrubar o socket.
       }
     });
 
     socket.on("typing_stop", async (payload: unknown) => {
       try {
-        const chatId =
-          typeof payload === "object" && payload && "chatId" in payload
-            ? Number((payload as { chatId?: unknown }).chatId)
-            : 0;
-
-        if (!Number.isInteger(chatId) || chatId <= 0) return;
+        const chatId = getChatIdFromPayload(payload);
 
         await assertChatMember(chatId, user.id);
 
@@ -227,7 +727,7 @@ export function setupSocket(io: Server) {
           nome: user.nome,
         });
       } catch {
-        // Não derruba socket por erro de typing
+        // Erro de typing não deve derrubar o socket.
       }
     });
 

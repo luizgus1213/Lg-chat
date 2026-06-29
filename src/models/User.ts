@@ -6,9 +6,16 @@ export interface UserAttributes {
   nome: string;
   email: string;
   senha: string;
+  avatarUrl?: string | null;
+  about?: string | null;
+  isOnline?: boolean;
+  lastSeenAt?: Date | null;
 }
 
-type UserCreationAttributes = Optional<UserAttributes, "id">;
+type UserCreationAttributes = Optional<
+  UserAttributes,
+  "id" | "avatarUrl" | "about" | "isOnline" | "lastSeenAt"
+>;
 
 export class User
   extends Model<UserAttributes, UserCreationAttributes>
@@ -18,6 +25,10 @@ export class User
   declare nome: string;
   declare email: string;
   declare senha: string;
+  declare avatarUrl: string | null;
+  declare about: string | null;
+  declare isOnline: boolean;
+  declare lastSeenAt: Date | null;
 }
 
 export function initUserModel() {
@@ -28,18 +39,46 @@ export function initUserModel() {
         autoIncrement: true,
         primaryKey: true,
       },
+
       nome: {
-        type: DataTypes.STRING,
+        type: DataTypes.STRING(120),
         allowNull: false,
       },
+
       email: {
-        type: DataTypes.STRING,
+        type: DataTypes.STRING(255),
         allowNull: false,
         unique: true,
       },
+
       senha: {
         type: DataTypes.STRING,
         allowNull: false,
+      },
+
+      avatarUrl: {
+        type: DataTypes.STRING(500),
+        allowNull: true,
+        field: "avatar_url",
+      },
+
+      about: {
+        type: DataTypes.STRING(140),
+        allowNull: true,
+        defaultValue: "Disponível",
+      },
+
+      isOnline: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: false,
+        field: "is_online",
+      },
+
+      lastSeenAt: {
+        type: DataTypes.DATE,
+        allowNull: true,
+        field: "last_seen_at",
       },
     },
     {

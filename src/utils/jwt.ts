@@ -1,4 +1,4 @@
-import jwt from "jsonwebtoken";
+import jwt, { type SignOptions } from "jsonwebtoken";
 import { env } from "../config/env";
 import { AppError } from "../errors/AppError";
 
@@ -9,6 +9,10 @@ export interface TokenPayload {
 }
 
 export function gerarToken(user: { id: number; nome: string; email: string }) {
+  const options: SignOptions = {
+    expiresIn: env.JWT_EXPIRES_IN as SignOptions["expiresIn"],
+  };
+
   return jwt.sign(
     {
       id: user.id,
@@ -16,9 +20,7 @@ export function gerarToken(user: { id: number; nome: string; email: string }) {
       email: user.email,
     },
     env.JWT_SECRET,
-    {
-      expiresIn: "7d",
-    },
+    options,
   );
 }
 
@@ -29,7 +31,9 @@ export function verificarToken(token: string): TokenPayload {
     if (
       typeof decoded !== "object" ||
       decoded === null ||
-      typeof decoded.id !== "number"
+      typeof decoded.id !== "number" ||
+      typeof decoded.nome !== "string" ||
+      typeof decoded.email !== "string"
     ) {
       throw new AppError(401, "Token inválido.", "INVALID_TOKEN");
     }

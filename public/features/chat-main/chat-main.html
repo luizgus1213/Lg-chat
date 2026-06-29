@@ -1,0 +1,380 @@
+<main class="chat-main">
+  <header class="chat-header">
+    <button id="backToChatsButton" type="button" class="back-button">
+      ←
+    </button>
+
+    <button
+      id="chatHeaderProfileButton"
+      type="button"
+      class="chat-header-profile"
+      disabled
+    >
+      <div id="chatHeaderAvatar" class="chat-header-avatar">?</div>
+
+      <div class="chat-title-box">
+        <h2 id="chatTitle">Escolha uma conversa</h2>
+        <p id="chatSubtitle">Nenhum chat selecionado</p>
+      </div>
+    </button>
+
+    <div class="header-actions">
+      <button
+        id="startVoiceCallButton"
+        type="button"
+        class="ghost-button call-header-button"
+        title="Chamada de voz"
+        disabled
+      >
+        ☎️
+      </button>
+
+      <button
+        id="startVideoCallButton"
+        type="button"
+        class="ghost-button call-header-button"
+        title="Chamada de vídeo"
+        disabled
+      >
+        🎥
+      </button>
+
+      <button
+        id="openChatSearchButton"
+        type="button"
+        class="ghost-button chat-search-toggle"
+        title="Pesquisar nesta conversa"
+      >
+        🔎
+      </button>
+
+      <button
+        id="openStarredMessagesButton"
+        type="button"
+        class="ghost-button starred-toggle"
+        title="Mensagens favoritas"
+      >
+        ⭐
+      </button>
+
+      <button id="refreshChatsButton" type="button" class="ghost-button">
+        Atualizar
+      </button>
+    </div>
+  </header>
+
+  <section id="chatSearchPanel" class="chat-search-panel hidden" aria-label="Pesquisar mensagens nesta conversa">
+    <div class="chat-search-box">
+      <span class="chat-search-icon">🔎</span>
+      <input
+        id="messageSearchInput"
+        placeholder="Pesquisar nesta conversa..."
+        autocomplete="off"
+      />
+
+      <select id="messageSearchType" title="Filtrar tipo de mensagem">
+        <option value="all">Todos</option>
+        <option value="text">Textos</option>
+        <option value="image">Fotos</option>
+        <option value="video">Vídeos</option>
+        <option value="audio">Áudios</option>
+        <option value="file">Documentos</option>
+        <option value="media">Mídias</option>
+      </select>
+
+      <button id="clearChatSearchButton" type="button" class="chat-search-small-button">
+        Limpar
+      </button>
+
+      <button id="closeChatSearchButton" type="button" class="chat-search-close">
+        ×
+      </button>
+    </div>
+
+    <p id="messageSearchStatus" class="chat-search-status">Digite para pesquisar mensagens.</p>
+    <div id="messageSearchResults" class="chat-search-results"></div>
+  </section>
+
+  <section id="starredMessagesPanel" class="starred-messages-panel hidden" aria-label="Mensagens favoritas">
+    <div class="starred-messages-header">
+      <strong>Mensagens favoritas</strong>
+
+      <button id="closeStarredMessagesButton" type="button" class="chat-search-close">
+        ×
+      </button>
+    </div>
+
+    <p id="starredMessagesStatus" class="chat-search-status">Carregando favoritas...</p>
+    <div id="starredMessagesResults" class="chat-search-results"></div>
+  </section>
+
+  <div id="chatBlockNotice" class="chat-block-notice hidden"></div>
+
+  <div id="messages" class="messages empty-state">
+    <div>
+      <h3>Bem-vindo ao LG Chat</h3>
+      <p>Crie um grupo ou escolha uma conversa para começar.</p>
+    </div>
+  </div>
+
+  <div id="typingText" class="typing-text"></div>
+
+  <div id="replyBar" class="reply-bar hidden">
+    <div class="reply-info">
+      <strong id="replyAuthor">Respondendo</strong>
+      <span id="replyPreview">Mensagem selecionada</span>
+    </div>
+
+    <button id="cancelReplyButton" type="button" class="reply-cancel-button">
+      ×
+    </button>
+  </div>
+
+  <div id="editingBar" class="editing-bar hidden">
+    <div class="editing-info">
+      <strong>Editando mensagem</strong>
+      <span id="editingPreview">Mensagem selecionada</span>
+    </div>
+
+    <button id="cancelEditButton" type="button" class="editing-cancel-button">
+      ×
+    </button>
+  </div>
+
+  <form id="messageForm" class="message-form">
+    <button
+      id="mediaButton"
+      type="button"
+      class="media-button"
+      title="Anexar arquivo"
+    >
+      +
+    </button>
+
+    <div id="attachmentMenu" class="attachment-menu hidden">
+      <button id="attachCameraButton" type="button">
+        <span>📷</span>
+        Câmera
+      </button>
+
+      <button id="attachVideoButton" type="button">
+        <span>🎥</span>
+        Gravar vídeo
+      </button>
+
+      <button id="attachGalleryButton" type="button">
+        <span>🖼️</span>
+        Galeria
+      </button>
+
+      <button id="attachDocumentButton" type="button">
+        <span>📎</span>
+        Documento
+      </button>
+    </div>
+
+    <input
+      id="mediaInput"
+      type="file"
+      accept="image/jpeg,image/jpg,image/png,image/webp,image/gif,video/mp4,video/webm,video/quicktime,audio/webm,audio/ogg,audio/mpeg,audio/mp3,audio/wav,audio/x-wav,audio/mp4,audio/aac"
+      class="hidden"
+    />
+
+    <input
+      id="cameraInput"
+      type="file"
+      accept="image/*"
+      capture="environment"
+      class="hidden"
+    />
+
+    <input
+      id="videoCaptureInput"
+      type="file"
+      accept="video/*"
+      capture="environment"
+      class="hidden"
+    />
+
+    <input
+      id="documentInput"
+      type="file"
+      accept=".pdf,.txt,.csv,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.rar,.7z,application/pdf,text/plain,text/csv,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/zip,application/x-zip-compressed,application/x-rar-compressed,application/vnd.rar,application/x-7z-compressed"
+      class="hidden"
+    />
+
+    <input
+      id="messageInput"
+      placeholder="Digite sua mensagem..."
+      autocomplete="off"
+    />
+
+    <button
+      id="voiceButton"
+      type="button"
+      class="voice-button"
+      title="Gravar áudio"
+    >
+      🎙
+    </button>
+
+    <button id="sendMessageButton" type="submit">Enviar</button>
+  </form>
+
+  <div id="audioRecorderModal" class="audio-recorder-modal hidden" role="dialog" aria-modal="true">
+    <div class="audio-recorder-panel">
+      <header class="audio-recorder-header">
+        <button id="closeAudioRecorderButton" type="button" class="audio-recorder-close">
+          ×
+        </button>
+
+        <div>
+          <h3 id="audioRecorderTitle">Gravar áudio</h3>
+          <p id="audioRecorderSubtitle">Seu microfone será usado apenas durante a gravação.</p>
+        </div>
+      </header>
+
+      <div class="audio-recorder-body">
+        <div id="audioRecorderPulse" class="audio-recorder-pulse">🎙</div>
+        <strong id="audioRecorderStatus">Preparando gravação...</strong>
+        <span id="audioRecorderTimer" class="audio-recorder-timer">00:00</span>
+        <audio id="audioPreviewPlayer" class="audio-preview-player hidden" controls></audio>
+      </div>
+
+      <footer class="audio-recorder-actions">
+        <button id="cancelAudioRecorderButton" type="button" class="audio-recorder-cancel">
+          Cancelar
+        </button>
+
+        <button id="stopAudioRecorderButton" type="button" class="audio-recorder-stop">
+          Parar
+        </button>
+
+        <button id="sendAudioRecorderButton" type="button" class="audio-recorder-send hidden">
+          Enviar áudio
+        </button>
+      </footer>
+    </div>
+  </div>
+
+  <div id="mediaPreviewModal" class="media-preview-modal hidden" role="dialog" aria-modal="true">
+    <div class="media-preview-panel">
+      <header class="media-preview-header">
+        <button id="closeMediaPreviewButton" type="button" class="media-preview-close">
+          ×
+        </button>
+
+        <div>
+          <h3 id="mediaPreviewTitle">Enviar arquivo</h3>
+          <p id="mediaPreviewMeta">Pré-visualização</p>
+        </div>
+      </header>
+
+      <div id="mediaPreviewBody" class="media-preview-body"></div>
+
+      <footer class="media-preview-footer">
+        <input
+          id="mediaPreviewCaption"
+          placeholder="Adicione uma legenda..."
+          autocomplete="off"
+        />
+
+        <div class="media-preview-actions">
+          <button id="cancelMediaPreviewButton" type="button" class="media-preview-cancel">
+            Cancelar
+          </button>
+
+          <button id="sendMediaPreviewButton" type="button" class="media-preview-send">
+            Enviar
+          </button>
+        </div>
+      </footer>
+    </div>
+  </div>
+
+  <div id="forwardMessageModal" class="forward-message-modal modal hidden" role="dialog" aria-modal="true">
+    <div class="modal-content forward-message-panel">
+      <header class="forward-message-header">
+        <div>
+          <h3>Encaminhar mensagem</h3>
+          <p id="forwardMessagePreview">Mensagem selecionada</p>
+        </div>
+
+        <button id="closeForwardMessageButton" type="button" class="icon-button">
+          ×
+        </button>
+      </header>
+
+      <div class="forward-message-body">
+        <p class="muted">Escolha uma ou mais conversas:</p>
+        <div id="forwardChatsList" class="forward-chats-list"></div>
+      </div>
+
+      <footer class="forward-message-actions">
+        <button id="cancelForwardMessageButton" type="button" class="ghost-button">
+          Cancelar
+        </button>
+
+        <button id="sendForwardMessageButton" type="button">
+          Encaminhar
+        </button>
+      </footer>
+    </div>
+  </div>
+
+  <div id="mediaViewerModal" class="media-viewer-modal hidden" role="dialog" aria-modal="true">
+    <header class="media-viewer-header">
+      <button id="closeMediaViewerButton" type="button" class="media-viewer-close">
+        ×
+      </button>
+
+      <div>
+        <h3 id="mediaViewerTitle">Mídia</h3>
+        <p>Visualização</p>
+      </div>
+    </header>
+
+    <div id="mediaViewerBody" class="media-viewer-body"></div>
+
+    <p id="mediaViewerCaption" class="media-viewer-caption"></p>
+  </div>
+
+  <section id="callPanel" class="call-panel hidden" aria-label="Chamada">
+    <div class="call-card">
+      <div class="call-video-stage">
+        <video id="remoteCallVideo" class="remote-call-video hidden" autoplay playsinline></video>
+        <video id="localCallVideo" class="local-call-video hidden" autoplay playsinline muted></video>
+
+        <div id="callAvatarFallback" class="call-avatar-fallback">
+          <div id="callAvatarInitial" class="call-avatar-initial">?</div>
+          <h3 id="callUserName">Chamada</h3>
+          <p id="callStatusText">Preparando chamada...</p>
+          <span id="callTimer" class="call-timer hidden">00:00</span>
+        </div>
+      </div>
+
+      <div class="call-actions">
+        <button id="acceptCallButton" type="button" class="call-action-button accept hidden" title="Atender">
+          ✓
+        </button>
+
+        <button id="rejectCallButton" type="button" class="call-action-button danger hidden" title="Recusar">
+          ✕
+        </button>
+
+        <button id="toggleMuteCallButton" type="button" class="call-action-button hidden" title="Mutar microfone">
+          🎙️
+        </button>
+
+        <button id="toggleCameraCallButton" type="button" class="call-action-button hidden" title="Ligar/desligar câmera">
+          📷
+        </button>
+
+        <button id="endCallButton" type="button" class="call-action-button danger hidden" title="Encerrar">
+          ⏹
+        </button>
+      </div>
+    </div>
+  </section>
+
+</main>

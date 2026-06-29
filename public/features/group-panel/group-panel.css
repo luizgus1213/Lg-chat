@@ -1,0 +1,16 @@
+.check-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text);
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(42, 57, 66, 0.55);
+}
+
+.check-row input {
+  width: auto;
+}
+
+.check-row span {
+  font-size: 14px;
+}

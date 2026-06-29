@@ -1,0 +1,52 @@
+.primary-button,
+.secondary-button,
+.sidebar-actions button,
+.message-form button {
+  border: none;
+  border-radius: 10px;
+  background: var(--green);
+  color: #06251f;
+  padding: 12px 14px;
+  font-weight: 700;
+}
+
+.secondary-button {
+  background: #2a3942;
+  color: var(--text);
+}
+
+.primary-button:disabled,
+.secondary-button:disabled,
+.sidebar-actions button:disabled,
+.message-form button:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.primary-button:hover:not(:disabled),
+.secondary-button:hover:not(:disabled),
+.sidebar-actions button:hover:not(:disabled),
+.message-form button:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+.ghost-button,
+.icon-button,
+.back-button {
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--muted);
+  padding: 9px 12px;
+}
+
+.ghost-button:hover,
+.icon-button:hover,
+.back-button:hover {
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--text);
+}
+
+.danger {
+  color: #ffb4b4;
+}
