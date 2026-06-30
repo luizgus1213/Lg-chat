@@ -1,6 +1,4 @@
 import type { Request, Response } from "express";
-import fs from "fs/promises";
-
 import { emitToChat } from "../sockets/socketServer";
 
 import {
@@ -56,6 +54,12 @@ import {
 } from "../services/ChatService";
 
 import { created, ok } from "../utils/httpResponse";
+import {
+  processAvatarImageUpload,
+  processChatMediaUpload,
+  removeUploadedFile,
+  type ProcessedUpload,
+} from "../utils/uploadSecurity";
 
 export async function createPrivateChatController(req: Request, res: Response) {
   const data = createPrivateChatSchema.parse(req.body);
@@ -395,13 +399,6 @@ export async function leaveGroupController(req: Request, res: Response) {
   return ok(res, result, "Você saiu do grupo com sucesso.");
 }
 
-async function removeUploadedFile(filePath?: string) {
-  if (!filePath) {
-    return;
-  }
-
-  await fs.unlink(filePath).catch(() => undefined);
-}
 
 export async function updateGroupAvatarController(req: Request, res: Response) {
   const { chatId } = chatIdParamsSchema.parse(req.params);
@@ -417,24 +414,26 @@ export async function updateGroupAvatarController(req: Request, res: Response) {
     });
   }
 
+  let processedFile: ProcessedUpload | null = null;
+
   try {
-    const avatarUrl = `/uploads/groups/${req.file.filename}`;
+    processedFile = await processAvatarImageUpload(req.file);
 
     const chat = await updateGroupAvatar({
       currentUserId: req.user!.id,
       chatId,
-      avatarUrl,
+      avatarUrl: processedFile.mediaUrl,
     });
 
     emitToChat(chatId, "chat_updated", {
       chatId,
-      avatarUrl,
+      avatarUrl: processedFile.mediaUrl,
       updatedAt: chat.updatedAt,
     });
 
     return ok(res, chat, "Foto do grupo atualizada com sucesso.");
   } catch (error) {
-    await removeUploadedFile(req.file.path);
+    await removeUploadedFile(processedFile?.filePath ?? req.file.path);
     throw error;
   }
 }
@@ -454,17 +453,19 @@ export async function sendChatMediaController(req: Request, res: Response) {
     });
   }
 
+  let processedFile: ProcessedUpload | null = null;
+
   try {
-    const mediaUrl = `/uploads/chat-media/${req.file.filename}`;
+    processedFile = await processChatMediaUpload(req.file);
 
     const message = await sendMediaMessageToChat({
       currentUserId: req.user!.id,
       chatId,
       caption: data.caption,
-      mediaUrl,
-      mediaMimeType: req.file.mimetype,
-      mediaSize: req.file.size,
-      mediaOriginalName: req.file.originalname,
+      mediaUrl: processedFile.mediaUrl,
+      mediaMimeType: processedFile.mediaMimeType,
+      mediaSize: processedFile.mediaSize,
+      mediaOriginalName: processedFile.mediaOriginalName,
       replyToMessageId: data.replyToMessageId,
     });
 
@@ -477,7 +478,7 @@ export async function sendChatMediaController(req: Request, res: Response) {
 
     return created(res, message, "Arquivo enviado com sucesso.");
   } catch (error) {
-    await removeUploadedFile(req.file.path);
+    await removeUploadedFile(processedFile?.filePath ?? req.file.path);
     throw error;
   }
 }

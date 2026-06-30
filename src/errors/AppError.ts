@@ -51,6 +51,37 @@ export function toClientError(error: unknown): ClientError {
     };
   }
 
+
+  if (
+    error &&
+    typeof error === "object" &&
+    (error as { name?: string; code?: string }).name === "MulterError"
+  ) {
+    const code = (error as { code?: string }).code;
+
+    if (code === "LIMIT_FILE_SIZE") {
+      return {
+        code: "UPLOAD_FILE_TOO_LARGE",
+        message: "Arquivo muito grande. Envie um arquivo menor.",
+        statusCode: 413,
+      };
+    }
+
+    if (code === "LIMIT_UNEXPECTED_FILE") {
+      return {
+        code: "UPLOAD_UNEXPECTED_FIELD",
+        message: "Campo de arquivo inválido.",
+        statusCode: 400,
+      };
+    }
+
+    return {
+      code: "UPLOAD_ERROR",
+      message: "Erro ao receber arquivo enviado.",
+      statusCode: 400,
+    };
+  }
+
   if (error instanceof UniqueConstraintError) {
     return {
       code: "DUPLICATED_DATA",

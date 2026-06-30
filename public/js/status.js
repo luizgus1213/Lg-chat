@@ -5,6 +5,8 @@
   const ui = window.LGChat.ui;
 
   const VIEW_DURATION_MS = 6500;
+  let lastStatusLoadAt = 0;
+  let statusLoadPromise = null;
 
   function safeEl(id) {
     return document.getElementById(id);
@@ -85,6 +87,29 @@
       hour: "2-digit",
       minute: "2-digit",
     });
+  }
+
+  function validateStatusMediaFile(file) {
+    if (!file) return false;
+
+    const mb = 1024 * 1024;
+    const isImage = file.type.startsWith("image/");
+    const isVideo = file.type.startsWith("video/");
+
+    if (!isImage && !isVideo) {
+      ui.showToast("error", "Publique apenas foto ou vídeo no status.");
+      return false;
+    }
+
+    const maxBytes = isImage ? 8 * mb : 30 * mb;
+    const maxLabel = isImage ? "8MB" : "30MB";
+
+    if (file.size > maxBytes) {
+      ui.showToast("error", `Status de ${isImage ? "imagem" : "vídeo"} deve ter no máximo ${maxLabel}.`);
+      return false;
+    }
+
+    return true;
   }
 
   function getStatusPreview(status) {
@@ -253,21 +278,40 @@
     }
   }
 
-  async function loadStatuses() {
-    const groups = await request("/api/status");
+  async function loadStatuses(options = {}) {
+    const now = Date.now();
 
-    state.statusGroups = Array.isArray(groups) ? groups : [];
+    if (!options.force && state.statusGroups?.length && now - lastStatusLoadAt < 30000) {
+      renderSidebarStatuses();
+      renderStatusPanel();
+      return state.statusGroups;
+    }
 
-    renderSidebarStatuses();
-    renderStatusPanel();
+    if (statusLoadPromise) {
+      return statusLoadPromise;
+    }
 
-    return state.statusGroups;
+    statusLoadPromise = request("/api/status")
+      .then((groups) => {
+        state.statusGroups = Array.isArray(groups) ? groups : [];
+        lastStatusLoadAt = Date.now();
+
+        renderSidebarStatuses();
+        renderStatusPanel();
+
+        return state.statusGroups;
+      })
+      .finally(() => {
+        statusLoadPromise = null;
+      });
+
+    return statusLoadPromise;
   }
 
   function openStatusPanel() {
     ui.openModal("statusPanel");
 
-    loadStatuses().catch((error) => {
+    loadStatuses({ force: true }).catch((error) => {
       ui.showToast("error", error.message);
     });
   }
@@ -296,7 +340,7 @@
     input.value = "";
 
     ui.showToast("success", "Status publicado.");
-    await loadStatuses();
+    await loadStatuses({ force: true });
   }
 
   async function createMediaStatus(file) {
@@ -319,7 +363,7 @@
     if (captionInput) captionInput.value = "";
 
     ui.showToast("success", "Status publicado.");
-    await loadStatuses();
+    await loadStatuses({ force: true });
   }
 
   function findGroupIndexByUserId(userId) {
@@ -391,7 +435,7 @@
       });
 
       status.viewedByMe = true;
-      await loadStatuses();
+      await loadStatuses({ force: true });
     } catch (error) {
       console.error("Erro ao marcar status como visualizado:", error);
     }
@@ -454,6 +498,8 @@
       if (status.type === "image") {
         const img = document.createElement("img");
         img.className = "status-viewer-image";
+        img.loading = "eager";
+        img.decoding = "async";
         img.src = status.mediaUrl;
         img.alt = status.text || "Status";
         body.appendChild(img);
@@ -462,6 +508,7 @@
       if (status.type === "video") {
         const video = document.createElement("video");
         video.className = "status-viewer-video";
+        video.preload = "metadata";
         video.src = status.mediaUrl;
         video.controls = true;
         video.autoplay = true;
@@ -566,7 +613,7 @@
     });
 
     ui.showToast("success", "Status apagado.");
-    await loadStatuses();
+    await loadStatuses({ force: true });
     closeStatusViewer();
   }
 
@@ -637,6 +684,7 @@
       input.value = "";
 
       if (!file) return;
+      if (!validateStatusMediaFile(file)) return;
 
       createMediaStatus(file).catch((error) => {
         ui.showToast("error", error.message);

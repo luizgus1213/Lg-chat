@@ -745,5 +745,10 @@
     syncCallButtons,
     startCall,
     endCall,
+    handleIncomingCall,
+    handleAccepted,
+    handleRemoteEnded,
+    handleRemoteRejected,
+    handleSignal,
   };
 })();

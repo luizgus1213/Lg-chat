@@ -3,6 +3,10 @@ import { authMiddleware } from "../middlewares/authMiddleware";
 import { statusUpload } from "../middlewares/statusUpload";
 import { asyncHandler } from "../utils/asyncHandler";
 import {
+  statusCreateRateLimit,
+  statusRateLimit,
+} from "../middlewares/securityRateLimits";
+import {
   createMediaStatusController,
   createTextStatusController,
   deleteStatusController,
@@ -19,13 +23,14 @@ statusRoutes.use(authMiddleware);
 statusRoutes.get("/", asyncHandler(listStatusesController));
 statusRoutes.get("/me", asyncHandler(listMyStatusesController));
 
-statusRoutes.post("/text", asyncHandler(createTextStatusController));
+statusRoutes.post("/text", statusCreateRateLimit, asyncHandler(createTextStatusController));
 statusRoutes.post(
   "/media",
+  statusCreateRateLimit,
   statusUpload,
   asyncHandler(createMediaStatusController),
 );
 
-statusRoutes.post("/:statusId/view", asyncHandler(markStatusViewedController));
+statusRoutes.post("/:statusId/view", statusRateLimit, asyncHandler(markStatusViewedController));
 statusRoutes.get("/:statusId/views", asyncHandler(listStatusViewsController));
-statusRoutes.delete("/:statusId", asyncHandler(deleteStatusController));
+statusRoutes.delete("/:statusId", statusRateLimit, asyncHandler(deleteStatusController));

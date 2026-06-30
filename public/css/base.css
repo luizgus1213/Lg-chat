@@ -374,3 +374,133 @@ button[type="submit"]:hover,
     user-select: text;
   }
 }
+
+
+/* Performance v4 - base */
+.performance-mode body {
+  background: var(--bg);
+}
+
+.performance-mode .modal {
+  backdrop-filter: none;
+}
+
+.performance-mode .modal-content {
+  box-shadow: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+
+/* UX stability v5 */
+body.socket-offline::after {
+  content: "Reconectando...";
+  position: fixed;
+  left: 50%;
+  bottom: max(14px, env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  z-index: 120;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: rgba(248, 184, 78, 0.14);
+  color: #ffd792;
+  border: 1px solid rgba(248, 184, 78, 0.32);
+  font-size: 12px;
+  font-weight: 800;
+  backdrop-filter: blur(8px);
+}
+
+button[data-loading="true"] {
+  pointer-events: none;
+  opacity: 0.72;
+}
+
+.performance-mode body.socket-offline::after {
+  backdrop-filter: none;
+}
+
+img {
+  max-width: 100%;
+}
+
+
+/* Lazy CSS/render v6 */
+.users-list > *,
+.group-users-list > *,
+.chat-list > * {
+  content-visibility: auto;
+  contain-intrinsic-size: 76px;
+}
+
+#usersPanelRoot,
+#groupPanelRoot,
+#infoPanelRoot {
+  contain: layout style;
+}
+
+.performance-mode .chat-page {
+  background: var(--bg);
+}
+
+
+/* Local cache/render v7 */
+.user-row,
+.check-row {
+  content-visibility: auto;
+  contain-intrinsic-size: 54px;
+}
+
+.chat-list,
+.users-list,
+.group-users-list {
+  contain: layout style paint;
+}
+
+.performance-mode .user-row,
+.performance-mode .check-row,
+.performance-mode .chat-item {
+  box-shadow: none;
+}
+
+
+/* Event delegation/prefetch v8 */
+.chat-item,
+.user-row {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.chat-item,
+.user-row,
+.check-row {
+  contain: layout style paint;
+}
+
+.chat-list,
+.users-list,
+.group-users-list {
+  will-change: scroll-position;
+}
+
+
+/* Fast switch/abort v9 */
+.messages .loading {
+  align-self: center;
+}
+
+.chat-main.loading-chat .message-form {
+  opacity: 0.92;
+}
+
+.performance-mode .messages .loading {
+  box-shadow: none;
+}

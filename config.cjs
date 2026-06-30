@@ -8,40 +8,35 @@ for (const key of requiredEnv) {
   }
 }
 
+const useSSL = process.env.DB_SSL === "true";
+
+const baseConfig = {
+  username: process.env.DB_USER,
+  password: process.env.DB_PASS,
+  database: process.env.DB_NAME,
+  host: process.env.DB_HOST,
+  port: Number(process.env.DB_PORT),
+  dialect: "postgres",
+
+  dialectOptions: useSSL
+    ? {
+        ssl: {
+          require: true,
+          rejectUnauthorized: false,
+        },
+      }
+    : {},
+
+  pool: {
+    max: 10,
+    min: 0,
+    acquire: 30000,
+    idle: 10000,
+  },
+};
+
 module.exports = {
-  development: {
-    username: process.env.DB_USER,
-    password: process.env.DB_PASS,
-    database: process.env.DB_NAME,
-    host: process.env.DB_HOST,
-    port: Number(process.env.DB_PORT),
-    dialect: "postgres",
-  },
-
-  test: {
-    username: process.env.DB_USER,
-    password: process.env.DB_PASS,
-    database: process.env.DB_NAME,
-    host: process.env.DB_HOST,
-    port: Number(process.env.DB_PORT),
-    dialect: "postgres",
-  },
-
-  production: {
-    username: process.env.DB_USER,
-    password: process.env.DB_PASS,
-    database: process.env.DB_NAME,
-    host: process.env.DB_HOST,
-    port: Number(process.env.DB_PORT),
-    dialect: "postgres",
-    dialectOptions: {
-      ssl:
-        process.env.DB_SSL === "true"
-          ? {
-              require: true,
-              rejectUnauthorized: false,
-            }
-          : false,
-    },
-  },
+  development: baseConfig,
+  test: baseConfig,
+  production: baseConfig,
 };

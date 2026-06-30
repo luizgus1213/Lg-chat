@@ -165,7 +165,7 @@ export const sendChatMessageSchema = z.object({
 });
 
 export const listChatMessagesQuerySchema = z.object({
-  limit: z.coerce.number().int().min(1).max(200).default(50),
+  limit: z.coerce.number().int().min(1).max(80).default(30),
   beforeId: z.coerce.number().int().positive().optional(),
 });
 

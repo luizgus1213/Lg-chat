@@ -6,6 +6,7 @@
   let deferredInstallPrompt = null;
   let hasBoundUi = false;
   let audioContext = null;
+  let hasReloadedForServiceWorkerUpdate = false;
 
   function getState() {
     return window.LGChat.state || {};
@@ -334,8 +335,25 @@
     window.addEventListener("load", () => {
       navigator.serviceWorker
         .register("/sw.js")
-        .then(() => {
+        .then((registration) => {
           console.info("Service Worker registrado com sucesso.");
+          registration.update().catch(() => undefined);
+
+          if (registration.waiting) {
+            registration.waiting.postMessage({ type: "SKIP_WAITING" });
+          }
+
+          registration.addEventListener("updatefound", () => {
+            const worker = registration.installing;
+
+            if (!worker) return;
+
+            worker.addEventListener("statechange", () => {
+              if (worker.state === "installed" && navigator.serviceWorker.controller) {
+                worker.postMessage({ type: "SKIP_WAITING" });
+              }
+            });
+          });
         })
         .catch((error) => {
           console.error("Erro ao registrar Service Worker:", error);
@@ -346,6 +364,15 @@
   function register() {
     registerServiceWorker();
     syncUi();
+  }
+
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      if (hasReloadedForServiceWorkerUpdate) return;
+
+      hasReloadedForServiceWorkerUpdate = true;
+      window.location.reload();
+    });
   }
 
   window.addEventListener("beforeinstallprompt", (event) => {
@@ -375,6 +402,7 @@
   window.LGChat.pwa = {
     register,
     bindUi,
+    installApp,
     syncUi,
     notifyNewMessage,
     requestNotificationPermission,

@@ -5,6 +5,77 @@
 
   state.showArchivedChats = Boolean(state.showArchivedChats);
 
+  function scheduleChatsRefresh(reason = "chat", delay = 700) {
+    const performanceApi = window.LGChat.performance;
+
+    if (performanceApi && typeof performanceApi.scheduleLoadChats === "function") {
+      return performanceApi.scheduleLoadChats(reason, delay);
+    }
+
+    return loadChats({ silent: true });
+  }
+
+  function applyMessageToChatList(message, options = {}) {
+    if (!message || !message.chatId || !Array.isArray(state.allChats)) {
+      return false;
+    }
+
+    let found = false;
+    const chatId = Number(message.chatId);
+    const selectedChatId = state.selectedChat ? Number(state.selectedChat.id) : null;
+    const isCurrentChat = selectedChatId === chatId;
+    const isMine = state.currentUser && Number(message.fromUserId) === Number(state.currentUser.id);
+
+    state.allChats = state.allChats.map((chat) => {
+      if (Number(chat.id) !== chatId) return chat;
+
+      found = true;
+
+      const shouldIncrementUnread =
+        options.incrementUnread === true && !isCurrentChat && !isMine;
+
+      return {
+        ...chat,
+        lastMessage: {
+          ...(chat.lastMessage || {}),
+          ...message,
+        },
+        updatedAt: message.createdAt || new Date().toISOString(),
+        unreadCount: shouldIncrementUnread
+          ? Number(chat.unreadCount || 0) + 1
+          : Number(chat.unreadCount || 0),
+      };
+    });
+
+    if (found) {
+      renderChats();
+    }
+
+    return found;
+  }
+
+  function markChatListAsRead(chatId) {
+    if (!chatId || !Array.isArray(state.allChats)) return;
+
+    let changed = false;
+
+    state.allChats = state.allChats.map((chat) => {
+      if (Number(chat.id) !== Number(chatId)) return chat;
+      if (Number(chat.unreadCount || 0) === 0) return chat;
+
+      changed = true;
+      return {
+        ...chat,
+        unreadCount: 0,
+      };
+    });
+
+    if (changed) {
+      renderChats();
+    }
+  }
+
+
   function getChatName(chat) {
     if (!chat) return "Chat";
     if (chat.type === "private" && chat.privateUser) {
@@ -71,6 +142,8 @@
 
     if (avatarUrl) {
       const img = document.createElement("img");
+      img.loading = "lazy";
+      img.decoding = "async";
       img.src = avatarUrl;
       img.alt = `Foto de ${getChatName(chat)}`;
       avatar.appendChild(img);
@@ -88,6 +161,8 @@
 
     if (avatarUrl) {
       const img = document.createElement("img");
+      img.loading = "lazy";
+      img.decoding = "async";
       img.src = avatarUrl;
       img.alt = `Foto de ${getChatName(chat)}`;
       element.appendChild(img);
@@ -457,7 +532,7 @@
       ui.showToast("success", "Mostrando conversas arquivadas.");
     }
 
-    await loadChats();
+    await loadChats({ silent: true });
   }
 
   async function updateChatPreferences(chatId, preferences) {
@@ -525,7 +600,7 @@
     addOption(chat.isPinned ? "Desfixar conversa" : "Fixar conversa", async () => {
       await updateChatPreferences(chat.id, { isPinned: !chat.isPinned });
       ui.showToast("success", chat.isPinned ? "Conversa desfixada." : "Conversa fixada.");
-      await loadChats();
+      await loadChats({ silent: true });
     });
 
     addOption(
@@ -538,7 +613,7 @@
           chat.isArchived ? "Conversa desarquivada." : "Conversa arquivada.",
         );
 
-        await loadChats();
+        await loadChats({ silent: true });
       },
       chat.isArchived ? "" : "warning",
     );
@@ -555,7 +630,7 @@
         });
 
         ui.showToast("success", "Notificações reativadas.");
-        await loadChats();
+        await loadChats({ silent: true });
       });
     } else {
       addOption("Silenciar por 8 horas", async () => {
@@ -565,7 +640,7 @@
         });
 
         ui.showToast("success", "Conversa silenciada por 8 horas.");
-        await loadChats();
+        await loadChats({ silent: true });
       });
 
       addOption("Silenciar por 1 semana", async () => {
@@ -575,7 +650,7 @@
         });
 
         ui.showToast("success", "Conversa silenciada por 1 semana.");
-        await loadChats();
+        await loadChats({ silent: true });
       });
 
       addOption("Silenciar sempre", async () => {
@@ -585,7 +660,7 @@
         });
 
         ui.showToast("success", "Conversa silenciada.");
-        await loadChats();
+        await loadChats({ silent: true });
       });
     }
 
@@ -707,6 +782,8 @@
       if (state.selectedChat && state.selectedChat.id === chatId) {
         state.selectedChat.lastReadMessageId = messageId;
       }
+
+      markChatListAsRead(chatId);
     } catch (error) {
       console.error("Erro ao marcar chat como lido:", error);
     }
@@ -1201,8 +1278,8 @@
       const messages = response.data || [];
       const messagesBox = ui.el("messages");
       messagesBox.className = "messages";
-      messagesBox.replaceChildren();
-      messages.forEach(addMessage);
+      mergeMessagesIntoCache(message.chatId, messages, { replace: true });
+      await renderMessagesReplace(message.chatId, getMessageCache(message.chatId));
 
       element = findMessageElementById(message.id);
     }
@@ -1432,7 +1509,7 @@
 
       ui.showToast("success", "Mensagem encaminhada.");
       closeForwardMessageModal();
-      await loadChats();
+      await loadChats({ silent: true });
 
       if (
         state.selectedChat &&
@@ -1620,7 +1697,7 @@
 
     input.value = "";
     cancelEditMessage();
-    await loadChats();
+    await loadChats({ silent: true });
   }
 
   async function deleteMessageForEveryone(message) {
@@ -1653,7 +1730,7 @@
     }
 
     ui.showToast("success", "Mensagem apagada.");
-    await loadChats();
+    await loadChats({ silent: true });
   }
 
   function findMessageElementById(messageId) {
@@ -2209,27 +2286,437 @@
     }
   }
 
-  async function loadUsers() {
-    const data = await api.request("/api/users");
-    state.allUsers = data.data || [];
-    renderUsersForPrivateChat();
-    renderUsersForGroup();
+
+  const INITIAL_MESSAGE_LIMIT = 30;
+  const OLDER_MESSAGE_LIMIT = 30;
+  const MAX_RENDERED_MESSAGES = 180;
+  const MESSAGE_CACHE_LIMIT = 320;
+
+  function getChatCacheKey(chatId) {
+    return String(Number(chatId));
   }
 
-  async function loadChats() {
-    const chatsList = ui.el("chatsList");
-    ui.setLoading(
-      chatsList,
-      state.showArchivedChats ? "Carregando chats arquivados..." : "Carregando chats...",
-    );
+  function getMessageCache(chatId) {
+    const key = getChatCacheKey(chatId);
+    state.messageCacheByChat = state.messageCacheByChat || {};
+    if (!Array.isArray(state.messageCacheByChat[key])) state.messageCacheByChat[key] = [];
+    return state.messageCacheByChat[key];
+  }
 
-    const query = state.showArchivedChats ? "?archived=true" : "";
-    const data = await api.request(`/api/chats${query}`);
+  function setMessageCache(chatId, messages) {
+    const key = getChatCacheKey(chatId);
+    state.messageCacheByChat = state.messageCacheByChat || {};
+    state.messageCacheByChat[key] = messages.slice(-MESSAGE_CACHE_LIMIT);
+    return state.messageCacheByChat[key];
+  }
 
-    state.allChats = data.data || [];
+  function getMessagePagination(chatId) {
+    const key = getChatCacheKey(chatId);
+    state.messagePaginationByChat = state.messagePaginationByChat || {};
+    if (!state.messagePaginationByChat[key]) {
+      state.messagePaginationByChat[key] = {
+        hasMore: true,
+        isLoadingOlder: false,
+        oldestId: null,
+        lastLoadedAt: 0,
+      };
+    }
+    return state.messagePaginationByChat[key];
+  }
+
+  function getRealMessageId(message) {
+    const id = Number(message?.id);
+    return Number.isInteger(id) && id > 0 ? id : null;
+  }
+
+  function sortMessages(messages) {
+    return [...messages].sort((a, b) => {
+      const aId = getRealMessageId(a);
+      const bId = getRealMessageId(b);
+      if (aId && bId) return aId - bId;
+      if (aId) return 1;
+      if (bId) return -1;
+      return new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime();
+    });
+  }
+
+  function mergeMessagesIntoCache(chatId, incomingMessages, options = {}) {
+    const incoming = Array.isArray(incomingMessages) ? incomingMessages.filter(Boolean) : [];
+
+    if (options.replace) return setMessageCache(chatId, sortMessages(incoming));
+
+    const current = getMessageCache(chatId);
+    const byKey = new Map();
+
+    for (const message of current) {
+      const realId = getRealMessageId(message);
+      const key = realId ? `id:${realId}` : message.clientId ? `client:${message.clientId}` : `tmp:${Math.random()}`;
+      byKey.set(key, message);
+    }
+
+    for (const message of incoming) {
+      const realId = getRealMessageId(message);
+      const key = realId ? `id:${realId}` : message.clientId ? `client:${message.clientId}` : `tmp:${Date.now()}:${Math.random()}`;
+      if (message.clientId) byKey.delete(`client:${message.clientId}`);
+      byKey.set(key, { ...(byKey.get(key) || {}), ...message });
+    }
+
+    return setMessageCache(chatId, sortMessages(Array.from(byKey.values())));
+  }
+
+  function upsertMessageInCache(message) {
+    if (!message || !message.chatId) return;
+    mergeMessagesIntoCache(message.chatId, [message]);
+  }
+
+  function getOldestMessageId(messages) {
+    const ids = (messages || []).map(getRealMessageId).filter((id) => Number.isInteger(id) && id > 0);
+    return ids.length ? Math.min(...ids) : null;
+  }
+
+  function getNewestMessage(messages) {
+    const withIds = (messages || []).filter((message) => getRealMessageId(message));
+    return withIds.length ? withIds[withIds.length - 1] : null;
+  }
+
+  function removeMessagePlaceholders(messagesBox) {
+    messagesBox.querySelectorAll(".empty-chat, .loading, .messages-loading-more").forEach((node) => node.remove());
+  }
+
+  function createMessagesLoadingMore() {
+    const loading = document.createElement("div");
+    loading.className = "messages-loading-more";
+    loading.textContent = "Carregando mensagens antigas...";
+    return loading;
+  }
+
+  function createEmptyMessagesState() {
+    const empty = document.createElement("div");
+    empty.className = "empty-chat";
+    empty.textContent = "Nenhuma mensagem ainda. Seja o primeiro a enviar.";
+    return empty;
+  }
+
+  function renderMessageNodes(messages) {
+    return (messages || []).map((message) => buildMessageElement(message));
+  }
+
+  function trimRenderedMessagesIfNeeded() {
+    const messagesBox = ui.el("messages");
+    const removable = Array.from(messagesBox.children).filter((child) => child.classList && child.classList.contains("message"));
+    if (removable.length <= MAX_RENDERED_MESSAGES) return;
+    const removeCount = removable.length - MAX_RENDERED_MESSAGES;
+    for (let index = 0; index < removeCount; index += 1) removable[index].remove();
+  }
+
+  async function renderMessagesReplace(chatId, messages) {
+    const messagesBox = ui.el("messages");
+    messagesBox.className = "messages";
+    messagesBox.replaceChildren();
+
+    if (!messages.length) {
+      messagesBox.appendChild(createEmptyMessagesState());
+      return;
+    }
+
+    const nodes = renderMessageNodes(messages);
+    const performanceApi = window.LGChat.performance;
+
+    if (performanceApi && typeof performanceApi.appendFragmentInChunks === "function") {
+      await performanceApi.appendFragmentInChunks(messagesBox, nodes, { chunkSize: 22 });
+    } else {
+      const fragment = document.createDocumentFragment();
+      nodes.forEach((node) => fragment.appendChild(node));
+      messagesBox.appendChild(fragment);
+    }
+  }
+
+  async function prependOlderMessages(chatId, olderMessages) {
+    if (!olderMessages.length) return;
+
+    const messagesBox = ui.el("messages");
+    const previousHeight = messagesBox.scrollHeight;
+    const previousTop = messagesBox.scrollTop;
+
+    removeMessagePlaceholders(messagesBox);
+
+    const fragment = document.createDocumentFragment();
+    renderMessageNodes(olderMessages).forEach((node) => fragment.appendChild(node));
+    messagesBox.prepend(fragment);
+    messagesBox.scrollTop = messagesBox.scrollHeight - previousHeight + previousTop;
+  }
+
+  function bindMessagesInfiniteScroll() {
+    const messagesBox = ui.el("messages");
+    if (!messagesBox || messagesBox.dataset.infiniteScrollBound === "true") return;
+
+    messagesBox.dataset.infiniteScrollBound = "true";
+
+    const onScroll = () => {
+      if (!state.selectedChat) return;
+      if (messagesBox.scrollTop > 90) return;
+
+      loadOlderMessages(state.selectedChat.id).catch((error) => {
+        console.error("Erro ao carregar mensagens antigas:", error);
+        ui.showToast("error", error.message || "Erro ao carregar mensagens antigas.");
+      });
+    };
+
+    const performanceApi = window.LGChat.performance;
+    const handler = performanceApi && typeof performanceApi.throttle === "function"
+      ? performanceApi.throttle(onScroll, 180)
+      : onScroll;
+
+    messagesBox.addEventListener("scroll", handler, { passive: true });
+  }
+
+  async function loadOlderMessages(chatId) {
+    const pagination = getMessagePagination(chatId);
+
+    if (pagination.isLoadingOlder || !pagination.hasMore) return [];
+
+    const cache = getMessageCache(chatId);
+    const beforeId = pagination.oldestId || getOldestMessageId(cache);
+
+    if (!beforeId) {
+      pagination.hasMore = false;
+      return [];
+    }
+
+    pagination.isLoadingOlder = true;
+
+    const messagesBox = ui.el("messages");
+    const loading = createMessagesLoadingMore();
+    messagesBox.prepend(loading);
+
+    try {
+      const response = await api.request(`/api/chats/${chatId}/messages?limit=${OLDER_MESSAGE_LIMIT}&beforeId=${beforeId}`);
+      const olderMessages = response.data || [];
+
+      pagination.hasMore = olderMessages.length >= OLDER_MESSAGE_LIMIT;
+      pagination.oldestId = getOldestMessageId(olderMessages) || beforeId;
+      pagination.lastLoadedAt = Date.now();
+
+      mergeMessagesIntoCache(chatId, olderMessages);
+      loading.remove();
+
+      await prependOlderMessages(chatId, olderMessages);
+
+      return olderMessages;
+    } finally {
+      loading.remove();
+      pagination.isLoadingOlder = false;
+    }
+  }
+
+  function scheduleMarkChatAsRead(chatId, messageId) {
+    if (!chatId || !messageId) return Promise.resolve();
+
+    const key = getChatCacheKey(chatId);
+    const current = Number(state.pendingReadByChat?.[key] || 0);
+    const nextId = Math.max(current, Number(messageId));
+
+    state.pendingReadByChat = state.pendingReadByChat || {};
+    state.pendingReadTimers = state.pendingReadTimers || {};
+    state.pendingReadByChat[key] = nextId;
+
+    window.clearTimeout(state.pendingReadTimers[key]);
+
+    return new Promise((resolve) => {
+      state.pendingReadTimers[key] = window.setTimeout(() => {
+        const latestId = Number(state.pendingReadByChat[key] || nextId);
+
+        delete state.pendingReadByChat[key];
+        delete state.pendingReadTimers[key];
+
+        markChatAsRead(chatId, latestId)
+          .then(resolve)
+          .catch((error) => {
+            console.error("Erro ao marcar mensagens como lidas:", error);
+            resolve();
+          });
+      }, 450);
+    });
+  }
+
+
+
+  const CHAT_CACHE_TTL_MS = 5 * 60 * 1000;
+  const USERS_CACHE_TTL_MS = 20 * 60 * 1000;
+
+  function getUserScopedKey(name) {
+    const userId = state.currentUser && state.currentUser.id ? state.currentUser.id : "anon";
+    return `lgchat:${name}:${userId}`;
+  }
+
+  function readJsonCache(key, maxAgeMs) {
+    try {
+      const raw = localStorage.getItem(key);
+
+      if (!raw) return null;
+
+      const parsed = JSON.parse(raw);
+
+      if (!parsed || !Array.isArray(parsed.data)) return null;
+      if (Date.now() - Number(parsed.savedAt || 0) > maxAgeMs) return null;
+
+      return parsed.data;
+    } catch (_error) {
+      return null;
+    }
+  }
+
+  function writeJsonCache(key, data) {
+    try {
+      localStorage.setItem(
+        key,
+        JSON.stringify({
+          savedAt: Date.now(),
+          data,
+        }),
+      );
+    } catch (_error) {
+      // Cache local é opcional.
+    }
+  }
+
+  function getChatsCacheKey() {
+    return `${getUserScopedKey("chats")}:${state.showArchivedChats ? "archived" : "active"}`;
+  }
+
+  function restoreChatsFromCache() {
+    const cachedChats = readJsonCache(getChatsCacheKey(), CHAT_CACHE_TTL_MS);
+
+    if (!cachedChats || cachedChats.length === 0 || (state.allChats || []).length) {
+      return false;
+    }
+
+    state.allChats = cachedChats;
     updateArchivedToggleButton();
     renderChats();
+
+    return true;
   }
+
+  function saveChatsToCache(chats) {
+    if (!Array.isArray(chats)) return;
+
+    writeJsonCache(getChatsCacheKey(), chats.slice(0, 250));
+  }
+
+  function restoreUsersFromCache() {
+    const cachedUsers = readJsonCache(getUserScopedKey("users"), USERS_CACHE_TTL_MS);
+
+    if (!cachedUsers || cachedUsers.length === 0) {
+      return false;
+    }
+
+    state.allUsers = cachedUsers;
+    renderUsersForPrivateChat();
+    renderUsersForGroup();
+
+    return true;
+  }
+
+  function saveUsersToCache(users) {
+    if (!Array.isArray(users)) return;
+
+    writeJsonCache(getUserScopedKey("users"), users.slice(0, 500));
+  }
+
+  function appendNodesInChunks(target, nodes, options = {}) {
+    const chunkSize = Number(options.chunkSize || 24);
+
+    let index = 0;
+
+    function renderChunk() {
+      const fragment = document.createDocumentFragment();
+      const end = Math.min(index + chunkSize, nodes.length);
+
+      while (index < end) {
+        fragment.appendChild(nodes[index]);
+        index += 1;
+      }
+
+      target.appendChild(fragment);
+
+      if (index < nodes.length) {
+        window.requestAnimationFrame(renderChunk);
+      }
+    }
+
+    renderChunk();
+  }
+
+  async function loadUsers(options = {}) {
+    if (options.useCache !== false) {
+      restoreUsersFromCache();
+    }
+
+    const data = await api.request("/api/users");
+    state.allUsers = data.data || [];
+
+    saveUsersToCache(state.allUsers);
+    renderUsersForPrivateChat();
+    renderUsersForGroup();
+
+    return state.allUsers;
+  }
+
+  async function loadChats(options = {}) {
+    if (state.isLoadingChats && state.loadingChatsPromise) {
+      return state.loadingChatsPromise;
+    }
+
+    const chatsList = ui.el("chatsList");
+    const restoredFromCache = options.useCache !== false ? restoreChatsFromCache() : false;
+    const shouldShowLoading =
+      options.silent !== true &&
+      !(state.allChats || []).length &&
+      !restoredFromCache;
+
+    if (shouldShowLoading) {
+      ui.setLoading(
+        chatsList,
+        state.showArchivedChats ? "Carregando chats arquivados..." : "Carregando chats...",
+      );
+    }
+
+    const query = state.showArchivedChats ? "?archived=true" : "";
+
+    state.isLoadingChats = true;
+    state.loadingChatsPromise = api.request(`/api/chats${query}`)
+      .then((data) => {
+        state.allChats = data.data || [];
+
+        saveChatsToCache(state.allChats);
+
+        if (state.selectedChat) {
+          const refreshedSelectedChat = state.allChats.find((chat) => {
+            return Number(chat.id) === Number(state.selectedChat.id);
+          });
+
+          if (refreshedSelectedChat) {
+            state.selectedChat = {
+              ...state.selectedChat,
+              ...refreshedSelectedChat,
+            };
+          }
+        }
+
+        updateArchivedToggleButton();
+        renderChats();
+
+        return state.allChats;
+      })
+      .finally(() => {
+        state.isLoadingChats = false;
+        state.loadingChatsPromise = null;
+      });
+
+    return state.loadingChatsPromise;
+  }
+
 
   function renderChats() {
     const chatsList = ui.el("chatsList");
@@ -2251,7 +2738,10 @@
       return;
     }
 
-    filtered.forEach((chat) => {
+    const renderToken = `${Date.now()}-${Math.random()}`;
+    renderChats.lastToken = renderToken;
+
+    function createChatItem(chat) {
       const item = document.createElement("div");
       item.role = "button";
       item.tabIndex = 0;
@@ -2354,29 +2844,60 @@
         openChatOptionsMenu(chat, item);
       });
 
-      chatsList.appendChild(item);
-    });
+      return item;
+    }
+
+    const chunkSize = window.matchMedia && window.matchMedia("(max-width: 820px)").matches ? 12 : 24;
+    let index = 0;
+
+    function renderChunk() {
+      if (renderChats.lastToken !== renderToken) return;
+
+      const fragment = document.createDocumentFragment();
+      const end = Math.min(index + chunkSize, filtered.length);
+
+      while (index < end) {
+        fragment.appendChild(createChatItem(filtered[index]));
+        index += 1;
+      }
+
+      chatsList.appendChild(fragment);
+
+      if (index < filtered.length) {
+        window.requestAnimationFrame(renderChunk);
+      }
+    }
+
+    renderChunk();
   }
 
+
   async function openChat(chat) {
+    const requestedChatId = Number(chat.id);
+    state.openingChatId = requestedChatId;
+
     ui.showMobileChat();
 
     const messagesBox = ui.el("messages");
     messagesBox.className = "messages";
     ui.setLoading(messagesBox, "Carregando mensagens...");
 
-    const fullChatData = await api.request(`/api/chats/${chat.id}`);
-    const fullChat = { ...chat, ...fullChatData.data };
-
     if (
       state.editingMessage &&
-      Number(state.editingMessage.chatId) !== Number(fullChat.id)
+      Number(state.editingMessage.chatId) !== requestedChatId
     ) {
       cancelEditMessage();
       ui.el("messageInput").value = "";
     }
 
-    state.selectedChat = fullChat;
+    state.selectedChat = { ...chat };
+
+    updateChatHeader(state.selectedChat);
+    renderChats();
+
+    if (state.socket && state.socket.connected) {
+      state.socket.emit("join_chat", { chatId: requestedChatId });
+    }
 
     const searchPanel = ui.el("chatSearchPanel");
     if (searchPanel && !searchPanel.classList.contains("hidden")) {
@@ -2385,46 +2906,86 @@
       resetChatSearchResults("Digite para pesquisar mensagens.");
     }
 
+    const fullChatPromise = api.request(`/api/chats/${requestedChatId}`);
+    const messagesPromise = loadChatMessages(requestedChatId);
+
+    const fullChatData = await fullChatPromise;
+
+    if (state.openingChatId !== requestedChatId) return;
+
+    const fullChat = { ...chat, ...fullChatData.data };
+    state.selectedChat = fullChat;
+
     updateChatHeader(fullChat);
     renderChats();
 
-    if (state.socket && state.socket.connected) {
-      state.socket.emit("join_chat", { chatId: fullChat.id });
-    }
+    await messagesPromise;
 
-    await Promise.all([loadChatMessages(fullChat.id), loadChatInfo(fullChat.id)]);
+    const performanceApi = window.LGChat.performance;
+
+    const loadInfo = () => {
+      loadChatInfo(fullChat.id).catch((error) => {
+        console.error("Erro ao carregar detalhes do chat:", error);
+      });
+    };
+
+    if (performanceApi && typeof performanceApi.runWhenIdle === "function") {
+      performanceApi.runWhenIdle(loadInfo, 900);
+    } else {
+      loadInfo();
+    }
   }
 
-  async function loadChatMessages(chatId) {
-    const data = await api.request(`/api/chats/${chatId}/messages?limit=30`);
-    const messages = data.data || [];
+
+  async function loadChatMessages(chatId, options = {}) {
     const messagesBox = ui.el("messages");
+    const pagination = getMessagePagination(chatId);
+    const cache = getMessageCache(chatId);
+    const canUseCache =
+      options.force !== true &&
+      cache.length > 0 &&
+      Date.now() - Number(pagination.lastLoadedAt || 0) < 10_000;
 
-    messagesBox.className = "messages";
-    messagesBox.replaceChildren();
+    bindMessagesInfiniteScroll();
 
-    if (!messages.length) {
-      const empty = document.createElement("div");
-      empty.className = "empty-chat";
-      empty.textContent = "Nenhuma mensagem ainda. Seja o primeiro a enviar.";
-      messagesBox.appendChild(empty);
-      return messages;
+    if (canUseCache) {
+      await renderMessagesReplace(chatId, cache);
+      ui.scrollMessagesToBottom();
+
+      const newest = getNewestMessage(cache);
+
+      if (newest?.id) {
+        scheduleMarkChatAsRead(chatId, newest.id);
+        markChatListAsRead(chatId);
+      }
+
+      return cache;
     }
 
-    messages.forEach(addMessage);
+    const response = await api.request(`/api/chats/${chatId}/messages?limit=${INITIAL_MESSAGE_LIMIT}`);
+    const messages = response.data || [];
+
+    messagesBox.className = "messages";
+
+    const merged = mergeMessagesIntoCache(chatId, messages, { replace: true });
+
+    pagination.hasMore = messages.length >= INITIAL_MESSAGE_LIMIT;
+    pagination.oldestId = getOldestMessageId(messages);
+    pagination.lastLoadedAt = Date.now();
+
+    await renderMessagesReplace(chatId, merged);
     ui.scrollMessagesToBottom();
 
-    const lastMessage = messages[messages.length - 1];
+    const lastMessage = getNewestMessage(messages);
 
     if (lastMessage?.id) {
-      await markChatAsRead(chatId, lastMessage.id);
-      loadChats().catch((error) => {
-        console.error("Erro ao atualizar chats depois de marcar como lido:", error);
-      });
+      scheduleMarkChatAsRead(chatId, lastMessage.id);
+      markChatListAsRead(chatId);
     }
 
     return messages;
   }
+
 
   async function loadChatInfo(chatId) {
     const [chatData, membersData] = await Promise.all([
@@ -2683,7 +3244,7 @@
       state.selectedChat = null;
     }
 
-    await loadChats();
+    await loadChats({ silent: true });
     ui.resetChatScreen();
   }
 
@@ -2700,7 +3261,7 @@
       state.selectedChat = null;
     }
 
-    await loadChats();
+    await loadChats({ silent: true });
     ui.resetChatScreen();
   }
 
@@ -2732,7 +3293,7 @@
       await loadChatInfo(chatId);
     }
 
-    await loadChats();
+    await loadChats({ silent: true });
 
     return block;
   }
@@ -2758,7 +3319,7 @@
       await loadChatInfo(chatId);
     }
 
-    await loadChats();
+    await loadChats({ silent: true });
   }
 
   async function deleteCurrentChatForMe(chatId, chatName) {
@@ -2778,7 +3339,7 @@
       state.selectedChat = null;
     }
 
-    await loadChats();
+    await loadChats({ silent: true });
     ui.closeInfoPanel();
     ui.resetChatScreen();
   }
@@ -2877,6 +3438,8 @@
 
       const img = document.createElement("img");
       img.className = "message-media-image";
+      img.loading = "lazy";
+      img.decoding = "async";
       img.src = message.mediaUrl;
       img.alt = message.mediaOriginalName || "Imagem enviada";
       img.loading = "lazy";
@@ -2891,6 +3454,7 @@
 
       const video = document.createElement("video");
       video.className = "message-media-video";
+      video.preload = "metadata";
       video.src = message.mediaUrl;
       video.controls = true;
       video.preload = "metadata";
@@ -3036,8 +3600,9 @@
     const messagesBox = ui.el("messages");
     messagesBox.classList.remove("empty-state");
 
-    const oldEmpty = messagesBox.querySelector(".empty-chat, .loading");
-    if (oldEmpty) oldEmpty.remove();
+    removeMessagePlaceholders(messagesBox);
+
+    upsertMessageInCache(message);
 
     if (message.clientId) {
       const existing = findMessageElementByClientId(message.clientId);
@@ -3053,9 +3618,26 @@
       }
     }
 
+    if (message.id) {
+      const existingById = findMessageElementById(message.id);
+
+      if (existingById) {
+        existingById.replaceWith(buildMessageElement(message));
+        return;
+      }
+    }
+
     const div = buildMessageElement(message);
     messagesBox.appendChild(div);
+
+    const nearBottom =
+      messagesBox.scrollHeight - messagesBox.scrollTop - messagesBox.clientHeight < 280;
+
+    if (nearBottom) {
+      trimRenderedMessagesIfNeeded();
+    }
   }
+
 
   async function createPrivateChat(userId) {
     const data = await api.request("/api/chats/private", {
@@ -3065,7 +3647,7 @@
 
     ui.showToast("success", "Conversa criada.");
     ui.closeModal("usersPanel");
-    await loadChats();
+    await loadChats({ silent: true });
     await openChat(data.data);
   }
 
@@ -3088,7 +3670,7 @@
       return;
     }
 
-    filtered.forEach((user) => {
+    const nodes = filtered.map((user) => {
       const button = document.createElement("button");
       button.type = "button";
       button.className = "user-row";
@@ -3098,6 +3680,8 @@
 
       if (user.avatarUrl) {
         const img = document.createElement("img");
+        img.loading = "lazy";
+        img.decoding = "async";
         img.src = user.avatarUrl;
         img.alt = `Foto de ${user.nome}`;
         avatar.appendChild(img);
@@ -3123,7 +3707,11 @@
         );
       });
 
-      usersList.appendChild(button);
+      return button;
+    });
+
+    appendNodesInChunks(usersList, nodes, {
+      chunkSize: window.matchMedia && window.matchMedia("(max-width: 820px)").matches ? 16 : 32,
     });
   }
 
@@ -3131,14 +3719,26 @@
     const groupUsersList = ui.el("groupUsersList");
     if (!groupUsersList) return;
 
+    const searchInput = safeEl("groupUserSearch");
+    const search = searchInput ? searchInput.value.toLowerCase().trim() : "";
+
+    const users = search
+      ? state.allUsers.filter((user) => {
+          return (
+            user.nome.toLowerCase().includes(search) ||
+            user.email.toLowerCase().includes(search)
+          );
+        })
+      : state.allUsers;
+
     groupUsersList.replaceChildren();
 
-    if (!state.allUsers.length) {
+    if (!users.length) {
       ui.setEmpty(groupUsersList, "Nenhum usuário disponível.");
       return;
     }
 
-    state.allUsers.forEach((user) => {
+    const nodes = users.map((user) => {
       const label = document.createElement("label");
       label.className = "check-row";
 
@@ -3152,9 +3752,15 @@
 
       label.appendChild(checkbox);
       label.appendChild(span);
-      groupUsersList.appendChild(label);
+
+      return label;
+    });
+
+    appendNodesInChunks(groupUsersList, nodes, {
+      chunkSize: window.matchMedia && window.matchMedia("(max-width: 820px)").matches ? 18 : 36,
     });
   }
+
 
   async function createGroup() {
     const button = ui.el("createGroupButton");
@@ -3190,7 +3796,7 @@
 
       ui.closeModal("groupPanel");
       ui.showToast("success", "Grupo criado com sucesso.");
-      await loadChats();
+      await loadChats({ silent: true });
       await openChat(data.data);
     } finally {
       state.isCreateGroupLoading = false;
@@ -3279,7 +3885,11 @@
 
         cancelReplyMessage();
 
-        loadChats().catch((error) => {
+        if (applyMessageToChatList) {
+          applyMessageToChatList(response.data, { incrementUnread: false });
+        }
+
+        scheduleChatsRefresh("message-sent", 1200).catch((error) => {
           console.error("Erro ao atualizar chats depois de enviar:", error);
         });
       },
@@ -3319,7 +3929,13 @@
       ui.scrollMessagesToBottom();
     }
 
-    await loadChats();
+    if (applyMessageToChatList) {
+      applyMessageToChatList(data.data, { incrementUnread: false });
+    }
+
+    scheduleChatsRefresh("media-sent", 1200).catch((error) => {
+      console.error("Erro ao atualizar chats depois de mídia:", error);
+    });
 
     return data.data;
   }
@@ -3375,7 +3991,7 @@
     state.selectedChat = { ...(state.selectedChat || {}), ...updatedChat };
     updateChatHeader(state.selectedChat);
 
-    await loadChats();
+    await loadChats({ silent: true });
 
     state.allChats = state.allChats.map((chat) => {
       if (chat.id !== chatId) return chat;
@@ -3435,6 +4051,9 @@
     formatUserStatus,
     loadUsers,
     loadChats,
+    scheduleChatsRefresh,
+    applyMessageToChatList,
+    markChatListAsRead,
     renderChats,
     toggleArchivedChats,
     updateArchivedToggleButton,
@@ -3454,6 +4073,8 @@
     addMessage,
     updateMessage,
     markChatAsRead,
+    scheduleMarkChatAsRead,
+    loadOlderMessages,
     openMediaViewer,
     closeMediaViewer,
     renderUsersForPrivateChat,

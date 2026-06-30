@@ -8,7 +8,8 @@
     "start": "node dist/server.js",
     "db:migrate": "sequelize-cli db:migrate",
     "db:undo": "sequelize-cli db:migrate:undo",
-    "db:undo:all": "sequelize-cli db:migrate:undo:all"
+    "db:undo:all": "sequelize-cli db:migrate:undo:all",
+    "db:migrate:status": "sequelize-cli db:migrate:status"
   },
   "dependencies": {
     "bcryptjs": "latest",
@@ -25,7 +26,9 @@
     "pino-pretty": "latest",
     "sequelize": "latest",
     "socket.io": "latest",
-    "zod": "latest"
+    "zod": "latest",
+    "compression": "latest",
+    "sharp": "latest"
   },
   "devDependencies": {
     "@types/cors": "latest",
@@ -35,6 +38,7 @@
     "@types/node": "latest",
     "sequelize-cli": "latest",
     "tsx": "latest",
-    "typescript": "latest"
+    "typescript": "latest",
+    "@types/compression": "latest"
   }
 }

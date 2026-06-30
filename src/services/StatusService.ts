@@ -8,6 +8,7 @@ import { StatusView } from "../models/StatusView";
 import { User } from "../models/User";
 import { UserBlock } from "../models/UserBlock";
 import { logger } from "../utils/logger";
+import type { ProcessedUpload } from "../utils/uploadSecurity";
 
 const STATUS_TTL_HOURS = 24;
 
@@ -366,19 +367,19 @@ export async function createTextStatus(params: {
 export async function createMediaStatus(params: {
   currentUserId: number;
   text?: string | null;
-  file: Express.Multer.File;
+  file: ProcessedUpload;
 }) {
-  const mediaUrl = `/uploads/status/${params.file.filename}`;
-  const type = getStatusPostType(params.file.mimetype);
+  const mediaUrl = params.file.mediaUrl;
+  const type = getStatusPostType(params.file.mediaMimeType);
 
   const status = await StatusPost.create({
     userId: params.currentUserId,
     type,
     text: params.text?.trim() || null,
     mediaUrl,
-    mediaMimeType: params.file.mimetype,
-    mediaSize: params.file.size,
-    mediaOriginalName: params.file.originalname,
+    mediaMimeType: params.file.mediaMimeType,
+    mediaSize: params.file.mediaSize,
+    mediaOriginalName: params.file.mediaOriginalName,
     expiresAt: getExpiresAt(),
   });
 
@@ -387,7 +388,7 @@ export async function createMediaStatus(params: {
       statusId: status.id,
       userId: params.currentUserId,
       type: status.type,
-      mediaMimeType: params.file.mimetype,
+      mediaMimeType: params.file.mediaMimeType,
     },
     "Status de mídia criado",
   );
@@ -541,5 +542,46 @@ export async function deleteStatus(params: {
 
   return {
     deleted: true,
+  };
+}
+
+
+export async function cleanupExpiredStatuses() {
+  const expiredStatuses = await StatusPost.findAll({
+    where: {
+      expiresAt: {
+        [Op.lte]: new Date(),
+      },
+    },
+    attributes: ["id", "mediaUrl", "expiresAt"],
+  });
+
+  if (!expiredStatuses.length) {
+    return {
+      deleted: 0,
+    };
+  }
+
+  for (const status of expiredStatuses) {
+    await removeStatusMedia(status.mediaUrl);
+  }
+
+  await StatusPost.destroy({
+    where: {
+      id: {
+        [Op.in]: expiredStatuses.map((status) => status.id),
+      },
+    },
+  });
+
+  logger.info(
+    {
+      deleted: expiredStatuses.length,
+    },
+    "Status expirados removidos",
+  );
+
+  return {
+    deleted: expiredStatuses.length,
   };
 }

@@ -7,6 +7,7 @@ import {
 } from "../controllers/UserControllers";
 import { asyncHandler } from "../utils/asyncHandler";
 import { userAvatarUpload } from "../middlewares/userAvatarUpload";
+import { profileUploadRateLimit } from "../middlewares/securityRateLimits";
 
 export const usersRoutes = Router();
 
@@ -16,6 +17,7 @@ usersRoutes.get("/", asyncHandler(getUsers));
 usersRoutes.patch("/me", asyncHandler(updateMyProfileController));
 usersRoutes.post(
   "/me/avatar",
+  profileUploadRateLimit,
   userAvatarUpload,
   asyncHandler(updateMyAvatarController),
 );

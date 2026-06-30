@@ -10,7 +10,7 @@ fs.mkdirSync(UPLOAD_DIR, {
   recursive: true,
 });
 
-const MAX_FILE_SIZE_MB = 50;
+const MAX_FILE_SIZE_MB = 50; // limite bruto; limites por tipo ficam em uploadSecurity.ts
 
 const ALLOWED_MIME_TYPES = new Map<string, string>([
   ["image/jpeg", "jpg"],

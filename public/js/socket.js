@@ -51,6 +51,24 @@
   }
 
 
+
+
+  function scheduleChatsRefresh(reason = "socket", delay = 700) {
+    const performanceApi = window.LGChat.performance;
+
+    if (performanceApi && typeof performanceApi.scheduleLoadChats === "function") {
+      return performanceApi.scheduleLoadChats(reason, delay);
+    }
+
+    const chat = window.LGChat.chat;
+
+    if (chat && typeof chat.loadChats === "function") {
+      return chat.loadChats({ silent: true });
+    }
+
+    return Promise.resolve();
+  }
+
   function isMutedChat(chatId) {
     const chat = (state.allChats || []).find((item) => {
       return Number(item.id) === Number(chatId);
@@ -71,10 +89,41 @@
       auth: {
         token: state.token,
       },
+      reconnection: true,
+      reconnectionAttempts: 10,
+      reconnectionDelay: 700,
+      reconnectionDelayMax: 5000,
+      timeout: 12000,
+      transports: ["websocket", "polling"],
     });
 
     state.socket.on("connect", () => {
       console.log("Socket conectado:", state.socket.id);
+      document.body.classList.remove("socket-offline");
+      document.body.classList.add("socket-online");
+
+      if (window.LGChat.performance && typeof window.LGChat.performance.scheduleLoadChats === "function") {
+        window.LGChat.performance.scheduleLoadChats("socket-reconnected", 500).catch(() => undefined);
+      }
+    });
+
+    state.socket.on("disconnect", (reason) => {
+      document.body.classList.remove("socket-online");
+      document.body.classList.add("socket-offline");
+
+      if (reason !== "io client disconnect") {
+        ui.showToast("error", "Conexão em tempo real caiu. Tentando reconectar...");
+      }
+    });
+
+    state.socket.io.on("reconnect", () => {
+      document.body.classList.remove("socket-offline");
+      document.body.classList.add("socket-online");
+      ui.showToast("success", "Conexão em tempo real restaurada.");
+    });
+
+    state.socket.io.on("reconnect_failed", () => {
+      ui.showToast("error", "Não foi possível reconectar em tempo real. Recarregue a página.");
     });
 
     state.socket.on("connect_error", (error) => {
@@ -96,9 +145,11 @@
           notifyNewMessage(message);
         }
 
-        chat.loadChats().catch((error) => {
-          console.error("Erro ao atualizar chats:", error);
-        });
+        if (!chat.applyMessageToChatList || !chat.applyMessageToChatList(message, { incrementUnread: true })) {
+          scheduleChatsRefresh("message", 700).catch((error) => {
+            console.error("Erro ao atualizar chats:", error);
+          });
+        }
 
         return;
       }
@@ -117,18 +168,28 @@
       ui.scrollMessagesToBottom();
 
       if (!state.currentUser || message.fromUserId !== state.currentUser.id) {
-        chat.markChatAsRead(message.chatId, message.id).finally(() => {
-          chat.loadChats().catch((error) => {
-            console.error("Erro ao atualizar chats:", error);
+        if (typeof chat.scheduleMarkChatAsRead === "function") {
+          chat.scheduleMarkChatAsRead(message.chatId, message.id);
+        } else {
+          chat.markChatAsRead(message.chatId, message.id).catch((error) => {
+            console.error("Erro ao marcar chat como lido:", error);
           });
-        });
+        }
+
+        if (typeof chat.markChatListAsRead === "function") {
+          chat.markChatListAsRead(message.chatId);
+        }
 
         return;
       }
 
-      chat.loadChats().catch((error) => {
-        console.error("Erro ao atualizar chats:", error);
-      });
+      if (chat.applyMessageToChatList) {
+        chat.applyMessageToChatList(message, { incrementUnread: false });
+      }
+
+      if (chat.applyMessageToChatList) {
+        chat.applyMessageToChatList(message, { incrementUnread: false });
+      }
     });
 
     state.socket.on("chat_message_updated", (message) => {
@@ -140,13 +201,15 @@
         chat.updateMessage(message, { preserveReactionMineState: true });
       }
 
-      chat.loadChats().catch((error) => {
+      scheduleChatsRefresh("message-updated", 800).catch((error) => {
         console.error("Erro ao atualizar chats depois de editar/apagar:", error);
       });
     });
 
     state.socket.on("chat_updated", () => {
-      window.LGChat.chat.loadChats().catch((error) => {
+      const delay = document.visibilityState === "hidden" ? 2500 : 900;
+
+      scheduleChatsRefresh("chat-updated", delay).catch((error) => {
         console.error("Erro ao atualizar lista de chats:", error);
       });
     });

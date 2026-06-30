@@ -1,5 +1,4 @@
 import type { Request, Response } from "express";
-import fs from "fs/promises";
 import { updateMyProfileSchema } from "../validators/userValidator";
 import {
   listUsers,
@@ -7,6 +6,11 @@ import {
   updateMyProfile,
 } from "../services/UserService";
 import { ok } from "../utils/httpResponse";
+import {
+  processAvatarImageUpload,
+  removeUploadedFile,
+  type ProcessedUpload,
+} from "../utils/uploadSecurity";
 
 export async function getUsers(req: Request, res: Response) {
   const users = await listUsers(req.user!.id);
@@ -38,17 +42,19 @@ export async function updateMyAvatarController(req: Request, res: Response) {
     });
   }
 
+  let processedFile: ProcessedUpload | null = null;
+
   try {
-    const avatarUrl = `/uploads/users/${req.file.filename}`;
+    processedFile = await processAvatarImageUpload(req.file);
 
     const user = await updateMyAvatar({
       currentUserId: req.user!.id,
-      avatarUrl,
+      avatarUrl: processedFile.mediaUrl,
     });
 
     return ok(res, user, "Foto de perfil atualizada com sucesso.");
   } catch (error) {
-    await fs.unlink(req.file!.path).catch(() => undefined);
+    await removeUploadedFile(processedFile?.filePath ?? req.file!.path);
 
     throw error;
   }

@@ -51,7 +51,7 @@ export const statusUpload = multer({
   storage,
 
   limits: {
-    fileSize: 50 * 1024 * 1024,
+    fileSize: 30 * 1024 * 1024,
     files: 1,
   },
 

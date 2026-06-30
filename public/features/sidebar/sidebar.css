@@ -646,3 +646,29 @@
     max-height: 160px;
   }
 }
+
+
+/* Performance v4 - sidebar */
+.performance-mode .sidebar,
+.performance-mode .sidebar-header,
+.performance-mode .status-sidebar-section {
+  box-shadow: none;
+}
+
+.performance-mode .chat-avatar,
+.performance-mode .current-user-avatar,
+.performance-mode .status-sidebar-avatar,
+.performance-mode .status-contact-avatar {
+  box-shadow: none;
+}
+
+@media (max-width: 820px) {
+  .sidebar {
+    box-shadow: none;
+  }
+
+  .chat-item {
+    content-visibility: auto;
+    contain-intrinsic-size: 78px;
+  }
+}

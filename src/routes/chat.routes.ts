@@ -31,6 +31,10 @@ import {
   forwardMessageController,
 } from "../controllers/ChatControllers";
 import { groupAvatarUpload } from "../middlewares/groupAvatarUpload";
+import {
+  chatWriteRateLimit,
+  uploadRateLimit,
+} from "../middlewares/securityRateLimits";
 export const chatRoutes = Router();
 
 chatRoutes.use(authMiddleware);
@@ -55,13 +59,14 @@ chatRoutes.delete(
 
 chatRoutes.post(
   "/:chatId/avatar",
+  uploadRateLimit,
   groupAvatarUpload,
   asyncHandler(updateGroupAvatarController),
 );
 chatRoutes.get("/:chatId/messages/search", asyncHandler(searchChatMessagesController));
 chatRoutes.get("/:chatId/messages/starred", asyncHandler(listStarredMessagesController));
 chatRoutes.get("/:chatId/messages", asyncHandler(listChatMessagesController));
-chatRoutes.post("/:chatId/messages", asyncHandler(sendChatMessageController));
+chatRoutes.post("/:chatId/messages", chatWriteRateLimit, asyncHandler(sendChatMessageController));
 chatRoutes.patch(
   "/:chatId/messages/:messageId",
   asyncHandler(editChatMessageController),
@@ -84,6 +89,7 @@ chatRoutes.post(
 );
 chatRoutes.post(
   "/:chatId/media",
+  uploadRateLimit,
   chatMediaUpload,
   asyncHandler(sendChatMediaController),
 );

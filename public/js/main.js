@@ -6,19 +6,29 @@
   const socket = window.LGChat.socket;
 
   async function startApp() {
+    if (window.LGChat.performance && typeof window.LGChat.performance.init === "function") {
+      window.LGChat.performance.init();
+    }
     try {
       ui.showChatArea();
 
       await auth.loadMe();
 
       socket.connectSocket();
-      socket.requestNotificationPermission();
 
-      await Promise.all([chat.loadUsers(), chat.loadChats()]);
+      await chat.loadChats({ silent: false });
 
-      if (window.LGChat.status && typeof window.LGChat.status.loadStatuses === "function") {
-        await window.LGChat.status.loadStatuses().catch((error) => {
-          console.error("Erro ao carregar status:", error);
+      const performanceApi = window.LGChat.performance;
+
+      if (performanceApi && typeof performanceApi.runWhenIdle === "function") {
+        performanceApi.runWhenIdle(() => {
+          chat.loadUsers().catch((error) => {
+            console.error("Erro ao carregar usuários em segundo plano:", error);
+          });
+        }, 1200);
+      } else {
+        chat.loadUsers().catch((error) => {
+          console.error("Erro ao carregar usuários em segundo plano:", error);
         });
       }
     } catch (error) {
@@ -28,8 +38,13 @@
   }
 
   function bindEvents() {
-    ui.el("chatHeaderProfileButton").addEventListener("click", () => {
+    ui.el("chatHeaderProfileButton").addEventListener("click", async () => {
       if (!state.selectedChat) return;
+
+      if (window.LGChat.lazy && typeof window.LGChat.lazy.ensurePanelStyle === "function") {
+        await window.LGChat.lazy.ensurePanelStyle("info").catch(() => undefined);
+      }
+
       ui.toggleInfoPanel();
     });
 
@@ -53,21 +68,25 @@
     ui.el("loginForm").addEventListener("submit", async (event) => {
       event.preventDefault();
 
-      try {
-        await auth.loginUser();
-      } catch (error) {
-        ui.showToast("error", error.message);
-      }
+      await ui.withButtonLoading(ui.el("loginForm").querySelector("button[type='submit']"), async () => {
+        try {
+          await auth.loginUser();
+        } catch (error) {
+          ui.showToast("error", error.message);
+        }
+      }, "Entrando...");
     });
 
     ui.el("registerForm").addEventListener("submit", async (event) => {
       event.preventDefault();
 
-      try {
-        await auth.registerUser();
-      } catch (error) {
-        ui.showToast("error", error.message);
-      }
+      await ui.withButtonLoading(ui.el("registerForm").querySelector("button[type='submit']"), async () => {
+        try {
+          await auth.registerUser();
+        } catch (error) {
+          ui.showToast("error", error.message);
+        }
+      }, "Criando...");
     });
 
     ui.el("logoutButton").addEventListener("click", () => {
@@ -94,10 +113,12 @@
       if (!file) return;
 
       try {
+        ui.setButtonLoading(ui.el("changeProfileAvatarButton"), true, "Enviando...");
         await auth.uploadMyAvatar(file);
       } catch (error) {
         ui.showToast("error", error.message);
       } finally {
+        ui.setButtonLoading(ui.el("changeProfileAvatarButton"), false);
         input.value = "";
       }
     });
@@ -105,12 +126,14 @@
     ui.el("profileForm").addEventListener("submit", async (event) => {
       event.preventDefault();
 
-      try {
-        await auth.updateMyProfile();
-        ui.closeModal("profilePanel");
-      } catch (error) {
-        ui.showToast("error", error.message);
-      }
+      await ui.withButtonLoading(ui.el("saveProfileButton"), async () => {
+        try {
+          await auth.updateMyProfile();
+          ui.closeModal("profilePanel");
+        } catch (error) {
+          ui.showToast("error", error.message);
+        }
+      }, "Salvando...");
     });
 
     ui.el("refreshChatsButton").addEventListener("click", () => {
@@ -177,8 +200,22 @@
       ui.showMobileSidebar();
     });
 
-    ui.el("openUsersButton").addEventListener("click", () => {
+    ui.el("openUsersButton").addEventListener("click", async () => {
+      if (window.LGChat.lazy && typeof window.LGChat.lazy.ensurePanelStyle === "function") {
+        await window.LGChat.lazy.ensurePanelStyle("users").catch(() => undefined);
+      }
+
       ui.openModal("usersPanel");
+
+      if (!state.allUsers || !state.allUsers.length) {
+        try {
+          await chat.loadUsers();
+        } catch (error) {
+          ui.showToast("error", error.message);
+          return;
+        }
+      }
+
       chat.renderUsersForPrivateChat();
     });
 
@@ -186,8 +223,22 @@
       ui.closeModal("usersPanel");
     });
 
-    ui.el("openGroupButton").addEventListener("click", () => {
+    ui.el("openGroupButton").addEventListener("click", async () => {
+      if (window.LGChat.lazy && typeof window.LGChat.lazy.ensurePanelStyle === "function") {
+        await window.LGChat.lazy.ensurePanelStyle("group").catch(() => undefined);
+      }
+
       ui.openModal("groupPanel");
+
+      if (!state.allUsers || !state.allUsers.length) {
+        try {
+          await chat.loadUsers();
+        } catch (error) {
+          ui.showToast("error", error.message);
+          return;
+        }
+      }
+
       chat.renderUsersForGroup();
     });
 
@@ -196,20 +247,28 @@
     });
 
     ui.el("createGroupButton").addEventListener("click", async () => {
-      try {
-        await chat.createGroup();
-      } catch (error) {
-        ui.showToast("error", error.message);
-      }
+      await ui.withButtonLoading(ui.el("createGroupButton"), async () => {
+        try {
+          await chat.createGroup();
+        } catch (error) {
+          ui.showToast("error", error.message);
+        }
+      }, "Criando...");
     });
 
-    ui.el("chatSearch").addEventListener("input", () => {
-      chat.renderChats();
-    });
+    const debouncedRenderChats =
+      window.LGChat.performance && typeof window.LGChat.performance.debounce === "function"
+        ? window.LGChat.performance.debounce(() => chat.renderChats(), 120)
+        : () => chat.renderChats();
 
-    ui.el("userSearch").addEventListener("input", () => {
-      chat.renderUsersForPrivateChat();
-    });
+    ui.el("chatSearch").addEventListener("input", debouncedRenderChats);
+
+    const debouncedRenderPrivateUsers =
+      window.LGChat.performance && typeof window.LGChat.performance.debounce === "function"
+        ? window.LGChat.performance.debounce(() => chat.renderUsersForPrivateChat(), 140)
+        : () => chat.renderUsersForPrivateChat();
+
+    ui.el("userSearch").addEventListener("input", debouncedRenderPrivateUsers);
 
     ui.el("mediaButton").addEventListener("click", (event) => {
       event.stopPropagation();

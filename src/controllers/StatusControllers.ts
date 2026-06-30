@@ -1,5 +1,4 @@
 import type { Request, Response } from "express";
-import fs from "fs/promises";
 import {
   createMediaStatusSchema,
   createTextStatusSchema,
@@ -15,6 +14,11 @@ import {
   markStatusAsViewed,
 } from "../services/StatusService";
 import { created, ok } from "../utils/httpResponse";
+import {
+  processStatusMediaUpload,
+  removeUploadedFile,
+  type ProcessedUpload,
+} from "../utils/uploadSecurity";
 
 export async function listStatusesController(req: Request, res: Response) {
   const statuses = await listVisibleStatuses(req.user!.id);
@@ -52,18 +56,21 @@ export async function createMediaStatusController(req: Request, res: Response) {
     });
   }
 
+  let processedFile: ProcessedUpload | null = null;
+
   try {
     const data = createMediaStatusSchema.parse(req.body);
+    processedFile = await processStatusMediaUpload(req.file);
 
     const status = await createMediaStatus({
       currentUserId: req.user!.id,
       text: data.text,
-      file: req.file,
+      file: processedFile,
     });
 
     return created(res, status, "Status publicado com sucesso.");
   } catch (error) {
-    await fs.unlink(req.file.path).catch(() => undefined);
+    await removeUploadedFile(processedFile?.filePath ?? req.file.path);
 
     throw error;
   }

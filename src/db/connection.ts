@@ -2,10 +2,21 @@ import { Sequelize } from "sequelize";
 import { env } from "../config/env";
 import { logger } from "../utils/logger";
 
+const useSSL = process.env.DB_SSL === "true";
+
 export const sequelize = new Sequelize(env.DB_NAME, env.DB_USER, env.DB_PASS, {
   host: env.DB_HOST,
   port: env.DB_PORT,
   dialect: "postgres",
+
+  dialectOptions: useSSL
+    ? {
+        ssl: {
+          require: true,
+          rejectUnauthorized: false,
+        },
+      }
+    : {},
 
   pool: {
     max: 10,

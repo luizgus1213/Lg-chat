@@ -126,7 +126,11 @@
     renderCurrentUser();
 
     ui.showToast("success", "Perfil atualizado.");
-    await window.LGChat.chat.loadChats();
+    if (window.LGChat.performance && typeof window.LGChat.performance.scheduleLoadChats === "function") {
+      window.LGChat.performance.scheduleLoadChats("profile-updated", 900).catch(() => undefined);
+    } else {
+      await window.LGChat.chat.loadChats({ silent: true });
+    }
   }
 
   async function uploadMyAvatar(file) {
@@ -139,10 +143,10 @@
       return;
     }
 
-    const maxSize = 2 * 1024 * 1024;
+    const maxSize = 5 * 1024 * 1024;
 
     if (file.size > maxSize) {
-      ui.showToast("error", "A imagem deve ter no máximo 2MB.");
+      ui.showToast("error", "A imagem deve ter no máximo 5MB.");
       return;
     }
 
@@ -158,7 +162,11 @@
     renderCurrentUser();
 
     ui.showToast("success", "Foto de perfil atualizada.");
-    await window.LGChat.chat.loadChats();
+    if (window.LGChat.performance && typeof window.LGChat.performance.scheduleLoadChats === "function") {
+      window.LGChat.performance.scheduleLoadChats("profile-updated", 900).catch(() => undefined);
+    } else {
+      await window.LGChat.chat.loadChats({ silent: true });
+    }
   }
 
   function logout() {

@@ -430,3 +430,26 @@
     font-size: clamp(28px, 9vw, 44px);
   }
 }
+
+
+/* Performance mobile v2 */
+@media (max-width: 820px) {
+  .status-panel,
+  .status-viewer-caption {
+    backdrop-filter: none;
+  }
+
+  .status-panel-card {
+    box-shadow: none;
+  }
+
+  .status-viewer-body {
+    background: #050b0f;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .status-viewer-progress > div {
+    transition: none !important;
+  }
+}

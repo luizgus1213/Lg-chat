@@ -238,6 +238,45 @@ function callPublicDTO(call: ActiveCall) {
 }
 
 
+
+function getUserChatRooms(chatIds: Iterable<number>) {
+  return Array.from(new Set(Array.from(chatIds).map((chatId) => `chat:${chatId}`)));
+}
+
+function emitUserStatusToRelatedRooms(
+  io: Server,
+  rooms: string[],
+  payload: {
+    userId: number;
+    isOnline: boolean;
+    lastSeenAt: Date | null;
+  },
+) {
+  if (!rooms.length) {
+    return;
+  }
+
+  io.to(rooms).emit("user_status", payload);
+}
+
+function canEmitTyping(
+  typingMap: Map<string, number>,
+  key: string,
+  intervalMs: number,
+) {
+  const now = Date.now();
+  const last = typingMap.get(key) || 0;
+
+  if (now - last < intervalMs) {
+    return false;
+  }
+
+  typingMap.set(key, now);
+
+  return true;
+}
+
+
 export function setupSocket(io: Server) {
   setSocketServer(io);
   io.use(async (socket, next) => {
@@ -266,8 +305,20 @@ export function setupSocket(io: Server) {
         attributes: ["chatId"],
       });
 
-      for (const membership of memberships) {
-        socket.join(`chat:${membership.chatId}`);
+      const allowedChatIds = new Set<number>(
+        memberships
+          .map((membership) => Number(membership.chatId))
+          .filter((chatId) => Number.isInteger(chatId) && chatId > 0),
+      );
+
+      const userChatRooms = getUserChatRooms(allowedChatIds);
+
+      socket.data.allowedChatIds = allowedChatIds;
+      socket.data.userChatRooms = userChatRooms;
+      socket.data.typingRate = new Map<string, number>();
+
+      for (const room of userChatRooms) {
+        socket.join(room);
       }
 
       logger.info(
@@ -284,7 +335,7 @@ export function setupSocket(io: Server) {
         isOnline: true,
       });
 
-      io.emit("user_status", {
+      emitUserStatusToRelatedRooms(io, userChatRooms, {
         userId: user.id,
         isOnline: true,
         lastSeenAt: onlineUser.lastSeenAt,
@@ -311,6 +362,14 @@ export function setupSocket(io: Server) {
         await assertChatMember(chatId, user.id);
 
         socket.join(`chat:${chatId}`);
+
+        const allowedChatIds = socket.data.allowedChatIds as Set<number> | undefined;
+        allowedChatIds?.add(chatId);
+
+        const userChatRooms = socket.data.userChatRooms as string[] | undefined;
+        if (userChatRooms && !userChatRooms.includes(`chat:${chatId}`)) {
+          userChatRooms.push(`chat:${chatId}`);
+        }
 
         if (typeof ack === "function") {
           ack({
@@ -683,7 +742,9 @@ export function setupSocket(io: Server) {
           isOnline: false,
         });
 
-        io.emit("user_status", {
+        const userChatRooms = (socket.data.userChatRooms as string[] | undefined) || [];
+
+        emitUserStatusToRelatedRooms(io, userChatRooms, {
           userId: user.id,
           isOnline: false,
           lastSeenAt: offlineUser.lastSeenAt,
@@ -702,8 +763,18 @@ export function setupSocket(io: Server) {
     socket.on("typing_start", async (payload: unknown) => {
       try {
         const chatId = getChatIdFromPayload(payload);
+        const allowedChatIds = socket.data.allowedChatIds as Set<number> | undefined;
 
-        await assertChatMember(chatId, user.id);
+        if (!allowedChatIds?.has(chatId)) {
+          throw new AppError(403, "Você não participa desse chat.", "CHAT_ACCESS_DENIED");
+        }
+
+        const typingRate = socket.data.typingRate as Map<string, number> | undefined;
+        const canEmit = typingRate
+          ? canEmitTyping(typingRate, `start:${chatId}`, 900)
+          : true;
+
+        if (!canEmit) return;
 
         socket.to(`chat:${chatId}`).emit("typing_start", {
           chatId,
@@ -718,8 +789,18 @@ export function setupSocket(io: Server) {
     socket.on("typing_stop", async (payload: unknown) => {
       try {
         const chatId = getChatIdFromPayload(payload);
+        const allowedChatIds = socket.data.allowedChatIds as Set<number> | undefined;
 
-        await assertChatMember(chatId, user.id);
+        if (!allowedChatIds?.has(chatId)) {
+          throw new AppError(403, "Você não participa desse chat.", "CHAT_ACCESS_DENIED");
+        }
+
+        const typingRate = socket.data.typingRate as Map<string, number> | undefined;
+        const canEmit = typingRate
+          ? canEmitTyping(typingRate, `stop:${chatId}`, 350)
+          : true;
+
+        if (!canEmit) return;
 
         socket.to(`chat:${chatId}`).emit("typing_stop", {
           chatId,

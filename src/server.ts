@@ -4,6 +4,7 @@ import path from "path";
 import cors from "cors";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
+import compression from "compression";
 import { Server } from "socket.io";
 
 import { env } from "./config/env";
@@ -19,8 +20,11 @@ import { usersRoutes } from "./routes/users.routes";
 import { messagesRoutes } from "./routes/messages.routes";
 import { chatRoutes } from "./routes/chat.routes";
 import { statusRoutes } from "./routes/status.routes";
+import { diagnosticsRoutes } from "./routes/diagnostics.routes";
 
 import { setupSocket } from "./sockets";
+import { startStatusCleanupJob } from "./services/StatusCleanupService";
+import { startRuntimeDiagnostics } from "./services/RuntimeDiagnosticsService";
 
 const app = express();
 const server = http.createServer(app);
@@ -52,6 +56,19 @@ app.set("trust proxy", 1);
 app.use(
   helmet({
     contentSecurityPolicy: false,
+  }),
+);
+
+app.use(
+  compression({
+    threshold: 1024,
+    filter: (req, res) => {
+      if (req.headers["x-no-compression"]) {
+        return false;
+      }
+
+      return compression.filter(req, res);
+    },
   }),
 );
 
@@ -91,21 +108,72 @@ app.use((req, res, next) => {
   const start = Date.now();
 
   res.on("finish", () => {
-    logger.info(
-      {
-        method: req.method,
-        path: req.originalUrl,
-        statusCode: res.statusCode,
-        ms: Date.now() - start,
-      },
-      "HTTP request",
-    );
+    const ms = Date.now() - start;
+    const payload = {
+      method: req.method,
+      path: req.originalUrl,
+      statusCode: res.statusCode,
+      ms,
+    };
+
+    if (ms >= 1200) {
+      logger.warn(payload, "HTTP request lenta");
+      return;
+    }
+
+    logger.info(payload, "HTTP request");
   });
 
   next();
 });
 
-app.use(express.static(path.resolve("public")));
+app.use(
+  "/uploads",
+  express.static(path.resolve("public", "uploads"), {
+    etag: true,
+    maxAge: "30d",
+    immutable: true,
+    fallthrough: true,
+    dotfiles: "deny",
+    index: false,
+    setHeaders: (res) => {
+      res.setHeader("X-Content-Type-Options", "nosniff");
+      res.setHeader("Cache-Control", "public, max-age=2592000, immutable");
+    },
+  }),
+);
+
+app.use(
+  express.static(path.resolve("public"), {
+    dotfiles: "deny",
+    index: "index.html",
+    etag: true,
+    maxAge: "5m",
+    setHeaders: (res, filePath) => {
+      const normalizedPath = filePath.replace(/\\/g, "/");
+
+      if (
+        normalizedPath.endsWith("/index.html") ||
+        normalizedPath.endsWith("/sw.js") ||
+        normalizedPath.endsWith("/manifest.webmanifest")
+      ) {
+        res.setHeader("Cache-Control", "no-store");
+        return;
+      }
+
+      if (/\.(js|css)$/i.test(normalizedPath)) {
+        res.setHeader("Cache-Control", "public, max-age=300, must-revalidate");
+        return;
+      }
+
+      if (/\.(png|jpg|jpeg|webp|gif|svg|ico|woff|woff2)$/i.test(normalizedPath)) {
+        res.setHeader("Cache-Control", "public, max-age=604800");
+      }
+    },
+  }),
+);
+
+app.use("/api/diagnostics", diagnosticsRoutes);
 
 app.get("/health", (_req, res) => {
   return res.json({
@@ -139,6 +207,8 @@ async function bootstrap() {
     await testarConexaoBanco();
 
     setupSocket(io);
+    startStatusCleanupJob();
+    startRuntimeDiagnostics();
 
     server.listen(env.PORT, () => {
       logger.info(`Servidor rodando em http://localhost:${env.PORT}`);
