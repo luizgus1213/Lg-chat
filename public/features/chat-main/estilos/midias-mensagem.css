@@ -1,0 +1,130 @@
+.message-media-image {
+  display: block;
+  width: min(350px, 72vw);
+  max-height: 440px;
+  object-fit: cover;
+  border-radius: 13px;
+  cursor: pointer;
+  margin-bottom: 6px;
+  background: #000;
+  transition: transform var(--transition), filter var(--transition);
+}
+
+.message-media-image:hover {
+  filter: brightness(1.06);
+  transform: scale(1.005);
+}
+
+.message-media-video {
+  display: block;
+  width: min(410px, 74vw);
+  max-height: 430px;
+  border-radius: 13px;
+  background: black;
+  margin-bottom: 6px;
+}
+
+.message.mine .message-media-image,
+.message.mine .message-media-video {
+  margin-left: auto;
+}
+
+.typing-text {
+  min-height: 22px;
+  padding: 0 clamp(18px, 8vw, 110px);
+  color: var(--muted);
+  font-size: 13px;
+  background: rgba(8, 17, 22, 0.82);
+}
+
+.message-form {
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.025), transparent),
+    var(--sidebar-2);
+  border-top: 1px solid var(--border);
+  padding: 11px 14px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  gap: 10px;
+  align-items: center;
+  z-index: 4;
+}
+
+.message-form input {
+  min-height: 46px;
+}
+
+.message-form button {
+  padding-inline: 22px;
+}
+
+.media-button {
+  width: 46px;
+  height: 46px;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--input);
+  color: var(--text);
+  font-size: 27px;
+  font-weight: 600;
+  display: grid;
+  place-items: center;
+  line-height: 1;
+  padding: 0 !important;
+}
+
+.media-button:hover {
+  background: var(--surface-hover);
+  border-color: var(--border-strong);
+}
+
+.message-meta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 5px;
+  width: 100%;
+  margin-top: 4px;
+  color: rgba(233, 237, 239, 0.66);
+  font-size: 11px;
+}
+
+.message-meta .message-time {
+  display: inline;
+  margin-top: 0;
+  text-align: inherit;
+}
+
+.message-status {
+  font-weight: 900;
+  letter-spacing: -1px;
+  color: rgba(233, 237, 239, 0.78);
+}
+
+.message-status.sending {
+  letter-spacing: 0;
+  font-size: 16px;
+  line-height: 8px;
+  color: rgba(233, 237, 239, 0.55);
+}
+
+.message-status.error {
+  letter-spacing: 0;
+  color: #ffb4b4;
+}
+
+.message-status.read {
+  color: #53bdeb;
+}
+
+.message-error .bubble {
+  outline: 1px solid rgba(229, 72, 77, 0.6);
+}
+
+.edited-label {
+  color: rgba(233, 237, 239, 0.58);
+  font-size: 11px;
+  margin-left: 6px;
+}
+
+/* Preview de foto/vídeo antes de enviar */

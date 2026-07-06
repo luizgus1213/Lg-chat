@@ -1,0 +1,133 @@
+.info-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(360px, 92vw);
+  background: var(--sidebar);
+  border-left: 1px solid var(--border);
+  transform: translateX(100%);
+  transition: transform 0.2s ease;
+  z-index: 20;
+  overflow-y: auto;
+}
+
+.info-panel.open {
+  transform: translateX(0);
+}
+
+.panel-header {
+  min-height: 66px;
+  padding: 12px 14px;
+  background: var(--sidebar-2);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.panel-header h3 {
+  margin: 0;
+  font-size: 17px;
+}
+
+.info-content {
+  padding: 16px;
+}
+
+.info-content h4 {
+  margin: 16px 0 8px;
+}
+
+.info-content p {
+  font-size: 14px;
+}
+
+.group-profile {
+  display: grid;
+  justify-items: center;
+  text-align: center;
+  gap: 8px;
+  padding: 18px 10px 20px;
+  border-bottom: 1px solid rgba(42, 57, 66, 0.75);
+}
+
+.group-profile-avatar {
+  width: 104px;
+  height: 104px;
+  border-radius: 50%;
+  background: #6b7c85;
+  color: #111b21;
+  display: grid;
+  place-items: center;
+  font-size: 38px;
+  font-weight: 800;
+  overflow: hidden;
+  position: relative;
+  border: none;
+  padding: 0;
+  cursor: default;
+}
+
+.group-profile-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.group-profile-avatar.editable {
+  cursor: pointer;
+}
+
+.group-profile-avatar.editable:hover img,
+.group-profile-avatar.editable:hover {
+  filter: brightness(0.85);
+}
+
+.avatar-edit-overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 10px;
+  background: rgba(0, 0, 0, 0.52);
+  color: white;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+  opacity: 0;
+  transition: 0.18s ease;
+}
+
+.group-profile-avatar.editable:hover .avatar-edit-overlay {
+  opacity: 1;
+}
+
+.group-profile h4 {
+  margin: 8px 0 0;
+  font-size: 18px;
+}
+
+.group-profile p {
+  margin: 0;
+}
+
+.group-section {
+  padding: 14px 0;
+  border-bottom: 1px solid rgba(42, 57, 66, 0.75);
+}
+
+.group-section h4 {
+  margin: 0 0 10px;
+  font-size: 15px;
+}
+
+.group-section p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.member-list {
+  display: grid;
+}

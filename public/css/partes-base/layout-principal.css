@@ -1,0 +1,129 @@
+.muted {
+  color: var(--muted);
+}
+
+.app-shell {
+  min-height: 100vh;
+}
+
+.chat-page {
+  height: 100vh;
+  display: grid;
+  grid-template-columns: minmax(320px, 390px) minmax(0, 1fr);
+  overflow: hidden;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.025), transparent 38%),
+    var(--bg);
+}
+
+#authRoot,
+#sidebarRoot,
+#chatMainRoot,
+#infoPanelRoot,
+#usersPanelRoot,
+#groupPanelRoot,
+#globalInputsRoot,
+#toastRoot {
+  display: contents;
+}
+
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  background: var(--modal-bg);
+  padding: 18px;
+  backdrop-filter: blur(10px);
+}
+
+.modal-content {
+  width: min(480px, 100%);
+  max-height: 88vh;
+  overflow-y: auto;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent 110px),
+    var(--sidebar);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+}
+
+.modal-content.large {
+  width: min(690px, 100%);
+}
+
+.modal-body {
+  padding: 16px;
+  display: grid;
+  gap: 14px;
+}
+
+.users-list {
+  display: grid;
+  max-height: 390px;
+  overflow-y: auto;
+}
+
+.icon-button,
+.ghost-button,
+.danger-button,
+.warning-button,
+button[type="submit"],
+.sidebar-actions button,
+.modal button:not(.message-action-button) {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--text);
+  min-height: 40px;
+  padding: 10px 14px;
+  font-weight: 700;
+}
+
+.ghost-button {
+  background: transparent;
+}
+
+.icon-button:hover,
+.ghost-button:hover,
+.sidebar-actions button:hover,
+.modal button:not(.message-action-button):hover {
+  background: var(--surface-hover);
+  border-color: var(--border-strong);
+}
+
+button[type="submit"],
+.sidebar-actions button:first-child {
+  background: linear-gradient(135deg, var(--green), var(--green-2));
+  color: #031b16;
+  border-color: rgba(6, 207, 156, 0.36);
+}
+
+button[type="submit"]:hover,
+.sidebar-actions button:first-child:hover {
+  filter: brightness(1.06);
+}
+
+.danger,
+.danger-button {
+  background: var(--danger-soft) !important;
+  color: #ffb8b8 !important;
+  border-color: rgba(239, 83, 80, 0.35) !important;
+}
+
+.warning-button {
+  background: rgba(248, 184, 78, 0.10) !important;
+  color: #ffd792 !important;
+  border-color: rgba(248, 184, 78, 0.30) !important;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}

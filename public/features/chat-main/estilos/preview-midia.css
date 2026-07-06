@@ -1,0 +1,134 @@
+.media-preview-cancel {
+  background: var(--input);
+  color: var(--text);
+}
+
+.media-preview-send {
+  background: linear-gradient(135deg, var(--green), var(--green-2));
+  color: #06251f;
+}
+
+.media-preview-cancel:hover:not(:disabled),
+.media-preview-send:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+.media-preview-cancel:disabled,
+.media-preview-send:disabled,
+.media-preview-close:disabled,
+.media-preview-footer input:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+/* Visualizador de mídia */
+.media-viewer-modal {
+  z-index: 60;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+}
+
+.media-viewer-header {
+  min-height: 66px;
+  background: rgba(17, 27, 33, 0.96);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+}
+
+.media-viewer-body {
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  overflow: auto;
+}
+
+.media-viewer-image,
+.media-viewer-video {
+  max-width: 100%;
+  max-height: calc(100dvh - 150px);
+  object-fit: contain;
+  border-radius: 14px;
+  background: black;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.48);
+}
+
+.media-viewer-video {
+  width: min(980px, 100%);
+}
+
+.media-viewer-caption {
+  min-height: 48px;
+  margin: 0;
+  padding: 13px 18px;
+  color: var(--text);
+  background: rgba(17, 27, 33, 0.96);
+  border-top: 1px solid var(--border);
+  text-align: center;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.media-viewer-caption:empty {
+  display: none;
+}
+
+/* Editar/apagar mensagens */
+.editing-bar {
+  background:
+    linear-gradient(135deg, rgba(0, 168, 132, 0.12), transparent),
+    #1f2c33;
+  border-top: 1px solid var(--border);
+  padding: 9px 14px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+}
+
+.editing-info {
+  min-width: 0;
+  border-left: 4px solid var(--green-2);
+  padding-left: 11px;
+  display: grid;
+  gap: 3px;
+}
+
+.editing-info strong {
+  color: var(--green-2);
+  font-size: 13px;
+}
+
+.editing-info span {
+  color: var(--muted);
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.message.selectable .bubble {
+  position: relative;
+}
+
+.message-action-button {
+  position: absolute;
+  top: 5px;
+  right: 6px;
+  width: 28px;
+  height: 26px;
+  border: none;
+  border-radius: 999px;
+  background: rgba(11, 20, 26, 0.48);
+  color: rgba(233, 237, 239, 0.78);
+  opacity: 0;
+  transition: opacity var(--transition), background var(--transition);
+  display: grid;
+  place-items: center;
+  padding: 0;
+  font-size: 16px;
+  z-index: 2;
+}

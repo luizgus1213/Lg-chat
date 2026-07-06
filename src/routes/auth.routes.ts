@@ -6,6 +6,8 @@ import {
   registerUserController,
   loginUserController,
   meController,
+  verifyEmailController,
+  resendEmailCodeController,
 } from "../controllers/AuthControllers";
 import { asyncHandler } from "../utils/asyncHandler";
 
@@ -26,10 +28,35 @@ const authRateLimit = rateLimit({
   },
 });
 
+const emailCodeRateLimit = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    error: {
+      code: "EMAIL_CODE_RATE_LIMIT",
+      message: "Muitas tentativas. Aguarde um pouco e tente novamente.",
+      statusCode: 429,
+    },
+  },
+});
+
 authRoutes.post(
   "/register",
   authRateLimit,
   asyncHandler(registerUserController),
 );
 authRoutes.post("/login", authRateLimit, asyncHandler(loginUserController));
+authRoutes.post(
+  "/verify-email",
+  emailCodeRateLimit,
+  asyncHandler(verifyEmailController),
+);
+authRoutes.post(
+  "/resend-verification",
+  emailCodeRateLimit,
+  asyncHandler(resendEmailCodeController),
+);
 authRoutes.get("/me", authMiddleware, asyncHandler(meController));

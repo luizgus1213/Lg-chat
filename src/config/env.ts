@@ -42,6 +42,21 @@ const rawEnvSchema = z.object({
     .positive()
     .default(60 * 1000),
   AUTH_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(10),
+
+  EMAILJS_SERVICE_ID: z.string().optional(),
+  EMAILJS_TEMPLATE_ID: z.string().optional(),
+  EMAILJS_PUBLIC_KEY: z.string().optional(),
+  EMAILJS_PRIVATE_KEY: z.string().optional(),
+  EMAIL_FROM_NAME: z.string().default("LG Chat"),
+
+  EMAIL_CODE_EXPIRES_MINUTES: z.coerce.number().int().min(5).max(60).default(15),
+  EMAIL_CODE_RESEND_COOLDOWN_SECONDS: z.coerce
+    .number()
+    .int()
+    .min(30)
+    .max(600)
+    .default(60),
+  EMAIL_CODE_MAX_ATTEMPTS: z.coerce.number().int().min(3).max(10).default(5),
 });
 
 const result = rawEnvSchema.safeParse(process.env);

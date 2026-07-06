@@ -1,0 +1,79 @@
+<form id="messageForm" class="message-form">
+    <button
+      id="mediaButton"
+      type="button"
+      class="media-button"
+      title="Anexar arquivo"
+    >
+      +
+    </button>
+
+    <div id="attachmentMenu" class="attachment-menu hidden">
+      <button id="attachCameraButton" type="button">
+        <span>📷</span>
+        Câmera
+      </button>
+
+      <button id="attachVideoButton" type="button">
+        <span>🎥</span>
+        Gravar vídeo
+      </button>
+
+      <button id="attachGalleryButton" type="button">
+        <span>🖼️</span>
+        Galeria
+      </button>
+
+      <button id="attachDocumentButton" type="button">
+        <span>📎</span>
+        Documento
+      </button>
+    </div>
+
+    <input
+      id="mediaInput"
+      type="file"
+      accept="image/jpeg,image/jpg,image/png,image/webp,image/gif,video/mp4,video/webm,video/quicktime,audio/webm,audio/ogg,audio/mpeg,audio/mp3,audio/wav,audio/x-wav,audio/mp4,audio/aac"
+      class="hidden"
+    />
+
+    <input
+      id="cameraInput"
+      type="file"
+      accept="image/*"
+      capture="environment"
+      class="hidden"
+    />
+
+    <input
+      id="videoCaptureInput"
+      type="file"
+      accept="video/*"
+      capture="environment"
+      class="hidden"
+    />
+
+    <input
+      id="documentInput"
+      type="file"
+      accept=".pdf,.txt,.csv,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.rar,.7z,application/pdf,text/plain,text/csv,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/zip,application/x-zip-compressed,application/x-rar-compressed,application/vnd.rar,application/x-7z-compressed"
+      class="hidden"
+    />
+
+    <input
+      id="messageInput"
+      placeholder="Digite sua mensagem..."
+      autocomplete="off"
+    />
+
+    <button
+      id="voiceButton"
+      type="button"
+      class="voice-button"
+      title="Gravar áudio"
+    >
+      🎙
+    </button>
+
+    <button id="sendMessageButton" type="submit">Enviar</button>
+  </form>

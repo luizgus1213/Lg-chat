@@ -87,23 +87,6 @@ app.use(
 
 app.use(express.json({ limit: env.JSON_BODY_LIMIT }));
 
-app.use(
-  rateLimit({
-    windowMs: env.RATE_LIMIT_WINDOW_MS,
-    limit: env.RATE_LIMIT_MAX,
-    standardHeaders: true,
-    legacyHeaders: false,
-    message: {
-      success: false,
-      error: {
-        code: "RATE_LIMIT",
-        message: "Muitas requisições. Tente novamente em alguns segundos.",
-        statusCode: 429,
-      },
-    },
-  }),
-);
-
 app.use((req, res, next) => {
   const start = Date.now();
 
@@ -125,6 +108,20 @@ app.use((req, res, next) => {
   });
 
   next();
+});
+
+/*
+  IMPORTANTE:
+  Arquivos públicos ficam ANTES do rate limit.
+  Assim CSS, JS, HTML, imagens e partials não tomam 429.
+*/
+
+app.get("/favicon.ico", (_req, res) => {
+  return res.status(204).end();
+});
+
+app.get("/.well-known/appspecific/com.chrome.devtools.json", (_req, res) => {
+  return res.status(204).end();
 });
 
 app.use(
@@ -166,13 +163,19 @@ app.use(
         return;
       }
 
-      if (/\.(png|jpg|jpeg|webp|gif|svg|ico|woff|woff2)$/i.test(normalizedPath)) {
+      if (
+        /\.(png|jpg|jpeg|webp|gif|svg|ico|woff|woff2)$/i.test(normalizedPath)
+      ) {
         res.setHeader("Cache-Control", "public, max-age=604800");
       }
     },
   }),
 );
 
+/*
+  Diagnóstico fora do rate limit principal.
+  Se o site der erro no front, o diagnóstico não deve ser bloqueado.
+*/
 app.use("/api/diagnostics", diagnosticsRoutes);
 
 app.get("/health", (_req, res) => {
@@ -181,6 +184,30 @@ app.get("/health", (_req, res) => {
     message: "Servidor online",
   });
 });
+
+/*
+  Rate limit SOMENTE para API.
+  Não coloque isso antes do express.static.
+*/
+const apiRateLimit = rateLimit({
+  windowMs: env.RATE_LIMIT_WINDOW_MS,
+  limit: env.RATE_LIMIT_MAX,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: (req) => {
+    return req.method === "OPTIONS";
+  },
+  message: {
+    success: false,
+    error: {
+      code: "RATE_LIMIT",
+      message: "Muitas requisições. Tente novamente em alguns segundos.",
+      statusCode: 429,
+    },
+  },
+});
+
+app.use("/api", apiRateLimit);
 
 app.use("/api/auth", authRoutes);
 app.use("/api/users", usersRoutes);

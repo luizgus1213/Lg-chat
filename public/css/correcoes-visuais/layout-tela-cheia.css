@@ -1,0 +1,132 @@
+/* LG Chat - correção visual geral + chamadas
+   Carregue este arquivo por último, depois de responsive.css. */
+
+:root {
+  --lg-panel-glass: rgba(31, 44, 52, 0.96);
+  --lg-deep: #071015;
+}
+
+.app-shell,
+.chat-page {
+  height: 100vh !important;
+  min-height: 100vh !important;
+  overflow: hidden !important;
+}
+
+.chat-page {
+  display: grid !important;
+  grid-template-columns: minmax(320px, 390px) minmax(0, 1fr) !important;
+  grid-template-areas: "sidebar chat" !important;
+}
+
+#sidebarRoot {
+  grid-area: sidebar !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+}
+
+#chatMainRoot {
+  grid-area: chat !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  display: contents !important;
+}
+
+#infoPanelRoot {
+  display: contents !important;
+}
+
+.info-panel {
+  position: fixed !important;
+  top: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  left: auto !important;
+  width: min(380px, 94vw) !important;
+  max-width: 100vw !important;
+  transform: translateX(105%) !important;
+  z-index: 80 !important;
+  background: var(--sidebar) !important;
+  border-left: 1px solid var(--border) !important;
+  box-shadow: -18px 0 42px rgba(0, 0, 0, 0.32) !important;
+  overflow-y: auto !important;
+}
+
+.info-panel.open {
+  transform: translateX(0) !important;
+}
+
+.info-panel:not(.open) {
+  pointer-events: none !important;
+}
+
+.chat-main {
+  height: 100% !important;
+  min-height: 0 !important;
+  max-height: 100vh !important;
+  overflow: hidden !important;
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) !important;
+  grid-template-rows:
+    72px
+    auto
+    auto
+    auto
+    minmax(0, 1fr)
+    auto
+    auto
+    auto
+    auto !important;
+  grid-template-areas:
+    "header"
+    "search"
+    "starred"
+    "block"
+    "messages"
+    "typing"
+    "reply"
+    "editing"
+    "form" !important;
+  background:
+    radial-gradient(circle at 20% 0%, rgba(0, 168, 132, 0.08), transparent 32%),
+    var(--bg) !important;
+}
+
+.chat-header {
+  grid-area: header !important;
+  min-height: 72px !important;
+}
+
+#chatSearchPanel {
+  grid-area: search !important;
+}
+
+#starredMessagesPanel {
+  grid-area: starred !important;
+}
+
+#chatBlockNotice {
+  grid-area: block !important;
+}
+
+#messages {
+  grid-area: messages !important;
+  min-height: 0 !important;
+  overflow-y: auto !important;
+}
+
+#typingText {
+  grid-area: typing !important;
+}
+
+#typingText:empty {
+  display: none !important;
+}
+
+#replyBar {
+  grid-area: reply !important;
+}
+
+#editingBar {
+  grid-area: editing !important;
+}

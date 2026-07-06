@@ -1,7 +1,7 @@
 (() => {
   window.LGChat = window.LGChat || {};
 
-  const PARTIAL_CACHE_VERSION = "visual-call-fix-v1";
+  const PARTIAL_CACHE_VERSION = "partials-responsivo-v10";
 
   const appPartials = [
     { target: "authRoot", path: "features/auth/auth.html" },
@@ -10,15 +10,25 @@
     { target: "infoPanelRoot", path: "features/info-panel/info-panel.html" },
     { target: "usersPanelRoot", path: "features/users-panel/users-panel.html" },
     { target: "groupPanelRoot", path: "features/group-panel/group-panel.html" },
-    { target: "globalInputsRoot", path: "features/global-inputs/global-inputs.html" },
+    {
+      target: "globalInputsRoot",
+      path: "features/global-inputs/global-inputs.html",
+    },
     { target: "toastRoot", path: "features/toast/toast.html" },
   ];
 
   const lazyPartials = {
-    statusPanel: { target: "statusPanelRoot", path: "features/status-panel/status-panel.html" },
+    statusPanel: {
+      target: "statusPanelRoot",
+      path: "features/status-panel/status-panel.html",
+    },
   };
 
   const partialPromises = new Map();
+
+  function wait(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
 
   function getCacheKey(path) {
     return `lgchat:partial:${PARTIAL_CACHE_VERSION}:${path}`;
@@ -38,28 +48,64 @@
         sessionStorage.setItem(getCacheKey(path), html);
       }
     } catch (_error) {
-      // Cache em sessionStorage é opcional.
+      // Cache opcional.
     }
   }
 
+  async function fetchPartialFromServer(path) {
+    const url = `${path}?v=${PARTIAL_CACHE_VERSION}`;
+
+    const response = await fetch(url, {
+      cache: "no-store",
+      headers: {
+        Accept: "text/html",
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(
+        `Erro ao carregar ${path}. Status HTTP: ${response.status}`,
+      );
+    }
+
+    return response.text();
+  }
+
   async function fetchPartial(path) {
+    let lastError = null;
+
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
+      try {
+        const html = await fetchPartialFromServer(path);
+
+        writePartialToCache(path, html);
+
+        return html;
+      } catch (error) {
+        lastError = error;
+
+        const message =
+          error instanceof Error ? error.message : "Erro desconhecido";
+
+        console.warn(
+          `[LG Chat] Falha ao carregar partial ${path}. Tentativa ${attempt}/3.`,
+          message,
+        );
+
+        if (attempt < 3) {
+          await wait(500 * attempt);
+        }
+      }
+    }
+
     const cached = readPartialFromCache(path);
 
     if (cached) {
+      console.warn(`[LG Chat] Usando partial em cache: ${path}`);
       return cached;
     }
 
-    const response = await fetch(path, { cache: "force-cache" });
-
-    if (!response.ok) {
-      throw new Error(`Erro ao carregar ${path}`);
-    }
-
-    const html = await response.text();
-
-    writePartialToCache(path, html);
-
-    return html;
+    throw lastError || new Error(`Erro ao carregar ${path}`);
   }
 
   async function loadPartial(partial) {
@@ -69,7 +115,10 @@
       throw new Error(`Elemento não encontrado: ${partial.target}`);
     }
 
-    if (target.dataset.partialLoaded === partial.path && target.innerHTML.trim()) {
+    if (
+      target.dataset.partialLoaded === partial.path &&
+      target.innerHTML.trim()
+    ) {
       return target;
     }
 
@@ -95,7 +144,27 @@
   }
 
   async function loadPartials() {
-    await Promise.all(appPartials.map(loadPartial));
+    const results = await Promise.allSettled(appPartials.map(loadPartial));
+
+    const failed = results
+      .map((result, index) => ({
+        result,
+        partial: appPartials[index],
+      }))
+      .filter((item) => item.result.status === "rejected");
+
+    if (failed.length > 0) {
+      console.error(
+        "[LG Chat] Partials que falharam:",
+        failed.map((item) => item.partial.path),
+      );
+
+      throw new Error(
+        `Falha ao carregar interface: ${failed
+          .map((item) => item.partial.path)
+          .join(", ")}`,
+      );
+    }
   }
 
   async function loadStatusPanelPartial() {

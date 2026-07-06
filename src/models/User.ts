@@ -10,11 +10,27 @@ export interface UserAttributes {
   about?: string | null;
   isOnline?: boolean;
   lastSeenAt?: Date | null;
+  emailVerificado?: boolean;
+  emailVerificadoEm?: Date | null;
+  emailCodigoHash?: string | null;
+  emailCodigoExpiraEm?: Date | null;
+  emailCodigoTentativas?: number;
+  emailCodigoEnviadoEm?: Date | null;
 }
 
 type UserCreationAttributes = Optional<
   UserAttributes,
-  "id" | "avatarUrl" | "about" | "isOnline" | "lastSeenAt"
+  | "id"
+  | "avatarUrl"
+  | "about"
+  | "isOnline"
+  | "lastSeenAt"
+  | "emailVerificado"
+  | "emailVerificadoEm"
+  | "emailCodigoHash"
+  | "emailCodigoExpiraEm"
+  | "emailCodigoTentativas"
+  | "emailCodigoEnviadoEm"
 >;
 
 export class User
@@ -29,6 +45,12 @@ export class User
   declare about: string | null;
   declare isOnline: boolean;
   declare lastSeenAt: Date | null;
+  declare emailVerificado: boolean;
+  declare emailVerificadoEm: Date | null;
+  declare emailCodigoHash: string | null;
+  declare emailCodigoExpiraEm: Date | null;
+  declare emailCodigoTentativas: number;
+  declare emailCodigoEnviadoEm: Date | null;
 }
 
 export function initUserModel() {
@@ -79,6 +101,44 @@ export function initUserModel() {
         type: DataTypes.DATE,
         allowNull: true,
         field: "last_seen_at",
+      },
+
+      emailVerificado: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: false,
+        field: "email_verificado",
+      },
+
+      emailVerificadoEm: {
+        type: DataTypes.DATE,
+        allowNull: true,
+        field: "email_verificado_em",
+      },
+
+      emailCodigoHash: {
+        type: DataTypes.STRING(255),
+        allowNull: true,
+        field: "email_codigo_hash",
+      },
+
+      emailCodigoExpiraEm: {
+        type: DataTypes.DATE,
+        allowNull: true,
+        field: "email_codigo_expira_em",
+      },
+
+      emailCodigoTentativas: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        defaultValue: 0,
+        field: "email_codigo_tentativas",
+      },
+
+      emailCodigoEnviadoEm: {
+        type: DataTypes.DATE,
+        allowNull: true,
+        field: "email_codigo_enviado_em",
       },
     },
     {

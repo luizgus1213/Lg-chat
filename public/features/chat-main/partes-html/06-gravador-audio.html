@@ -1,0 +1,35 @@
+<div id="audioRecorderModal" class="audio-recorder-modal hidden" role="dialog" aria-modal="true">
+    <div class="audio-recorder-panel">
+      <header class="audio-recorder-header">
+        <button id="closeAudioRecorderButton" type="button" class="audio-recorder-close">
+          ×
+        </button>
+
+        <div>
+          <h3 id="audioRecorderTitle">Gravar áudio</h3>
+          <p id="audioRecorderSubtitle">Seu microfone será usado apenas durante a gravação.</p>
+        </div>
+      </header>
+
+      <div class="audio-recorder-body">
+        <div id="audioRecorderPulse" class="audio-recorder-pulse">🎙</div>
+        <strong id="audioRecorderStatus">Preparando gravação...</strong>
+        <span id="audioRecorderTimer" class="audio-recorder-timer">00:00</span>
+        <audio id="audioPreviewPlayer" class="audio-preview-player hidden" controls></audio>
+      </div>
+
+      <footer class="audio-recorder-actions">
+        <button id="cancelAudioRecorderButton" type="button" class="audio-recorder-cancel">
+          Cancelar
+        </button>
+
+        <button id="stopAudioRecorderButton" type="button" class="audio-recorder-stop">
+          Parar
+        </button>
+
+        <button id="sendAudioRecorderButton" type="button" class="audio-recorder-send hidden">
+          Enviar áudio
+        </button>
+      </footer>
+    </div>
+  </div>

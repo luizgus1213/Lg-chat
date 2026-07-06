@@ -24,6 +24,11 @@ const senhaSchema = z
     message: "Senha precisa ter pelo menos um número",
   });
 
+const codigoEmailSchema = z
+  .string()
+  .trim()
+  .regex(/^\d{6}$/, "Código precisa ter 6 números");
+
 export const registerSchema = z.object({
   nome: nomeSchema,
   email: emailSchema,
@@ -33,4 +38,13 @@ export const registerSchema = z.object({
 export const loginSchema = z.object({
   email: emailSchema,
   senha: z.string().min(1, "Senha é obrigatória").max(72),
+});
+
+export const verifyEmailSchema = z.object({
+  email: emailSchema,
+  codigo: codigoEmailSchema,
+});
+
+export const resendEmailCodeSchema = z.object({
+  email: emailSchema,
 });

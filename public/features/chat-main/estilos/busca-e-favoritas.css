@@ -1,0 +1,133 @@
+.chat-search-toggle {
+  min-width: 44px;
+  padding-inline: 12px !important;
+}
+
+.chat-search-panel {
+  background:
+    linear-gradient(135deg, rgba(0, 168, 132, 0.08), transparent),
+    rgba(17, 27, 33, 0.98);
+  border-bottom: 1px solid var(--border);
+  padding: 12px 14px;
+  display: grid;
+  gap: 10px;
+  z-index: 2;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.16);
+}
+
+.chat-search-box {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) minmax(110px, 140px) auto auto;
+  gap: 9px;
+  align-items: center;
+}
+
+.chat-search-icon {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+}
+
+.chat-search-box input,
+.chat-search-box select {
+  min-height: 42px;
+  border-radius: 999px;
+}
+
+.chat-search-box select {
+  width: 100%;
+  border: 1px solid transparent;
+  outline: none;
+  background: var(--input);
+  color: var(--text);
+  padding: 0 12px;
+}
+
+.chat-search-box select:focus {
+  border-color: rgba(0, 168, 132, 0.65);
+  box-shadow: 0 0 0 4px rgba(0, 168, 132, 0.10);
+}
+
+.chat-search-small-button,
+.chat-search-close {
+  min-height: 40px;
+  border: 1px solid var(--border);
+  background: var(--input);
+  color: var(--text);
+  border-radius: 999px;
+  font-weight: 800;
+}
+
+.chat-search-small-button {
+  padding: 0 14px;
+}
+
+.chat-search-close {
+  width: 42px;
+  font-size: 24px;
+  line-height: 1;
+  padding: 0;
+}
+
+.chat-search-small-button:hover,
+.chat-search-close:hover {
+  background: var(--surface-hover);
+  border-color: var(--border-strong);
+}
+
+.chat-search-status {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12.5px;
+  padding-left: 43px;
+}
+
+.chat-search-results {
+  display: grid;
+  gap: 7px;
+  max-height: min(320px, 36vh);
+  overflow-y: auto;
+  padding: 2px 2px 2px 43px;
+}
+
+.chat-search-result {
+  width: 100%;
+  border: 1px solid var(--border);
+  background: rgba(31, 44, 52, 0.72);
+  color: var(--text);
+  border-radius: 14px;
+  padding: 10px 12px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  text-align: left;
+}
+
+.chat-search-result:hover {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(0, 168, 132, 0.28);
+}
+
+.chat-search-result-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 168, 132, 0.12);
+}
+
+.chat-search-result-body {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.chat-search-result-author {
+  color: var(--green-2);
+  font-size: 12px;
+  font-weight: 900;
+}

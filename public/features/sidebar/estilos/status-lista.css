@@ -1,0 +1,10 @@
+@media (max-width: 820px) {
+  .sidebar {
+    box-shadow: none;
+  }
+
+  .chat-item {
+    content-visibility: auto;
+    contain-intrinsic-size: 78px;
+  }
+}

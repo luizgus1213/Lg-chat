@@ -1,0 +1,132 @@
+.forward-message-panel {
+  width: min(520px, 94vw);
+  max-height: min(680px, 92vh);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  overflow: hidden;
+}
+
+.forward-message-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px;
+  border-bottom: 1px solid var(--border);
+  background: rgba(31, 44, 52, 0.94);
+}
+
+.forward-message-header h3 {
+  margin: 0 0 6px;
+}
+
+.forward-message-header p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  max-width: 380px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.forward-message-body {
+  min-height: 0;
+  overflow: auto;
+  padding: 14px 16px;
+}
+
+.forward-chats-list {
+  display: grid;
+  gap: 6px;
+}
+
+.forward-chat-option {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  padding: 10px;
+  border: 1px solid transparent;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.035);
+  cursor: pointer;
+}
+
+.forward-chat-option:hover {
+  background: rgba(255, 255, 255, 0.065);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.forward-chat-option input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--green-2);
+}
+
+.forward-chat-option-body {
+  min-width: 0;
+}
+
+.forward-chat-option-body strong,
+.forward-chat-option-body span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.forward-chat-option-body span {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.forward-message-actions {
+  padding: 14px 16px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  background: rgba(31, 44, 52, 0.94);
+}
+
+.forward-message-actions button {
+  min-height: 40px;
+}
+
+
+/* Menu de anexos estilo WhatsApp */
+.message-form {
+  position: relative;
+}
+
+.attachment-menu {
+  position: absolute;
+  left: 14px;
+  bottom: 68px;
+  width: min(260px, calc(100vw - 28px));
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.045), transparent),
+    var(--sidebar-2);
+  box-shadow: 0 18px 46px rgba(0, 0, 0, 0.36);
+  display: grid;
+  gap: 8px;
+  z-index: 30;
+}
+
+.attachment-menu button {
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text);
+  border-radius: 14px;
+  padding: 11px 12px;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  text-align: left;
+  font-weight: 800;
+}

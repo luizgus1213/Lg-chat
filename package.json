@@ -12,7 +12,9 @@
     "db:migrate:status": "sequelize-cli db:migrate:status"
   },
   "dependencies": {
+    "@emailjs/nodejs": "^5.0.2",
     "bcryptjs": "latest",
+    "compression": "latest",
     "cors": "latest",
     "dotenv": "latest",
     "express": "latest",
@@ -25,12 +27,12 @@
     "pino": "latest",
     "pino-pretty": "latest",
     "sequelize": "latest",
+    "sharp": "latest",
     "socket.io": "latest",
-    "zod": "latest",
-    "compression": "latest",
-    "sharp": "latest"
+    "zod": "latest"
   },
   "devDependencies": {
+    "@types/compression": "latest",
     "@types/cors": "latest",
     "@types/express": "latest",
     "@types/jsonwebtoken": "latest",
@@ -38,7 +40,6 @@
     "@types/node": "latest",
     "sequelize-cli": "latest",
     "tsx": "latest",
-    "typescript": "latest",
-    "@types/compression": "latest"
+    "typescript": "latest"
   }
 }

@@ -1,0 +1,131 @@
+.chat-options-button {
+  width: 30px;
+  height: 30px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  display: grid;
+  place-items: center;
+  opacity: 0;
+  flex: 0 0 auto;
+  font-size: 20px;
+  line-height: 1;
+  padding: 0;
+}
+
+.chat-item:hover .chat-options-button,
+.chat-options-button:focus {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.chat-options-menu {
+  position: fixed;
+  z-index: 85;
+  min-width: 230px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent 90px),
+    #233138;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: var(--shadow);
+  padding: 7px;
+}
+
+.chat-options-menu button {
+  width: 100%;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  padding: 11px 12px;
+  border-radius: 11px;
+  font-size: 14px;
+}
+
+.chat-options-menu button:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.chat-options-menu button.warning {
+  color: #ffd792;
+}
+
+.chat-options-menu button.danger {
+  color: #ffb4b4;
+}
+
+.chat-options-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 6px 4px;
+}
+
+.chat-time-box {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  min-width: 0;
+}
+
+@media (max-width: 820px) {
+  .chat-options-button {
+    opacity: 1;
+  }
+}
+
+
+/* PWA tools */
+.app-tools-panel {
+  display: grid;
+  gap: 8px;
+}
+
+@media (min-width: 560px) {
+  .app-tools-panel {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .install-app-button {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 820px) {
+  .sidebar {
+    width: 100vw;
+    height: 100dvh;
+    border-right: none;
+  }
+
+  .sidebar-header {
+    padding-top: max(14px, env(safe-area-inset-top));
+  }
+
+  .sidebar-actions {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .archived-toggle-button {
+    grid-column: 1 / -1;
+  }
+
+  .chat-list {
+    padding-bottom: max(18px, env(safe-area-inset-bottom));
+  }
+
+  .chat-item {
+    min-height: 78px;
+    border-radius: 16px;
+  }
+
+  .chat-avatar {
+    width: 52px;
+    height: 52px;
+  }
+}
+
+
+/* Status / Stories */

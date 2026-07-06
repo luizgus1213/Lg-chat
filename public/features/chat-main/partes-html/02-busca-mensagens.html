@@ -1,0 +1,31 @@
+<section id="chatSearchPanel" class="chat-search-panel hidden" aria-label="Pesquisar mensagens nesta conversa">
+    <div class="chat-search-box">
+      <span class="chat-search-icon">🔎</span>
+      <input
+        id="messageSearchInput"
+        placeholder="Pesquisar nesta conversa..."
+        autocomplete="off"
+      />
+
+      <select id="messageSearchType" title="Filtrar tipo de mensagem">
+        <option value="all">Todos</option>
+        <option value="text">Textos</option>
+        <option value="image">Fotos</option>
+        <option value="video">Vídeos</option>
+        <option value="audio">Áudios</option>
+        <option value="file">Documentos</option>
+        <option value="media">Mídias</option>
+      </select>
+
+      <button id="clearChatSearchButton" type="button" class="chat-search-small-button">
+        Limpar
+      </button>
+
+      <button id="closeChatSearchButton" type="button" class="chat-search-close">
+        ×
+      </button>
+    </div>
+
+    <p id="messageSearchStatus" class="chat-search-status">Digite para pesquisar mensagens.</p>
+    <div id="messageSearchResults" class="chat-search-results"></div>
+  </section>

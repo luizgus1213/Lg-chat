@@ -1,0 +1,34 @@
+<div id="mediaPreviewModal" class="media-preview-modal hidden" role="dialog" aria-modal="true">
+    <div class="media-preview-panel">
+      <header class="media-preview-header">
+        <button id="closeMediaPreviewButton" type="button" class="media-preview-close">
+          ×
+        </button>
+
+        <div>
+          <h3 id="mediaPreviewTitle">Enviar arquivo</h3>
+          <p id="mediaPreviewMeta">Pré-visualização</p>
+        </div>
+      </header>
+
+      <div id="mediaPreviewBody" class="media-preview-body"></div>
+
+      <footer class="media-preview-footer">
+        <input
+          id="mediaPreviewCaption"
+          placeholder="Adicione uma legenda..."
+          autocomplete="off"
+        />
+
+        <div class="media-preview-actions">
+          <button id="cancelMediaPreviewButton" type="button" class="media-preview-cancel">
+            Cancelar
+          </button>
+
+          <button id="sendMediaPreviewButton" type="button" class="media-preview-send">
+            Enviar
+          </button>
+        </div>
+      </footer>
+    </div>
+  </div>

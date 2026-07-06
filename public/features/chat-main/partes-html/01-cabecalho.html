@@ -1,0 +1,64 @@
+<main class="chat-main">
+  <header class="chat-header">
+    <button id="backToChatsButton" type="button" class="back-button">
+      ←
+    </button>
+
+    <button
+      id="chatHeaderProfileButton"
+      type="button"
+      class="chat-header-profile"
+      disabled
+    >
+      <div id="chatHeaderAvatar" class="chat-header-avatar">?</div>
+
+      <div class="chat-title-box">
+        <h2 id="chatTitle">Escolha uma conversa</h2>
+        <p id="chatSubtitle">Nenhum chat selecionado</p>
+      </div>
+    </button>
+
+    <div class="header-actions">
+      <button
+        id="startVoiceCallButton"
+        type="button"
+        class="ghost-button call-header-button"
+        title="Chamada de voz"
+        disabled
+      >
+        ☎️
+      </button>
+
+      <button
+        id="startVideoCallButton"
+        type="button"
+        class="ghost-button call-header-button"
+        title="Chamada de vídeo"
+        disabled
+      >
+        🎥
+      </button>
+
+      <button
+        id="openChatSearchButton"
+        type="button"
+        class="ghost-button chat-search-toggle"
+        title="Pesquisar nesta conversa"
+      >
+        🔎
+      </button>
+
+      <button
+        id="openStarredMessagesButton"
+        type="button"
+        class="ghost-button starred-toggle"
+        title="Mensagens favoritas"
+      >
+        ⭐
+      </button>
+
+      <button id="refreshChatsButton" type="button" class="ghost-button">
+        Atualizar
+      </button>
+    </div>
+  </header>

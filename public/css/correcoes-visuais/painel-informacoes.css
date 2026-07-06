@@ -1,0 +1,129 @@
+#messageForm {
+  grid-area: form !important;
+  align-self: end !important;
+  width: 100% !important;
+}
+
+#chatSearchPanel.hidden,
+#starredMessagesPanel.hidden,
+#chatBlockNotice.hidden,
+#replyBar.hidden,
+#editingBar.hidden {
+  display: none !important;
+}
+
+.message-form {
+  position: relative !important;
+  bottom: auto !important;
+  grid-template-columns: 46px minmax(0, 1fr) 46px auto !important;
+  gap: 10px !important;
+  align-items: center !important;
+  min-height: 68px !important;
+  margin: 0 !important;
+  padding: 10px 14px max(10px, env(safe-area-inset-bottom)) !important;
+  box-shadow: 0 -10px 24px rgba(0, 0, 0, 0.16) !important;
+  z-index: 9 !important;
+}
+
+.message-form input#messageInput {
+  min-width: 0 !important;
+  min-height: 46px !important;
+}
+
+.media-button,
+.voice-button {
+  width: 46px !important;
+  height: 46px !important;
+  min-width: 46px !important;
+  padding: 0 !important;
+}
+
+.message-form #sendMessageButton {
+  grid-column: auto !important;
+  min-width: 82px !important;
+  height: 46px !important;
+}
+
+.attachment-menu {
+  position: absolute !important;
+  left: 14px !important;
+  bottom: calc(100% + 10px) !important;
+  z-index: 95 !important;
+}
+
+/* Chamada: transforma o HTML cru em modal real */
+.call-panel {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 120 !important;
+  display: grid !important;
+  place-items: center !important;
+  padding: 22px !important;
+  background:
+    radial-gradient(circle at center, rgba(0, 168, 132, 0.14), transparent 42%),
+    rgba(3, 10, 14, 0.92) !important;
+  backdrop-filter: blur(12px);
+}
+
+.call-panel.hidden {
+  display: none !important;
+}
+
+.call-card {
+  width: min(980px, calc(100vw - 44px)) !important;
+  height: min(680px, calc(100vh - 44px)) !important;
+  max-height: calc(100vh - 44px) !important;
+  border-radius: 26px !important;
+  overflow: hidden !important;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.045), transparent 180px),
+    #0b171d !important;
+  border: 1px solid rgba(134, 150, 160, 0.26) !important;
+  box-shadow: 0 28px 90px rgba(0, 0, 0, 0.55) !important;
+  display: grid !important;
+  grid-template-rows: minmax(0, 1fr) auto !important;
+}
+
+.call-video-stage {
+  position: relative !important;
+  min-height: 0 !important;
+  background:
+    radial-gradient(circle at top, rgba(0, 168, 132, 0.12), transparent 34%),
+    #050b0f !important;
+  overflow: hidden !important;
+  display: grid !important;
+  place-items: center !important;
+}
+
+.remote-call-video {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: contain !important;
+  background: #000 !important;
+  display: block !important;
+}
+
+.remote-call-video.hidden {
+  display: none !important;
+}
+
+.local-call-video {
+  position: absolute !important;
+  right: 18px !important;
+  bottom: 18px !important;
+  width: min(220px, 28vw) !important;
+  height: min(150px, 20vh) !important;
+  object-fit: cover !important;
+  background: #000 !important;
+  border: 2px solid rgba(255, 255, 255, 0.22) !important;
+  border-radius: 18px !important;
+  box-shadow: 0 14px 38px rgba(0, 0, 0, 0.45) !important;
+  z-index: 4 !important;
+  display: block !important;
+}
+
+.local-call-video.hidden {
+  display: none !important;
+}

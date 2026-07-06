@@ -1,0 +1,132 @@
+.reply-info span {
+  color: var(--muted);
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reply-cancel-button {
+  width: 42px;
+  height: 42px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text);
+  font-size: 30px;
+  line-height: 1;
+  display: grid;
+  place-items: center;
+  padding: 0;
+}
+
+.reply-cancel-button:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.message-reply-preview {
+  width: 100%;
+  border: none;
+  border-left: 4px solid #53bdeb;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.18);
+  color: var(--text);
+  padding: 8px 9px;
+  margin: 0 0 7px;
+  display: grid;
+  gap: 3px;
+  text-align: left;
+}
+
+.message.mine .message-reply-preview {
+  background: rgba(255, 255, 255, 0.10);
+}
+
+.message-reply-preview strong {
+  color: #53bdeb;
+  font-size: 12.5px;
+}
+
+.message-reply-preview span {
+  min-width: 0;
+  color: rgba(233, 237, 239, 0.76);
+  font-size: 12.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.message-reply-preview:hover {
+  filter: brightness(1.08);
+}
+
+.message-reaction-picker {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 4px;
+  padding: 6px 5px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  margin: 3px 0;
+}
+
+.reaction-pick-button {
+  min-width: 34px;
+  height: 34px;
+  border: none;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.055);
+  font-size: 18px !important;
+  display: grid;
+  place-items: center;
+  padding: 0 !important;
+  text-align: center !important;
+}
+
+.reaction-pick-button:hover {
+  background: rgba(255, 255, 255, 0.12) !important;
+  transform: translateY(-1px) scale(1.03);
+}
+
+.message-reactions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 5px;
+  justify-content: flex-start;
+}
+
+.message.mine .message-reactions {
+  justify-content: flex-end;
+}
+
+.message-reaction {
+  min-height: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.18);
+  color: var(--text);
+  padding: 2px 8px;
+  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.message-reaction.mine {
+  border-color: rgba(83, 189, 235, 0.45);
+  background: rgba(83, 189, 235, 0.17);
+}
+
+.message-reaction:hover {
+  filter: brightness(1.1);
+}
+
+.message-highlight .bubble {
+  outline: 2px solid rgba(83, 189, 235, 0.85);
+  box-shadow:
+    0 0 0 6px rgba(83, 189, 235, 0.13),
+    0 10px 30px rgba(0, 0, 0, 0.22);
+}
+
+/* Pesquisa dentro da conversa */

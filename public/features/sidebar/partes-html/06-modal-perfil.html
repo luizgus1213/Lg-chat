@@ -1,0 +1,48 @@
+<div id="profilePanel" class="modal hidden">
+    <div class="modal-content profile-modal-content">
+      <header class="profile-modal-header">
+        <h3>Meu perfil</h3>
+
+        <button id="closeProfilePanelButton" type="button" class="icon-button">
+          ×
+        </button>
+      </header>
+
+      <form id="profileForm" class="profile-form">
+        <div class="profile-avatar-area">
+          <button id="changeProfileAvatarButton" type="button" class="profile-avatar-preview">
+            <div id="profileAvatarPreview" class="profile-avatar-preview-inner">?</div>
+            <span>Alterar foto</span>
+          </button>
+
+          <input
+            id="profileAvatarInput"
+            type="file"
+            accept="image/jpeg,image/jpg,image/png,image/webp"
+            class="hidden"
+          />
+
+          <p id="profileEmail" class="profile-email muted"></p>
+        </div>
+
+        <label>
+          Nome
+          <input id="profileNome" maxlength="120" placeholder="Seu nome" />
+        </label>
+
+        <label>
+          Recado
+          <input
+            id="profileAbout"
+            maxlength="140"
+            placeholder="Disponível"
+          />
+        </label>
+
+        <button id="saveProfileButton" type="submit">
+          Salvar perfil
+        </button>
+      </form>
+    </div>
+  </div>
+</aside>

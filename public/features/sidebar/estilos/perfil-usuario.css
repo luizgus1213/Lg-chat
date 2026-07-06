@@ -1,0 +1,127 @@
+.current-user-avatar img,
+.profile-avatar-preview-inner img,
+.mini-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.current-user-info {
+  min-width: 0;
+}
+
+.current-user-info h2 {
+  margin: 0;
+}
+
+.current-user-info p {
+  margin: 5px 0 0;
+}
+
+.profile-modal-content {
+  width: min(460px, 100%);
+}
+
+.profile-modal-header {
+  min-height: 64px;
+  background: var(--sidebar-2);
+  border-bottom: 1px solid var(--border);
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.profile-modal-header h3 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.profile-form {
+  padding: 18px;
+  display: grid;
+  gap: 16px;
+}
+
+.profile-avatar-area {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  padding: 6px 0 10px;
+}
+
+.profile-avatar-preview {
+  border: none;
+  background: transparent;
+  color: var(--text);
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+}
+
+.profile-avatar-preview-inner {
+  width: 118px;
+  height: 118px;
+  border-radius: 50%;
+  background:
+    linear-gradient(135deg, #8ba0a8, #3f565e);
+  color: #071319;
+  display: grid;
+  place-items: center;
+  font-size: 42px;
+  font-weight: 900;
+  overflow: hidden;
+  position: relative;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.16),
+    0 18px 40px rgba(0, 0, 0, 0.28);
+}
+
+.profile-avatar-preview span {
+  font-size: 13px;
+  color: var(--green-2);
+  font-weight: 800;
+}
+
+.profile-avatar-preview:hover .profile-avatar-preview-inner {
+  filter: brightness(0.9);
+}
+
+.profile-email {
+  margin: 0;
+  font-size: 13px;
+}
+
+.profile-form button[type="submit"] {
+  margin-top: 4px;
+  min-height: 46px;
+}
+
+
+.archived-toggle-button {
+  grid-column: 1 / -1;
+}
+
+.archived-toggle-button.active {
+  background: rgba(0, 168, 132, 0.16) !important;
+  border-color: rgba(0, 168, 132, 0.35) !important;
+  color: var(--green-2) !important;
+}
+
+.chat-item.is-pinned {
+  background:
+    linear-gradient(135deg, rgba(0, 168, 132, 0.09), transparent),
+    transparent;
+}
+
+.chat-item.is-archived {
+  opacity: 0.92;
+}
+
+.chat-flags {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--muted-2);
+  font-size: 12px;
+}

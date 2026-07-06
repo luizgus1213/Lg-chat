@@ -1,0 +1,135 @@
+.audio-recorder-pulse {
+  width: 82px;
+  height: 82px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(135deg, rgba(0, 168, 132, 0.22), rgba(6, 207, 156, 0.12));
+  border: 1px solid rgba(6, 207, 156, 0.30);
+  font-size: 34px;
+  box-shadow: 0 0 0 0 rgba(6, 207, 156, 0.28);
+}
+
+.audio-recorder-pulse.is-recording {
+  animation: audioPulse 1.05s ease-in-out infinite;
+}
+
+@keyframes audioPulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(6, 207, 156, 0.30);
+    transform: scale(1);
+  }
+
+  70% {
+    box-shadow: 0 0 0 18px rgba(6, 207, 156, 0);
+    transform: scale(1.03);
+  }
+
+  100% {
+    box-shadow: 0 0 0 0 rgba(6, 207, 156, 0);
+    transform: scale(1);
+  }
+}
+
+.audio-recorder-body strong {
+  font-size: 17px;
+}
+
+.audio-recorder-timer {
+  font-size: 32px;
+  font-weight: 900;
+  letter-spacing: -0.04em;
+  color: var(--green-2);
+}
+
+.audio-preview-player {
+  width: min(360px, 100%);
+  margin-top: 8px;
+  filter: invert(0.92) hue-rotate(145deg);
+}
+
+.audio-recorder-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 13px;
+  border-top: 1px solid var(--border);
+  background: rgba(31, 44, 52, 0.96);
+}
+
+.audio-recorder-actions button {
+  min-height: 44px;
+  border: none;
+  border-radius: 999px;
+  padding: 0 18px;
+  font-weight: 900;
+}
+
+.audio-recorder-cancel {
+  background: var(--input);
+  color: var(--text);
+}
+
+.audio-recorder-stop {
+  background: rgba(239, 83, 80, 0.16);
+  color: #ffb8b8;
+}
+
+.audio-recorder-send {
+  background: linear-gradient(135deg, var(--green), var(--green-2));
+  color: #06251f;
+}
+
+@media (max-width: 560px) {
+  .voice-button {
+    width: 43px;
+    height: 43px;
+  }
+
+  .message-audio-box {
+    min-width: min(290px, 72vw);
+  }
+
+  .message-media-audio {
+    min-width: 180px;
+  }
+
+  .audio-recorder-modal {
+    padding: 10px;
+  }
+
+  .audio-recorder-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .audio-recorder-send {
+    grid-column: 1 / -1;
+  }
+}
+
+/* Responder mensagem e reações */
+.reply-bar {
+  background:
+    linear-gradient(135deg, rgba(83, 189, 235, 0.12), transparent),
+    #1f2c33;
+  border-top: 1px solid var(--border);
+  padding: 9px 14px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+}
+
+.reply-info {
+  min-width: 0;
+  border-left: 4px solid #53bdeb;
+  padding-left: 11px;
+  display: grid;
+  gap: 3px;
+}
+
+.reply-info strong {
+  color: #53bdeb;
+  font-size: 13px;
+}

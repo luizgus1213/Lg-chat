@@ -1,0 +1,56 @@
+<div id="mediaViewerModal" class="media-viewer-modal hidden" role="dialog" aria-modal="true">
+    <header class="media-viewer-header">
+      <button id="closeMediaViewerButton" type="button" class="media-viewer-close">
+        ×
+      </button>
+
+      <div>
+        <h3 id="mediaViewerTitle">Mídia</h3>
+        <p>Visualização</p>
+      </div>
+    </header>
+
+    <div id="mediaViewerBody" class="media-viewer-body"></div>
+
+    <p id="mediaViewerCaption" class="media-viewer-caption"></p>
+  </div>
+
+  <section id="callPanel" class="call-panel hidden" aria-label="Chamada">
+    <div class="call-card">
+      <div class="call-video-stage">
+        <video id="remoteCallVideo" class="remote-call-video hidden" autoplay playsinline></video>
+        <video id="localCallVideo" class="local-call-video hidden" autoplay playsinline muted></video>
+
+        <div id="callAvatarFallback" class="call-avatar-fallback">
+          <div id="callAvatarInitial" class="call-avatar-initial">?</div>
+          <h3 id="callUserName">Chamada</h3>
+          <p id="callStatusText">Preparando chamada...</p>
+          <span id="callTimer" class="call-timer hidden">00:00</span>
+        </div>
+      </div>
+
+      <div class="call-actions">
+        <button id="acceptCallButton" type="button" class="call-action-button accept hidden" title="Atender">
+          ✓
+        </button>
+
+        <button id="rejectCallButton" type="button" class="call-action-button danger hidden" title="Recusar">
+          ✕
+        </button>
+
+        <button id="toggleMuteCallButton" type="button" class="call-action-button hidden" title="Mutar microfone">
+          🎙️
+        </button>
+
+        <button id="toggleCameraCallButton" type="button" class="call-action-button hidden" title="Ligar/desligar câmera">
+          📷
+        </button>
+
+        <button id="endCallButton" type="button" class="call-action-button danger hidden" title="Encerrar">
+          ⏹
+        </button>
+      </div>
+    </div>
+  </section>
+
+</main>

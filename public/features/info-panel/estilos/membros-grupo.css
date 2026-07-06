@@ -1,0 +1,12 @@
+.neutral-button:hover {
+  filter: brightness(1.08);
+}
+
+.blocked-contact-note {
+  margin-top: 12px !important;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(229, 72, 77, 0.11);
+  border: 1px solid rgba(229, 72, 77, 0.30);
+  color: #ffb4b4 !important;
+}

@@ -1,0 +1,108 @@
+.attachment-menu button:hover {
+  background: rgba(255, 255, 255, 0.065);
+  border-color: rgba(255, 255, 255, 0.06);
+}
+
+.attachment-menu button span {
+  width: 34px;
+  height: 34px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 168, 132, 0.14);
+  box-shadow: inset 0 0 0 1px rgba(0, 168, 132, 0.18);
+}
+
+.file-bubble {
+  min-width: min(320px, 72vw);
+}
+
+.message-file-box,
+.media-preview-file-box,
+.media-viewer-file-card {
+  text-decoration: none;
+  color: inherit;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-radius: 14px;
+}
+
+.message-file-box {
+  padding: 10px 12px;
+  background: rgba(0, 0, 0, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.055);
+}
+
+.message-file-box:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.message-file-icon,
+.media-preview-file-icon,
+.media-viewer-file-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  font-size: 24px;
+  background: rgba(0, 168, 132, 0.16);
+  box-shadow: inset 0 0 0 1px rgba(0, 168, 132, 0.22);
+}
+
+.message-file-info,
+.media-preview-file-info,
+.media-viewer-file-info {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.message-file-info strong,
+.media-preview-file-info strong,
+.media-viewer-file-info strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-strong);
+  font-size: 14px;
+}
+
+.message-file-info span,
+.media-preview-file-info span,
+.media-viewer-file-info span,
+.media-viewer-file-info small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.media-preview-file-box {
+  width: min(620px, 100%);
+  padding: 18px;
+  border: 1px solid var(--border);
+  background: rgba(31, 44, 52, 0.74);
+}
+
+.media-viewer-file-card {
+  width: min(620px, 92vw);
+  padding: 22px;
+  border: 1px solid var(--border);
+  background: rgba(31, 44, 52, 0.86);
+  box-shadow: var(--shadow-soft);
+}
+
+.media-viewer-file-card:hover {
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.media-viewer-audio {
+  width: min(520px, 92vw);
+}
+
+
+/* Mobile app polish */
