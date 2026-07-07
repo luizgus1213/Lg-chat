@@ -1,6 +1,9 @@
+import { sequelize } from "../db/connection";
+
 import bcrypt from "bcryptjs";
 import crypto from "node:crypto";
 import { UniqueConstraintError } from "sequelize";
+import type { Transaction } from "sequelize";
 import { AppError } from "../errors/AppError";
 import { User } from "../models/User";
 import { env } from "../config/env";
@@ -45,14 +48,16 @@ function buildAuthResult(user: User) {
   };
 }
 
+function normalizeEmail(email: string) {
+  return email.trim().toLowerCase();
+}
+
 function generateEmailCode() {
   return crypto.randomInt(100000, 1000000).toString();
 }
 
 function getEmailCodeExpiration() {
-  const date = new Date();
-  date.setMinutes(date.getMinutes() + env.EMAIL_CODE_EXPIRES_MINUTES);
-  return date;
+  return new Date(Date.now() + env.EMAIL_CODE_EXPIRES_MINUTES * 60 * 1000);
 }
 
 function assertCanResend(user: User) {
@@ -72,16 +77,23 @@ function assertCanResend(user: User) {
   }
 }
 
-async function createAndSendEmailCode(user: User) {
+async function saveCodeAndSendEmail(user: User, transaction: Transaction) {
   const code = generateEmailCode();
   const codeHash = await bcrypt.hash(code, env.BCRYPT_ROUNDS);
 
-  user.emailCodigoHash = codeHash;
-  user.emailCodigoExpiraEm = getEmailCodeExpiration();
-  user.emailCodigoTentativas = 0;
-  user.emailCodigoEnviadoEm = new Date();
-
-  await user.save();
+  await user.update(
+    {
+      emailCodigoHash: codeHash,
+      emailCodigoExpiraEm: getEmailCodeExpiration(),
+      emailCodigoTentativas: 0,
+      emailCodigoEnviadoEm: new Date(),
+      emailVerificado: false,
+      emailVerificadoEm: null,
+    },
+    {
+      transaction,
+    },
+  );
 
   await sendVerificationEmail({
     toEmail: user.email,
@@ -92,42 +104,83 @@ async function createAndSendEmailCode(user: User) {
 }
 
 export async function registerUser(data: RegisterInput) {
-  const emailJaExiste = await User.findOne({
-    where: {
-      email: data.email,
-    },
-  });
-
-  if (emailJaExiste) {
-    throw new AppError(409, "Esse email já está cadastrado.", "EMAIL_EXISTS");
-  }
-
-  const senhaCriptografada = await bcrypt.hash(data.senha, env.BCRYPT_ROUNDS);
+  const email = normalizeEmail(data.email);
+  const transaction = await sequelize.transaction();
 
   try {
-    const user = await User.create({
-      nome: data.nome,
-      email: data.email,
-      senha: senhaCriptografada,
-      about: "Disponível",
-      isOnline: false,
-      lastSeenAt: null,
-      avatarUrl: null,
-      emailVerificado: false,
-      emailVerificadoEm: null,
-      emailCodigoHash: null,
-      emailCodigoExpiraEm: null,
-      emailCodigoTentativas: 0,
-      emailCodigoEnviadoEm: null,
+    const existingUser = await User.findOne({
+      where: {
+        email,
+      },
+      transaction,
+      lock: transaction.LOCK.UPDATE,
     });
 
-    await createAndSendEmailCode(user);
+    if (existingUser && existingUser.emailVerificado) {
+      throw new AppError(409, "Esse email já está cadastrado.", "EMAIL_EXISTS");
+    }
+
+    const senhaCriptografada = await bcrypt.hash(data.senha, env.BCRYPT_ROUNDS);
+
+    let user: User;
+
+    if (existingUser && !existingUser.emailVerificado) {
+      await existingUser.update(
+        {
+          nome: data.nome,
+          senha: senhaCriptografada,
+          emailVerificado: false,
+          emailVerificadoEm: null,
+          emailCodigoHash: null,
+          emailCodigoExpiraEm: null,
+          emailCodigoTentativas: 0,
+          emailCodigoEnviadoEm: null,
+        },
+        {
+          transaction,
+        },
+      );
+
+      user = existingUser;
+    } else {
+      user = await User.create(
+        {
+          nome: data.nome,
+          email,
+          senha: senhaCriptografada,
+          about: "Disponível",
+          isOnline: false,
+          lastSeenAt: null,
+          avatarUrl: null,
+          emailVerificado: false,
+          emailVerificadoEm: null,
+          emailCodigoHash: null,
+          emailCodigoExpiraEm: null,
+          emailCodigoTentativas: 0,
+          emailCodigoEnviadoEm: null,
+        },
+        {
+          transaction,
+        },
+      );
+    }
+
+    await saveCodeAndSendEmail(user, transaction);
+
+    await transaction.commit();
 
     return {
-      emailVerificationRequired: true,
+      requiresEmailVerification: true,
+      email: user.email,
       user: publicAuthUser(user),
     };
   } catch (error) {
+    try {
+      await transaction.rollback();
+    } catch (_rollbackError) {
+      // A transação pode já ter sido finalizada; não esconder o erro real.
+    }
+
     if (error instanceof UniqueConstraintError) {
       throw new AppError(409, "Esse email já está cadastrado.", "EMAIL_EXISTS");
     }
@@ -139,7 +192,7 @@ export async function registerUser(data: RegisterInput) {
 export async function loginUser(data: LoginInput) {
   const user = await User.findOne({
     where: {
-      email: data.email,
+      email: normalizeEmail(data.email),
     },
   });
 
@@ -167,12 +220,16 @@ export async function loginUser(data: LoginInput) {
 export async function verifyEmail(data: VerifyEmailInput) {
   const user = await User.findOne({
     where: {
-      email: data.email,
+      email: normalizeEmail(data.email),
     },
   });
 
   if (!user) {
-    throw new AppError(400, "Código inválido ou expirado.", "INVALID_EMAIL_CODE");
+    throw new AppError(
+      400,
+      "Código inválido ou expirado.",
+      "INVALID_EMAIL_CODE",
+    );
   }
 
   if (user.emailVerificado) {
@@ -229,32 +286,52 @@ export async function verifyEmail(data: VerifyEmailInput) {
 }
 
 export async function resendVerificationEmail(data: ResendEmailCodeInput) {
-  const user = await User.findOne({
-    where: {
-      email: data.email,
-    },
-  });
+  const email = normalizeEmail(data.email);
+  const transaction = await sequelize.transaction();
 
-  // Resposta genérica para não facilitar enumeração de emails.
-  if (!user) {
+  try {
+    const user = await User.findOne({
+      where: {
+        email,
+      },
+      transaction,
+      lock: transaction.LOCK.UPDATE,
+    });
+
+    // Resposta genérica para não facilitar enumeração de emails.
+    if (!user) {
+      await transaction.rollback();
+
+      return {
+        emailVerificationRequired: true,
+      };
+    }
+
+    if (user.emailVerificado) {
+      throw new AppError(
+        409,
+        "Esse email já está verificado.",
+        "EMAIL_ALREADY_VERIFIED",
+      );
+    }
+
+    assertCanResend(user);
+
+    await saveCodeAndSendEmail(user, transaction);
+
+    await transaction.commit();
+
     return {
       emailVerificationRequired: true,
+      email: user.email,
     };
+  } catch (error) {
+    try {
+      await transaction.rollback();
+    } catch (_rollbackError) {
+      // A transação pode já ter sido finalizada; não esconder o erro real.
+    }
+
+    throw error;
   }
-
-  if (user.emailVerificado) {
-    throw new AppError(
-      409,
-      "Esse email já está verificado.",
-      "EMAIL_ALREADY_VERIFIED",
-    );
-  }
-
-  assertCanResend(user);
-
-  await createAndSendEmailCode(user);
-
-  return {
-    emailVerificationRequired: true,
-  };
 }

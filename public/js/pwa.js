@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSAO = "app-instalavel-sem-numeros-v1";
+  const VERSAO = "app-instalavel-mobile-fix-v12";
   const MODULOS = [
     "estado-global.js",
     "som-notificacao.js",

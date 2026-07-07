@@ -17,11 +17,7 @@ export async function registerUserController(req: Request, res: Response) {
   const data = registerSchema.parse(req.body);
   const result = await registerUser(data);
 
-  return created(
-    res,
-    result,
-    "Conta criada. Enviamos um código de verificação para seu email.",
-  );
+  return created(res, result, "Código de verificação enviado para seu email.");
 }
 
 export async function loginUserController(req: Request, res: Response) {

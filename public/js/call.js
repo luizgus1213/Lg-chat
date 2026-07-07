@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSAO = "chamada-sem-numeros-v1";
+  const VERSAO = "chamada-mobile-fix-v12";
   const MODULOS = [
     "estado-e-configuracao.js",
     "setcontrols.js",

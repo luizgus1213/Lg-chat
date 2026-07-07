@@ -1,4 +1,3 @@
-import emailjs from "@emailjs/nodejs";
 import { AppError } from "../errors/AppError";
 import { env } from "../config/env";
 import { logger } from "../utils/logger";
@@ -10,14 +9,8 @@ type SendVerificationEmailInput = {
   expiresMinutes: number;
 };
 
-type EmailJsError = {
-  status?: number;
-  text?: string;
-};
-
-function isEmailJsError(error: unknown): error is EmailJsError {
-  return typeof error === "object" && error !== null;
-}
+const EMAILJS_SEND_URL = "https://api.emailjs.com/api/v1.0/email/send";
+const EMAIL_TIMEOUT_MS = 20_000;
 
 function assertEmailJsConfigured() {
   const missing = [
@@ -43,55 +36,100 @@ function assertEmailJsConfigured() {
   }
 }
 
+function getTextPreview(text: string) {
+  return text.length > 800 ? `${text.slice(0, 800)}...` : text;
+}
+
+async function fetchWithTimeout(url: string, init: RequestInit) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), EMAIL_TIMEOUT_MS);
+
+  try {
+    return await fetch(url, {
+      ...init,
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 export async function sendVerificationEmail(input: SendVerificationEmailInput) {
   assertEmailJsConfigured();
 
-  try {
-    await emailjs.send(
-      env.EMAILJS_SERVICE_ID as string,
-      env.EMAILJS_TEMPLATE_ID as string,
-      {
-        to_email: input.toEmail,
-        to_name: input.toName,
-        code: input.code,
-        expires_in: `${input.expiresMinutes} minutos`,
-        app_name: env.EMAIL_FROM_NAME,
-      },
-      {
-        publicKey: env.EMAILJS_PUBLIC_KEY as string,
-        privateKey: env.EMAILJS_PRIVATE_KEY as string,
-        limitRate: {
-          id: `email-verification:${input.toEmail}`,
-          throttle: env.EMAIL_CODE_RESEND_COOLDOWN_SECONDS * 1000,
-        },
-      },
-    );
+  const toEmail = input.toEmail.trim().toLowerCase();
+  const toName = input.toName.trim() || toEmail;
 
-    logger.info(
-      {
-        email: input.toEmail,
+  const payload = {
+    service_id: env.EMAILJS_SERVICE_ID,
+    template_id: env.EMAILJS_TEMPLATE_ID,
+    user_id: env.EMAILJS_PUBLIC_KEY,
+    accessToken: env.EMAILJS_PRIVATE_KEY,
+    template_params: {
+      to_email: toEmail,
+      to_name: toName,
+      code: input.code,
+      verification_code: input.code,
+      expires_in: `${input.expiresMinutes} minutos`,
+      app_name: env.EMAIL_FROM_NAME || "LG Chat",
+      reply_to: toEmail,
+    },
+  };
+
+  try {
+    const response = await fetchWithTimeout(EMAILJS_SEND_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "text/plain, application/json",
       },
-      "Código de verificação enviado",
-    );
-  } catch (error: unknown) {
-    if (isEmailJsError(error)) {
+      body: JSON.stringify(payload),
+    });
+
+    const responseText = await response.text().catch(() => "");
+
+    if (!response.ok) {
       logger.error(
         {
-          status: error.status,
-          text: error.text,
-          email: input.toEmail,
+          status: response.status,
+          statusText: response.statusText,
+          responseText: getTextPreview(responseText),
+          email: toEmail,
+          serviceId: env.EMAILJS_SERVICE_ID,
+          templateId: env.EMAILJS_TEMPLATE_ID,
         },
         "EmailJS recusou o envio do email",
       );
-    } else {
-      logger.error(
-        {
-          err: error,
-          email: input.toEmail,
-        },
-        "Falha inesperada ao enviar email de verificação",
+
+      throw new AppError(
+        502,
+        "Não foi possível enviar o código por email. Verifique a configuração do EmailJS e tente novamente.",
+        "EMAIL_SEND_FAILED",
       );
     }
+
+    logger.info(
+      {
+        email: toEmail,
+        status: response.status,
+        responseText: getTextPreview(responseText || "OK"),
+      },
+      "Código de verificação enviado pelo EmailJS",
+    );
+  } catch (error: unknown) {
+    if (error instanceof AppError) {
+      throw error;
+    }
+
+    logger.error(
+      {
+        err: error,
+        email: toEmail,
+        serviceId: env.EMAILJS_SERVICE_ID,
+        templateId: env.EMAILJS_TEMPLATE_ID,
+      },
+      "Falha inesperada ao enviar email de verificação",
+    );
 
     throw new AppError(
       502,

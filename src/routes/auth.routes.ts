@@ -48,15 +48,19 @@ authRoutes.post(
   authRateLimit,
   asyncHandler(registerUserController),
 );
+
 authRoutes.post("/login", authRateLimit, asyncHandler(loginUserController));
+
 authRoutes.post(
   "/verify-email",
   emailCodeRateLimit,
   asyncHandler(verifyEmailController),
 );
+
 authRoutes.post(
   "/resend-verification",
   emailCodeRateLimit,
   asyncHandler(resendEmailCodeController),
 );
+
 authRoutes.get("/me", authMiddleware, asyncHandler(meController));

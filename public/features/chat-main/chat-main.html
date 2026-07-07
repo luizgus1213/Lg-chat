@@ -57,8 +57,9 @@
         ⭐
       </button>
 
-      <button id="refreshChatsButton" type="button" class="ghost-button">
-        Atualizar
+      <button id="refreshChatsButton" type="button" class="ghost-button" title="Atualizar conversas" aria-label="Atualizar conversas">
+        <span class="refresh-full-label">Atualizar</span>
+        <span class="refresh-mobile-label" aria-hidden="true">↻</span>
       </button>
     </div>
   </header>
@@ -343,6 +344,7 @@
     <div class="call-card">
       <div class="call-video-stage">
         <video id="remoteCallVideo" class="remote-call-video hidden" autoplay playsinline></video>
+        <audio id="remoteCallAudio" class="remote-call-audio hidden" autoplay playsinline></audio>
         <video id="localCallVideo" class="local-call-video hidden" autoplay playsinline muted></video>
 
         <div id="callAvatarFallback" class="call-avatar-fallback">

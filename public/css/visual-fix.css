@@ -292,3 +292,170 @@ body:not(.chat-active) {
     padding-inline: 6px !important;
   }
 }
+
+
+/* ===== FIX: ações do cabeçalho no celular/tablet =====
+   Mantém chamada, busca, favoritas e atualizar visíveis em telas pequenas. */
+
+.refresh-mobile-label {
+  display: none;
+}
+
+.remote-call-audio {
+  display: none !important;
+}
+
+@media (max-width: 1100px) {
+  body.chat-active .chat-header {
+    padding: 7px 8px !important;
+    gap: 6px !important;
+    min-height: 60px !important;
+  }
+
+  body.chat-active .back-button {
+    display: inline-grid !important;
+    place-items: center !important;
+    width: 40px !important;
+    min-width: 40px !important;
+    height: 40px !important;
+    padding: 0 !important;
+    flex: 0 0 40px !important;
+  }
+
+  body.chat-active .chat-header-profile {
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+    gap: 8px !important;
+    padding: 4px 5px !important;
+  }
+
+  body.chat-active .chat-header-avatar {
+    width: 38px !important;
+    height: 38px !important;
+    flex: 0 0 38px !important;
+  }
+
+  body.chat-active .chat-title-box {
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+
+  body.chat-active .chat-header h2 {
+    font-size: 15px !important;
+  }
+
+  body.chat-active .chat-header p {
+    font-size: 11.5px !important;
+  }
+
+  body.chat-active .header-actions {
+    display: flex !important;
+    align-items: center !important;
+    gap: 4px !important;
+    flex: 0 0 auto !important;
+    max-width: min(54vw, 236px) !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    scrollbar-width: none !important;
+    -webkit-overflow-scrolling: touch !important;
+    padding-bottom: 2px !important;
+  }
+
+  body.chat-active .header-actions::-webkit-scrollbar {
+    display: none !important;
+  }
+
+  body.chat-active .header-actions .ghost-button,
+  body.chat-active .header-actions .call-header-button,
+  body.chat-active .header-actions .chat-search-toggle,
+  body.chat-active .header-actions .starred-toggle,
+  body.chat-active #refreshChatsButton {
+    display: inline-grid !important;
+    place-items: center !important;
+    width: 38px !important;
+    min-width: 38px !important;
+    height: 38px !important;
+    min-height: 38px !important;
+    padding: 0 !important;
+    border-radius: 999px !important;
+    font-size: 16px !important;
+    flex: 0 0 38px !important;
+  }
+
+  body.chat-active #refreshChatsButton .refresh-full-label {
+    display: none !important;
+  }
+
+  body.chat-active #refreshChatsButton .refresh-mobile-label {
+    display: inline !important;
+    font-size: 20px !important;
+    line-height: 1 !important;
+  }
+
+  body.chat-active .header-actions button:disabled {
+    opacity: 0.45 !important;
+  }
+
+  body.chat-active .chat-search-box {
+    grid-template-columns: 1fr auto !important;
+    gap: 8px !important;
+  }
+
+  body.chat-active .chat-search-icon {
+    display: none !important;
+  }
+
+  body.chat-active #messageSearchType {
+    grid-column: 1 / -1 !important;
+  }
+
+  body.chat-active .chat-search-small-button {
+    grid-column: 1 / 2 !important;
+  }
+
+  body.chat-active .chat-search-close {
+    grid-column: 2 / 3 !important;
+  }
+
+  body.chat-active .chat-search-status,
+  body.chat-active .chat-search-results {
+    padding-left: 0 !important;
+  }
+
+  body.chat-active .starred-messages-panel,
+  body.chat-active .chat-search-panel {
+    max-height: calc(var(--app-height) - 115px) !important;
+    overflow: auto !important;
+  }
+
+  body.chat-active .app-tools-panel {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
+  }
+
+  body.chat-active #installAppButton,
+  body.chat-active #toggleSoundButton,
+  body.chat-active #enableNotificationsButton {
+    min-height: 40px !important;
+  }
+}
+
+@media (max-width: 390px) {
+  body.chat-active .header-actions {
+    max-width: min(50vw, 190px) !important;
+  }
+
+  body.chat-active .header-actions .ghost-button,
+  body.chat-active .header-actions .call-header-button,
+  body.chat-active .header-actions .chat-search-toggle,
+  body.chat-active .header-actions .starred-toggle,
+  body.chat-active #refreshChatsButton {
+    width: 36px !important;
+    min-width: 36px !important;
+    height: 36px !important;
+    min-height: 36px !important;
+    flex-basis: 36px !important;
+    font-size: 15px !important;
+  }
+}

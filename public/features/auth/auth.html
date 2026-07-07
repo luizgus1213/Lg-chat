@@ -65,6 +65,55 @@
 
         <button type="submit" class="secondary-button">Criar conta</button>
       </form>
+
+      <form id="emailVerificationForm" class="auth-card hidden">
+        <h2>Verificar email</h2>
+        <p class="muted">
+          Enviamos um código de 6 dígitos para seu email.
+        </p>
+
+        <label>
+          Email
+          <input
+            id="verificationEmail"
+            type="email"
+            readonly
+            autocomplete="email"
+          />
+        </label>
+
+        <label>
+          Código
+          <input
+            id="emailVerificationCode"
+            type="text"
+            inputmode="numeric"
+            maxlength="6"
+            placeholder="000000"
+            autocomplete="one-time-code"
+          />
+        </label>
+
+        <button id="verifyEmailButton" type="submit" class="primary-button">
+          Verificar email
+        </button>
+
+        <button
+          id="resendVerificationCodeButton"
+          type="button"
+          class="secondary-button"
+        >
+          Reenviar código
+        </button>
+
+        <button
+          id="backToRegisterButton"
+          type="button"
+          class="ghost-button"
+        >
+          Trocar email
+        </button>
+      </form>
     </div>
   </div>
 </section>
