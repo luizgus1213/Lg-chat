@@ -1,5 +1,4 @@
 import {
-  createContext,
   useCallback,
   useEffect,
   useMemo,
@@ -7,43 +6,46 @@ import {
   type ReactNode,
 } from "react";
 
-import { ApiError } from "../../api/apiClient";
-import { getMySession } from "./auth.api";
+import { ApiError } from "../../../api/apiClient";
+
+import { getMySession } from "../auth.api";
 
 import {
   clearAuthStorage,
   getAuthToken,
   removePendingVerificationEmail,
   saveAuthToken,
-} from "./auth.storage";
+} from "../auth.storage";
 
-import type { AuthSession, AuthUser } from "./auth.schemas";
+import {
+  AuthContext,
+  type AuthContextValue,
+  type AuthStatus,
+} from "../authContext";
 
-export type AuthStatus =
-  | "loading"
-  | "authenticated"
-  | "unauthenticated"
-  | "error";
-
-export type AuthContextValue = {
-  status: AuthStatus;
-  user: AuthUser | null;
-  isAuthenticated: boolean;
-  errorMessage: string | null;
-
-  completeAuthentication: (session: AuthSession) => void;
-  refreshSession: () => Promise<void>;
-  signOut: () => void;
-};
-
-export const AuthContext = createContext<AuthContextValue | null>(null);
+import type { AuthSession, AuthUser } from "../auth.schemas";
 
 type AuthProviderProps = {
   children: ReactNode;
 };
 
+function isInvalidSessionError(error: unknown): boolean {
+  return (
+    error instanceof ApiError &&
+    (error.statusCode === 401 ||
+      error.statusCode === 403 ||
+      error.code === "AUTH_REQUIRED" ||
+      error.code === "INVALID_TOKEN" ||
+      error.code === "USER_NOT_FOUND")
+  );
+}
+
 function getSessionErrorMessage(error: unknown): string {
   if (error instanceof ApiError) {
+    return error.message;
+  }
+
+  if (error instanceof Error) {
     return error.message;
   }
 
@@ -51,8 +53,12 @@ function getSessionErrorMessage(error: unknown): string {
 }
 
 export function AuthProvider({ children }: AuthProviderProps) {
-  const [status, setStatus] = useState<AuthStatus>("loading");
+  const [status, setStatus] = useState<AuthStatus>(() => {
+    return getAuthToken() ? "loading" : "unauthenticated";
+  });
+
   const [user, setUser] = useState<AuthUser | null>(null);
+
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const signOut = useCallback(() => {
@@ -91,15 +97,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       setUser(response.data.user);
       setStatus("authenticated");
     } catch (error: unknown) {
-      const isInvalidSession =
-        error instanceof ApiError &&
-        (error.statusCode === 401 ||
-          error.statusCode === 403 ||
-          error.code === "AUTH_REQUIRED" ||
-          error.code === "INVALID_TOKEN" ||
-          error.code === "USER_NOT_FOUND");
-
-      if (isInvalidSession) {
+      if (isInvalidSessionError(error)) {
         clearAuthStorage();
 
         setUser(null);
@@ -115,8 +113,52 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, []);
 
   useEffect(() => {
-    void refreshSession();
-  }, [refreshSession]);
+    const token = getAuthToken();
+
+    if (!token) {
+      return;
+    }
+
+    let cancelled = false;
+
+    /*
+      O efeito apenas sincroniza a sessão com o servidor.
+
+      Não existe setState síncrono no corpo do efeito.
+    */
+    void getMySession()
+      .then((response) => {
+        if (cancelled) {
+          return;
+        }
+
+        setUser(response.data.user);
+        setErrorMessage(null);
+        setStatus("authenticated");
+      })
+      .catch((error: unknown) => {
+        if (cancelled) {
+          return;
+        }
+
+        if (isInvalidSessionError(error)) {
+          clearAuthStorage();
+
+          setUser(null);
+          setErrorMessage(null);
+          setStatus("unauthenticated");
+          return;
+        }
+
+        setUser(null);
+        setErrorMessage(getSessionErrorMessage(error));
+        setStatus("error");
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const value = useMemo<AuthContextValue>(
     () => ({

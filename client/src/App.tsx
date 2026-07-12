@@ -1,6 +1,5 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 
-import { AuthenticatedHomePage } from "./app/AuthenticatedHomePage";
 import { HomePage } from "./app/HomePage";
 import { NotFoundPage } from "./app/NotFoundPage";
 
@@ -10,6 +9,8 @@ import { RequireAuth } from "./features/auth/RequireAuth";
 import { LoginPage } from "./features/auth/pages/LoginPage";
 import { RegisterPage } from "./features/auth/pages/RegisterPage";
 import { VerifyEmailPage } from "./features/auth/pages/VerifyEmailPage";
+
+import { ChatHomePage } from "./features/conversations/pages/ChatHomePage";
 
 function App() {
   return (
@@ -23,7 +24,8 @@ function App() {
       </Route>
 
       <Route element={<RequireAuth />}>
-        <Route path="/app" element={<AuthenticatedHomePage />} />
+        <Route path="/app" element={<ChatHomePage />} />
+        <Route path="/app/chat/:chatId" element={<ChatHomePage />} />
       </Route>
 
       <Route path="/entrar" element={<Navigate to="/login" replace />} />

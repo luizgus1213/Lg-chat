@@ -29,25 +29,43 @@ import { startRuntimeDiagnostics } from "./services/RuntimeDiagnosticsService";
 const app = express();
 const server = http.createServer(app);
 
-function isAllowedOrigin(origin?: string) {
+/*
+  Origens permitidas no desenvolvimento e produção.
+
+  CLIENT_ORIGINS_ARRAY pode possuir outras origens configuradas no env.
+  O Set evita duplicações.
+*/
+const allowedOrigins = new Set(
+  [
+    ...(env.CLIENT_ORIGINS_ARRAY ?? []),
+    env.CLIENT_ORIGIN,
+
+    "http://localhost:5000",
+    "http://localhost:5173",
+    "http://127.0.0.1:5000",
+    "http://127.0.0.1:5173",
+
+    ...(env.NODE_ENV === "development" ? ["http://192.168.1.111:5173"] : []),
+  ].filter((origin): origin is string => {
+    return typeof origin === "string" && origin.trim().length > 0;
+  }),
+);
+
+function isAllowedOrigin(origin?: string): boolean {
   if (!origin) {
+    // Postman, servidor interno, health checks e requisições sem Origin.
     return true;
   }
 
-  return env.CLIENT_ORIGINS_ARRAY.includes(origin);
+  return allowedOrigins.has(origin);
 }
 
 const io = new Server(server, {
   cors: {
-    origin: (origin, callback) => {
-      if (isAllowedOrigin(origin)) {
-        return callback(null, true);
-      }
-
-      return callback(new Error("Origem não permitida pelo CORS."));
-    },
-    methods: ["GET", "POST"],
+    origin: [...allowedOrigins],
     credentials: true,
+    methods: ["GET", "POST"],
+    allowedHeaders: ["Content-Type", "Authorization"],
   },
 });
 
@@ -62,6 +80,7 @@ app.use(
 app.use(
   compression({
     threshold: 1024,
+
     filter: (req, res) => {
       if (req.headers["x-no-compression"]) {
         return false;
@@ -74,14 +93,41 @@ app.use(
 
 app.use(
   cors({
-    origin: (origin, callback) => {
+    origin(origin, callback) {
       if (isAllowedOrigin(origin)) {
         return callback(null, true);
       }
 
-      return callback(new Error("Origem não permitida pelo CORS."));
+      logger.warn(
+        {
+          origin,
+          allowedOrigins: [...allowedOrigins],
+        },
+        "Origem bloqueada pelo CORS",
+      );
+
+      return callback(
+        new AppError(
+          403,
+          "Esta origem não possui permissão para acessar o servidor.",
+          "CORS_ORIGIN_DENIED",
+        ),
+      );
     },
+
     credentials: true,
+
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+
+    allowedHeaders: ["Content-Type", "Authorization"],
+
+    exposedHeaders: [
+      "RateLimit-Limit",
+      "RateLimit-Remaining",
+      "RateLimit-Reset",
+    ],
+
+    optionsSuccessStatus: 204,
   }),
 );
 
@@ -92,6 +138,7 @@ app.use((req, res, next) => {
 
   res.on("finish", () => {
     const ms = Date.now() - start;
+
     const payload = {
       method: req.method,
       path: req.originalUrl,
@@ -111,9 +158,9 @@ app.use((req, res, next) => {
 });
 
 /*
-  IMPORTANTE:
-  Arquivos públicos ficam ANTES do rate limit.
-  Assim CSS, JS, HTML, imagens e partials não tomam 429.
+  Arquivos públicos ficam antes do rate limit.
+
+  Assim CSS, JS, HTML, imagens e partials não recebem 429.
 */
 
 app.get("/favicon.ico", (_req, res) => {
@@ -133,6 +180,7 @@ app.use(
     fallthrough: true,
     dotfiles: "deny",
     index: false,
+
     setHeaders: (res) => {
       res.setHeader("X-Content-Type-Options", "nosniff");
       res.setHeader("Cache-Control", "public, max-age=2592000, immutable");
@@ -146,6 +194,7 @@ app.use(
     index: "index.html",
     etag: true,
     maxAge: "5m",
+
     setHeaders: (res, filePath) => {
       const normalizedPath = filePath.replace(/\\/g, "/");
 
@@ -160,6 +209,7 @@ app.use(
 
       if (/\.(js|css)$/i.test(normalizedPath)) {
         res.setHeader("Cache-Control", "public, max-age=300, must-revalidate");
+
         return;
       }
 
@@ -174,7 +224,8 @@ app.use(
 
 /*
   Diagnóstico fora do rate limit principal.
-  Se o site der erro no front, o diagnóstico não deve ser bloqueado.
+
+  Se ocorrer erro no frontend, o diagnóstico não deve ser bloqueado.
 */
 app.use("/api/diagnostics", diagnosticsRoutes);
 
@@ -186,17 +237,18 @@ app.get("/health", (_req, res) => {
 });
 
 /*
-  Rate limit SOMENTE para API.
-  Não coloque isso antes do express.static.
+  Rate limit apenas nas rotas da API.
 */
 const apiRateLimit = rateLimit({
   windowMs: env.RATE_LIMIT_WINDOW_MS,
   limit: env.RATE_LIMIT_MAX,
   standardHeaders: true,
   legacyHeaders: false,
+
   skip: (req) => {
     return req.method === "OPTIONS";
   },
+
   message: {
     success: false,
     error: {
@@ -238,7 +290,13 @@ async function bootstrap() {
     startRuntimeDiagnostics();
 
     server.listen(env.PORT, () => {
-      logger.info(`Servidor rodando em http://localhost:${env.PORT}`);
+      logger.info(
+        {
+          port: env.PORT,
+          allowedOrigins: [...allowedOrigins],
+        },
+        `Servidor rodando em http://localhost:${env.PORT}`,
+      );
     });
   } catch (error) {
     logger.fatal(
@@ -274,4 +332,4 @@ process.on("uncaughtException", (error) => {
   process.exit(1);
 });
 
-bootstrap();
+void bootstrap();

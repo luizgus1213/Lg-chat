@@ -1,0 +1,33 @@
+.container {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  gap: 7px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 20px clamp(12px, 3vw, 34px);
+  overscroll-behavior: contain;
+}
+
+.loadOlder {
+  align-self: center;
+  margin-bottom: 8px;
+  padding: 7px 13px;
+  border: 1px solid #263248;
+  border-radius: 999px;
+  background: #172033;
+  color: #d8dfeb;
+  cursor: pointer;
+  font-size: 0.76rem;
+}
+
+.loadOlder:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+.status {
+  margin: auto;
+  color: #9aa7bd;
+  text-align: center;
+}
