@@ -1,24 +1,34 @@
 import { Link } from "react-router-dom";
 
+import styles from "./PublicPage.module.css";
+
 export function HomePage() {
   return (
-    <main className="page-container">
-      <section className="page-card">
-        <span className="brand-badge">LG</span>
+    <main className={styles.page}>
+      <section className={styles.card}>
+        <span className={styles.badge} aria-hidden="true">
+          LG
+        </span>
 
-        <h1>LG Chat</h1>
+        <h1 className={styles.title}>Converse de forma simples e segura.</h1>
 
-        <p>
-          A nova versão do frontend foi iniciada com React, TypeScript e uma
-          estrutura organizada.
+        <p className={styles.description}>
+          Entre na sua conta ou crie um cadastro para acessar suas conversas em
+          tempo real no LG Chat.
         </p>
 
-        <div className="button-group">
-          <Link className="button button-primary" to="/login">
+        <div className={styles.actions}>
+          <Link
+            className={`${styles.button} ${styles.primary}`}
+            to="/login"
+          >
             Entrar
           </Link>
 
-          <Link className="button button-secondary" to="/register">
+          <Link
+            className={`${styles.button} ${styles.secondary}`}
+            to="/register"
+          >
             Criar conta
           </Link>
         </div>

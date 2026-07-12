@@ -1,15 +1,21 @@
-import { apiRequest, type ApiSuccess } from "../../api/apiClient";
 import { z } from "zod";
+
+import { apiRequest, type ApiSuccess } from "../../api/apiClient";
 import {
   conversationsListSchema,
   type Conversation,
 } from "./conversations.schemas";
 
-let activeRequest: Promise<ApiSuccess<Conversation[]>> | null = null;
+type RequestOptions = {
+  signal?: AbortSignal;
+};
 
-async function executeListConversations(): Promise<ApiSuccess<Conversation[]>> {
+export async function listConversations(
+  options: RequestOptions = {},
+): Promise<ApiSuccess<Conversation[]>> {
   const response = await apiRequest<unknown>("/api/chats", {
     method: "GET",
+    signal: options.signal,
   });
 
   return {
@@ -18,17 +24,6 @@ async function executeListConversations(): Promise<ApiSuccess<Conversation[]>> {
   };
 }
 
-export function listConversations(): Promise<ApiSuccess<Conversation[]>> {
-  if (activeRequest) {
-    return activeRequest;
-  }
-
-  activeRequest = executeListConversations().finally(() => {
-    activeRequest = null;
-  });
-
-  return activeRequest;
-}
 const createdPrivateChatSchema = z
   .object({
     id: z.number().int().positive(),
@@ -39,6 +34,7 @@ export type CreatedPrivateChat = z.infer<typeof createdPrivateChatSchema>;
 
 export async function createPrivateConversation(
   userId: number,
+  options: RequestOptions = {},
 ): Promise<ApiSuccess<CreatedPrivateChat>> {
   if (!Number.isInteger(userId) || userId <= 0) {
     throw new Error("Usuário inválido.");
@@ -46,9 +42,8 @@ export async function createPrivateConversation(
 
   const response = await apiRequest<unknown>("/api/chats/private", {
     method: "POST",
-    body: JSON.stringify({
-      userId,
-    }),
+    signal: options.signal,
+    body: JSON.stringify({ userId }),
   });
 
   return {

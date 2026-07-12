@@ -16,7 +16,7 @@ type ApiErrorPayload = {
   };
 };
 
-export type ApiRequestOptions = Omit<RequestInit, "signal"> & {
+export type ApiRequestOptions = RequestInit & {
   auth?: boolean;
   timeoutMs?: number;
 };
@@ -33,7 +33,6 @@ export class ApiError extends Error {
     details?: unknown;
   }) {
     super(options.message);
-
     this.name = "ApiError";
     this.statusCode = options.statusCode;
     this.code = options.code;
@@ -46,20 +45,11 @@ function isObject(value: unknown): value is Record<string, unknown> {
 }
 
 function getApiErrorPayload(payload: unknown): ApiErrorPayload | null {
-  if (!isObject(payload)) return null;
-
-  const error = payload.error;
-
-  if (!isObject(error)) {
-    return payload as ApiErrorPayload;
-  }
-
-  return payload as ApiErrorPayload;
+  return isObject(payload) ? (payload as ApiErrorPayload) : null;
 }
 
 async function parseResponseBody(response: Response): Promise<unknown> {
   const text = await response.text();
-
   if (!text) return null;
 
   try {
@@ -77,11 +67,25 @@ export async function apiRequest<T>(
     auth = true,
     timeoutMs = 15_000,
     headers: customHeaders,
+    signal: externalSignal,
     ...requestOptions
   } = options;
 
   const controller = new AbortController();
+  let timedOut = false;
+
+  const abortFromExternalSignal = () => controller.abort();
+
+  if (externalSignal?.aborted) {
+    controller.abort();
+  } else {
+    externalSignal?.addEventListener("abort", abortFromExternalSignal, {
+      once: true,
+    });
+  }
+
   const timeout = window.setTimeout(() => {
+    timedOut = true;
     controller.abort();
   }, timeoutMs);
 
@@ -139,10 +143,18 @@ export async function apiRequest<T>(
     }
 
     if (error instanceof DOMException && error.name === "AbortError") {
+      if (timedOut) {
+        throw new ApiError({
+          statusCode: 408,
+          code: "REQUEST_TIMEOUT",
+          message: "O servidor demorou demais para responder.",
+        });
+      }
+
       throw new ApiError({
-        statusCode: 408,
-        code: "REQUEST_TIMEOUT",
-        message: "O servidor demorou demais para responder.",
+        statusCode: 0,
+        code: "REQUEST_CANCELLED",
+        message: "A requisição foi cancelada.",
       });
     }
 
@@ -154,5 +166,6 @@ export async function apiRequest<T>(
     });
   } finally {
     window.clearTimeout(timeout);
+    externalSignal?.removeEventListener("abort", abortFromExternalSignal);
   }
 }

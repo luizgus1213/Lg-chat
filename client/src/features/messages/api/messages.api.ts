@@ -1,5 +1,4 @@
 import { apiRequest, type ApiSuccess } from "../../../api/apiClient";
-
 import {
   chatMessagesSchema,
   markReadResultSchema,
@@ -12,14 +11,17 @@ type ListMessagesOptions = {
   beforeId?: number;
 };
 
+type RequestOptions = {
+  signal?: AbortSignal;
+};
+
 export async function listMessages(
   chatId: number,
   options: ListMessagesOptions = {},
+  requestOptions: RequestOptions = {},
 ): Promise<ApiSuccess<ServerChatMessage[]>> {
-  const limit = options.limit ?? 30;
-
   const params = new URLSearchParams({
-    limit: String(limit),
+    limit: String(options.limit ?? 30),
   });
 
   if (options.beforeId) {
@@ -30,6 +32,7 @@ export async function listMessages(
     `/api/chats/${chatId}/messages?${params.toString()}`,
     {
       method: "GET",
+      signal: requestOptions.signal,
     },
   );
 
@@ -45,9 +48,7 @@ export async function markChatAsRead(
 ): Promise<ApiSuccess<MarkReadResult>> {
   const response = await apiRequest<unknown>(`/api/chats/${chatId}/read`, {
     method: "POST",
-    body: JSON.stringify({
-      messageId,
-    }),
+    body: JSON.stringify({ messageId }),
   });
 
   return {

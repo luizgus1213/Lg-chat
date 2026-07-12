@@ -2,27 +2,24 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
 
 import { ApiError } from "../../../api/apiClient";
-
 import { getMySession } from "../auth.api";
-
 import {
   clearAuthStorage,
   getAuthToken,
   removePendingVerificationEmail,
   saveAuthToken,
 } from "../auth.storage";
-
 import {
   AuthContext,
   type AuthContextValue,
   type AuthStatus,
 } from "../authContext";
-
 import type { AuthSession, AuthUser } from "../auth.schemas";
 
 type AuthProviderProps = {
@@ -41,38 +38,32 @@ function isInvalidSessionError(error: unknown): boolean {
 }
 
 function getSessionErrorMessage(error: unknown): string {
-  if (error instanceof ApiError) {
-    return error.message;
-  }
-
-  if (error instanceof Error) {
-    return error.message;
-  }
-
+  if (error instanceof ApiError) return error.message;
+  if (error instanceof Error) return error.message;
   return "Não foi possível restaurar sua sessão.";
 }
 
 export function AuthProvider({ children }: AuthProviderProps) {
-  const [status, setStatus] = useState<AuthStatus>(() => {
-    return getAuthToken() ? "loading" : "unauthenticated";
-  });
-
+  const [status, setStatus] = useState<AuthStatus>(() =>
+    getAuthToken() ? "loading" : "unauthenticated",
+  );
   const [user, setUser] = useState<AuthUser | null>(null);
-
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const signOut = useCallback(() => {
-    clearAuthStorage();
+  const sessionGenerationRef = useRef(0);
 
+  const signOut = useCallback(() => {
+    sessionGenerationRef.current += 1;
+    clearAuthStorage();
     setUser(null);
     setErrorMessage(null);
     setStatus("unauthenticated");
   }, []);
 
   const completeAuthentication = useCallback((session: AuthSession) => {
+    sessionGenerationRef.current += 1;
     saveAuthToken(session.token);
     removePendingVerificationEmail();
-
     setUser(session.user);
     setErrorMessage(null);
     setStatus("authenticated");
@@ -80,6 +71,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const refreshSession = useCallback(async () => {
     const token = getAuthToken();
+    const generation = ++sessionGenerationRef.current;
 
     if (!token) {
       setUser(null);
@@ -94,12 +86,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
     try {
       const response = await getMySession();
 
+      if (generation !== sessionGenerationRef.current) return;
+
       setUser(response.data.user);
       setStatus("authenticated");
     } catch (error: unknown) {
+      if (generation !== sessionGenerationRef.current) return;
+
       if (isInvalidSessionError(error)) {
         clearAuthStorage();
-
         setUser(null);
         setErrorMessage(null);
         setStatus("unauthenticated");
@@ -114,36 +109,24 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   useEffect(() => {
     const token = getAuthToken();
+    if (!token) return;
 
-    if (!token) {
-      return;
-    }
+    const generation = ++sessionGenerationRef.current;
+    let active = true;
 
-    let cancelled = false;
-
-    /*
-      O efeito apenas sincroniza a sessão com o servidor.
-
-      Não existe setState síncrono no corpo do efeito.
-    */
     void getMySession()
       .then((response) => {
-        if (cancelled) {
-          return;
-        }
+        if (!active || generation !== sessionGenerationRef.current) return;
 
         setUser(response.data.user);
         setErrorMessage(null);
         setStatus("authenticated");
       })
       .catch((error: unknown) => {
-        if (cancelled) {
-          return;
-        }
+        if (!active || generation !== sessionGenerationRef.current) return;
 
         if (isInvalidSessionError(error)) {
           clearAuthStorage();
-
           setUser(null);
           setErrorMessage(null);
           setStatus("unauthenticated");
@@ -156,7 +139,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       });
 
     return () => {
-      cancelled = true;
+      active = false;
     };
   }, []);
 

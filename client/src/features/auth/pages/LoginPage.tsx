@@ -7,6 +7,8 @@ import { getAuthErrorMessage } from "../auth.errors";
 import { savePendingVerificationEmail } from "../auth.storage";
 import { useAuth } from "../useAuth";
 
+import styles from "./AuthPages.module.css";
+
 type LoginFormState = {
   email: string;
   senha: string;
@@ -15,6 +17,14 @@ type LoginFormState = {
 type LoginLocationState = {
   from?: string;
 };
+
+function isSafeInternalPath(value: unknown): value is string {
+  return (
+    typeof value === "string" &&
+    value.startsWith("/") &&
+    !value.startsWith("//")
+  );
+}
 
 export function LoginPage() {
   const navigate = useNavigate();
@@ -25,20 +35,15 @@ export function LoginPage() {
     email: "",
     senha: "",
   });
-
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   function updateField(field: keyof LoginFormState, value: string) {
-    setForm((current) => ({
-      ...current,
-      [field]: value,
-    }));
+    setForm((current) => ({ ...current, [field]: value }));
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-
     if (isSubmitting) return;
 
     setErrorMessage(null);
@@ -53,21 +58,16 @@ export function LoginPage() {
       auth.completeAuthentication(response.data);
 
       const state = location.state as LoginLocationState | null;
-      const destination = state?.from || "/app";
+      const destination = isSafeInternalPath(state?.from) ? state.from : "/app";
 
-      navigate(destination, {
-        replace: true,
-      });
+      navigate(destination, { replace: true });
     } catch (error: unknown) {
       if (error instanceof ApiError && error.code === "EMAIL_NOT_VERIFIED") {
         const email = form.email.trim().toLowerCase();
-
         savePendingVerificationEmail(email);
-
         navigate(`/verificar-email?email=${encodeURIComponent(email)}`, {
           replace: true,
         });
-
         return;
       }
 
@@ -78,29 +78,26 @@ export function LoginPage() {
   }
 
   return (
-    <main className="auth-page">
-      <section className="auth-card">
-        <Link className="brand-badge" to="/" aria-label="LG Chat">
+    <main className={styles.page}>
+      <section className={styles.card}>
+        <Link className={styles.badge} to="/" aria-label="Página inicial do LG Chat">
           LG
         </Link>
 
-        <header className="auth-header">
+        <header className={styles.header}>
           <h1>Entrar</h1>
           <p>Acesse sua conta para continuar no LG Chat.</p>
         </header>
 
-        <form className="auth-form" onSubmit={handleSubmit} noValidate>
-          <label className="form-field" htmlFor="login-email">
+        <form className={styles.form} onSubmit={handleSubmit} noValidate>
+          <label className={styles.field} htmlFor="login-email">
             <span>E-mail</span>
-
             <input
               id="login-email"
-              className="form-input"
+              className={styles.input}
               type="email"
               value={form.email}
-              onChange={(event) => {
-                updateField("email", event.target.value);
-              }}
+              onChange={(event) => updateField("email", event.target.value)}
               placeholder="seu@email.com"
               autoComplete="email"
               inputMode="email"
@@ -109,17 +106,14 @@ export function LoginPage() {
             />
           </label>
 
-          <label className="form-field" htmlFor="login-password">
+          <label className={styles.field} htmlFor="login-password">
             <span>Senha</span>
-
             <input
               id="login-password"
-              className="form-input"
+              className={styles.input}
               type="password"
               value={form.senha}
-              onChange={(event) => {
-                updateField("senha", event.target.value);
-              }}
+              onChange={(event) => updateField("senha", event.target.value)}
               placeholder="Digite sua senha"
               autoComplete="current-password"
               disabled={isSubmitting}
@@ -128,13 +122,13 @@ export function LoginPage() {
           </label>
 
           {errorMessage ? (
-            <div className="form-message form-message-error" role="alert">
+            <div className={`${styles.message} ${styles.error}`} role="alert">
               {errorMessage}
             </div>
           ) : null}
 
           <button
-            className="button button-primary button-full"
+            className={`${styles.button} ${styles.primary}`}
             type="submit"
             disabled={isSubmitting}
           >
@@ -142,9 +136,8 @@ export function LoginPage() {
           </button>
         </form>
 
-        <footer className="auth-footer">
+        <footer className={styles.footer}>
           <span>Ainda não possui conta?</span>
-
           <Link to="/register">Criar conta</Link>
         </footer>
       </section>

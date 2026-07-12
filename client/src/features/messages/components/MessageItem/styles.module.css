@@ -13,11 +13,11 @@
 
 .bubble {
   width: fit-content;
-  max-width: min(78%, 620px);
+  max-width: min(82%, 660px);
   padding: 9px 12px 7px;
   border: 1px solid rgb(255 255 255 / 6%);
   border-radius: 14px;
-  background: #172033;
+  background: var(--surface-light);
   box-shadow: 0 4px 14px rgb(0 0 0 / 14%);
 }
 
@@ -30,18 +30,26 @@
   border-bottom-left-radius: 4px;
 }
 
-.bubble p {
+.text {
   margin: 0;
   overflow-wrap: anywhere;
-  line-height: 1.45;
   white-space: pre-wrap;
+  line-height: 1.45;
+}
+
+.deleted {
+  margin: 0;
+  color: var(--text-muted);
+  font-style: italic;
+  line-height: 1.45;
 }
 
 .footer {
   display: flex;
   justify-content: flex-end;
+  align-items: center;
   gap: 5px;
-  margin-top: 4px;
+  margin-top: 5px;
   color: #aab5c8;
   font-size: 0.66rem;
 }
@@ -58,13 +66,66 @@
   margin-bottom: 7px;
   padding: 7px 9px;
   overflow: hidden;
-  border-left: 3px solid #24d366;
+  border-left: 3px solid var(--primary);
   border-radius: 6px;
   background: rgb(0 0 0 / 18%);
   color: #c7d0df;
   font-size: 0.78rem;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.media {
+  display: grid;
+  gap: 7px;
+  margin-bottom: 6px;
+}
+
+.image,
+.video {
+  display: block;
+  width: min(100%, 440px);
+  max-height: 420px;
+  border-radius: 10px;
+  object-fit: contain;
+  background: rgb(0 0 0 / 22%);
+}
+
+.audio {
+  width: min(320px, 100%);
+}
+
+.fileLink {
+  display: flex;
+  min-width: min(300px, 65vw);
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid rgb(255 255 255 / 9%);
+  border-radius: 10px;
+  background: rgb(0 0 0 / 18%);
+}
+
+.fileIcon {
+  font-size: 1.45rem;
+}
+
+.fileInfo {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.fileInfo strong,
+.fileInfo span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fileInfo span {
+  color: var(--text-muted);
+  font-size: 0.72rem;
 }
 
 .error {
@@ -88,4 +149,9 @@
   color: #aab5c8;
   font-size: 0.75rem;
   text-align: center;
+}
+
+.statusError {
+  color: #ffadb4;
+  font-weight: 900;
 }

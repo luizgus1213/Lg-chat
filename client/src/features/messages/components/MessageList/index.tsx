@@ -1,7 +1,6 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useCallback, useLayoutEffect, useRef } from "react";
 
 import type { ChatMessage } from "../../messages.schemas";
-
 import { MessageItem } from "../MessageItem";
 
 import styles from "./styles.module.css";
@@ -9,13 +8,14 @@ import styles from "./styles.module.css";
 type MessageListProps = {
   messages: ChatMessage[];
   currentUserId: number;
-
   isLoading: boolean;
   isLoadingOlder: boolean;
   hasMore: boolean;
-
   onLoadOlder: () => void;
+  onAtBottomChange: (isAtBottom: boolean) => void;
 };
+
+const BOTTOM_THRESHOLD_PX = 80;
 
 export function MessageList({
   messages,
@@ -24,31 +24,104 @@ export function MessageList({
   isLoadingOlder,
   hasMore,
   onLoadOlder,
+  onAtBottomChange,
 }: MessageListProps) {
-  const endRef = useRef<HTMLDivElement | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const initializedRef = useRef(false);
+  const atBottomRef = useRef(true);
+  const previousLastIdRef = useRef<number | null>(null);
+  const preserveScrollRef = useRef<{
+    height: number;
+    top: number;
+  } | null>(null);
 
-  const lastMessageId = useMemo(() => {
-    return messages.at(-1)?.id ?? null;
-  }, [messages]);
+  const updateBottomState = useCallback(() => {
+    const container = containerRef.current;
+    if (!container) return;
 
-  useEffect(() => {
-    endRef.current?.scrollIntoView({
-      block: "end",
-    });
-  }, [lastMessageId]);
+    const distanceFromBottom =
+      container.scrollHeight - container.scrollTop - container.clientHeight;
+    const isAtBottom = distanceFromBottom <= BOTTOM_THRESHOLD_PX;
+
+    atBottomRef.current = isAtBottom;
+    onAtBottomChange(isAtBottom);
+  }, [onAtBottomChange]);
+
+  function handleLoadOlder() {
+    const container = containerRef.current;
+
+    if (container) {
+      preserveScrollRef.current = {
+        height: container.scrollHeight,
+        top: container.scrollTop,
+      };
+    }
+
+    onLoadOlder();
+  }
+
+  useLayoutEffect(() => {
+    const container = containerRef.current;
+    if (!container || isLoading) return;
+
+    const preserved = preserveScrollRef.current;
+
+    if (preserved && !isLoadingOlder) {
+      container.scrollTop =
+        preserved.top + (container.scrollHeight - preserved.height);
+      preserveScrollRef.current = null;
+      updateBottomState();
+      return;
+    }
+
+    const lastMessage = messages.at(-1);
+    const lastId = lastMessage?.id ?? null;
+
+    if (!initializedRef.current) {
+      initializedRef.current = true;
+      container.scrollTop = container.scrollHeight;
+      previousLastIdRef.current = lastId;
+      updateBottomState();
+      return;
+    }
+
+    if (lastId !== previousLastIdRef.current) {
+      const shouldFollowMessage =
+        atBottomRef.current || lastMessage?.fromUserId === currentUserId;
+
+      if (shouldFollowMessage) {
+        container.scrollTop = container.scrollHeight;
+      }
+
+      previousLastIdRef.current = lastId;
+      updateBottomState();
+    }
+  }, [
+    messages,
+    currentUserId,
+    isLoading,
+    isLoadingOlder,
+    updateBottomState,
+  ]);
 
   if (isLoading && messages.length === 0) {
     return <div className={styles.status}>Carregando mensagens...</div>;
   }
 
   return (
-    <div className={styles.container} role="log" aria-live="polite">
+    <div
+      ref={containerRef}
+      className={styles.container}
+      role="log"
+      aria-live="polite"
+      onScroll={updateBottomState}
+    >
       {hasMore ? (
         <button
           className={styles.loadOlder}
           type="button"
           disabled={isLoadingOlder}
-          onClick={onLoadOlder}
+          onClick={handleLoadOlder}
         >
           {isLoadingOlder ? "Carregando..." : "Carregar mensagens anteriores"}
         </button>
@@ -65,8 +138,6 @@ export function MessageList({
           />
         ))
       )}
-
-      <div ref={endRef} />
     </div>
   );
 }

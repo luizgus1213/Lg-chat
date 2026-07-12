@@ -1,4 +1,5 @@
 import {
+  useRef,
   useState,
   type ChangeEvent,
   type FormEvent,
@@ -11,9 +12,7 @@ type MessageComposerProps = {
   disabled: boolean;
   disabledReason?: string | null;
   isSending: boolean;
-
   onSend: (text: string) => Promise<void>;
-
   onTyping?: () => void;
   onStopTyping?: () => void;
 };
@@ -27,41 +26,43 @@ export function MessageComposer({
   onStopTyping,
 }: MessageComposerProps) {
   const [text, setText] = useState("");
-
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+
+  function resizeTextarea(element: HTMLTextAreaElement) {
+    element.style.height = "auto";
+    element.style.height = `${Math.min(element.scrollHeight, 140)}px`;
+  }
 
   function handleChange(event: ChangeEvent<HTMLTextAreaElement>) {
     const value = event.target.value;
-
     setText(value);
     setErrorMessage(null);
+    resizeTextarea(event.target);
 
     if (value.trim()) {
       onTyping?.();
-      return;
+    } else {
+      onStopTyping?.();
     }
-
-    onStopTyping?.();
   }
 
   async function submit() {
-    if (disabled || isSending) {
-      return;
-    }
+    if (disabled || isSending) return;
 
     const normalizedText = text.trim();
-
-    if (!normalizedText) {
-      return;
-    }
+    if (!normalizedText) return;
 
     setErrorMessage(null);
 
     try {
       await onSend(normalizedText);
-
       setText("");
       onStopTyping?.();
+
+      if (textareaRef.current) {
+        textareaRef.current.style.height = "auto";
+      }
     } catch (error: unknown) {
       setErrorMessage(
         error instanceof Error ? error.message : "Erro ao enviar mensagem.",
@@ -95,6 +96,7 @@ export function MessageComposer({
 
       <div className={styles.row}>
         <textarea
+          ref={textareaRef}
           value={text}
           onChange={handleChange}
           onKeyDown={handleKeyDown}
@@ -106,7 +108,10 @@ export function MessageComposer({
           aria-label="Mensagem"
         />
 
-        <button type="submit" disabled={disabled || isSending || !text.trim()}>
+        <button
+          type="submit"
+          disabled={disabled || isSending || !text.trim()}
+        >
           {isSending ? "..." : "Enviar"}
         </button>
       </div>

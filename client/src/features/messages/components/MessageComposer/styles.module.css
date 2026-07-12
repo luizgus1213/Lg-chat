@@ -1,9 +1,10 @@
 .wrapper {
   display: grid;
+  flex: 0 0 auto;
   gap: 8px;
   padding: 11px 14px;
-  border-top: 1px solid #263248;
-  background: #111a2a;
+  border-top: 1px solid var(--border);
+  background: var(--surface-raised);
 }
 
 .row {
@@ -16,31 +17,36 @@
   width: 100%;
   min-height: 44px;
   max-height: 140px;
-  resize: vertical;
+  resize: none;
   padding: 11px 13px;
-  border: 1px solid #263248;
+  overflow-y: auto;
+  border: 1px solid var(--border);
   border-radius: 13px;
   outline: none;
-  background: #172033;
-  color: #f5f7fb;
+  background: var(--surface-light);
+  color: var(--text);
   line-height: 1.4;
 }
 
 .row textarea:focus {
-  border-color: #24d366;
+  border-color: var(--primary);
   box-shadow: 0 0 0 3px rgb(36 211 102 / 12%);
 }
 
 .row button {
-  min-width: 78px;
+  min-width: 82px;
   min-height: 44px;
   padding: 0 15px;
   border: 0;
   border-radius: 12px;
-  background: #24d366;
-  color: #031109;
+  background: var(--primary);
+  color: var(--primary-text);
   cursor: pointer;
-  font-weight: 800;
+  font-weight: 900;
+}
+
+.row button:hover:not(:disabled) {
+  background: var(--primary-hover);
 }
 
 .row button:disabled,
@@ -58,7 +64,7 @@
 
 .notice {
   background: rgb(255 193 7 / 10%);
-  color: #f5d77a;
+  color: var(--warning);
 }
 
 .error {
@@ -66,18 +72,21 @@
   color: #ffadb4;
 }
 
+.characterCount {
+  justify-self: end;
+  color: var(--text-subtle);
+  font-size: 0.68rem;
+}
+
 @media (max-width: 520px) {
   .wrapper {
-    padding: 9px max(9px, env(safe-area-inset-right))
-      max(9px, env(safe-area-inset-bottom)) max(9px, env(safe-area-inset-left));
+    padding:
+      9px max(9px, env(safe-area-inset-right))
+      max(9px, env(safe-area-inset-bottom))
+      max(9px, env(safe-area-inset-left));
   }
 
   .row button {
-    min-width: 66px;
+    min-width: 68px;
   }
-}
-.characterCount {
-  justify-self: end;
-  color: #718099;
-  font-size: 0.68rem;
 }

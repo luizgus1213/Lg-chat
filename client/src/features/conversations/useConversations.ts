@@ -1,24 +1,35 @@
-import { useCallback, useEffect, useState } from "react";
-
+import { useCallback, useEffect, useRef, useState } from "react";
 import { z } from "zod";
 
 import { getAuthErrorMessage } from "../auth/auth.errors";
-import { useSocket } from "../../socket/useSocket";
-
-import { listConversations } from "./conversations.api";
-
 import {
   chatMessageSchema,
   type ServerChatMessage,
 } from "../messages/messages.schemas";
-
+import { useSocket } from "../../socket/useSocket";
+import { listConversations } from "./conversations.api";
 import type { Conversation } from "./conversations.schemas";
 
-export type ConversationsStatus = "loading" | "ready" | "error";
+export type ConversationsStatus =
+  | "loading"
+  | "ready"
+  | "refreshing"
+  | "error";
 
 type UseConversationsOptions = {
   selectedChatId: number | null;
   currentUserId: number | null;
+};
+
+type ConversationStore = {
+  ownerUserId: number | null;
+  items: Conversation[];
+};
+
+type LoadStore = {
+  ownerUserId: number | null;
+  status: ConversationsStatus;
+  errorMessage: string | null;
 };
 
 type ConversationLastMessage = NonNullable<Conversation["lastMessage"]>;
@@ -26,13 +37,9 @@ type ConversationLastMessage = NonNullable<Conversation["lastMessage"]>;
 const chatUpdatedPayloadSchema = z
   .object({
     chatId: z.number().int().positive(),
-
     updatedAt: z.string().min(1).optional(),
-
     name: z.string().nullable().optional(),
-
     description: z.string().nullable().optional(),
-
     avatarUrl: z.string().nullable().optional(),
   })
   .passthrough();
@@ -40,17 +47,12 @@ const chatUpdatedPayloadSchema = z
 const userStatusPayloadSchema = z.object({
   userId: z.number().int().positive(),
   isOnline: z.boolean(),
-
   lastSeenAt: z.string().nullable().optional(),
 });
 
 function getTimestamp(value?: string | null): number {
-  if (!value) {
-    return 0;
-  }
-
+  if (!value) return 0;
   const timestamp = new Date(value).getTime();
-
   return Number.isFinite(timestamp) ? timestamp : 0;
 }
 
@@ -64,13 +66,10 @@ function sortConversations(conversations: Conversation[]): Conversation[] {
       const pinnedDifference =
         getTimestamp(second.pinnedAt) - getTimestamp(first.pinnedAt);
 
-      if (pinnedDifference !== 0) {
-        return pinnedDifference;
-      }
+      if (pinnedDifference !== 0) return pinnedDifference;
     }
 
     const firstUpdatedAt = first.lastMessage?.createdAt || first.updatedAt;
-
     const secondUpdatedAt = second.lastMessage?.createdAt || second.updatedAt;
 
     return getTimestamp(secondUpdatedAt) - getTimestamp(firstUpdatedAt);
@@ -84,22 +83,13 @@ function toConversationLastMessage(
     id: message.id,
     chatId: message.chatId,
     fromUserId: message.fromUserId,
-
     text: message.text,
     type: message.type,
-
     mediaUrl: message.mediaUrl,
     mediaMimeType: message.mediaMimeType,
     mediaOriginalName: message.mediaOriginalName,
-
     createdAt: message.createdAt,
-
-    ...(message.updatedAt
-      ? {
-          updatedAt: message.updatedAt,
-        }
-      : {}),
-
+    ...(message.updatedAt ? { updatedAt: message.updatedAt } : {}),
     editedAt: message.editedAt,
     deletedAt: message.deletedAt,
   };
@@ -108,87 +98,52 @@ function toConversationLastMessage(
 function applyMessageToConversationList(
   conversations: Conversation[],
   message: ServerChatMessage,
-  options: {
-    selectedChatId: number | null;
-    currentUserId: number | null;
-  },
+  currentUserId: number,
 ): Conversation[] {
-  let conversationFound = false;
-
-  const updatedConversations = conversations.map((conversation) => {
-    if (conversation.id !== message.chatId) {
-      return conversation;
-    }
-
-    conversationFound = true;
+  const updated = conversations.map((conversation) => {
+    if (conversation.id !== message.chatId) return conversation;
 
     const alreadyApplied = conversation.lastMessage?.id === message.id;
-
-    const isOwnMessage = message.fromUserId === options.currentUserId;
-
-    const isOpenAndVisible =
-      options.selectedChatId === message.chatId &&
-      document.visibilityState === "visible";
-
-    let unreadCount = conversation.unreadCount;
-
-    if (isOpenAndVisible) {
-      unreadCount = 0;
-    } else if (!isOwnMessage && !alreadyApplied) {
-      unreadCount += 1;
-    }
+    const isOwnMessage = message.fromUserId === currentUserId;
 
     return {
       ...conversation,
-
       lastMessage: toConversationLastMessage(message),
-
       updatedAt: message.createdAt,
-
-      unreadCount,
+      unreadCount:
+        !isOwnMessage && !alreadyApplied
+          ? conversation.unreadCount + 1
+          : conversation.unreadCount,
     };
   });
 
-  if (!conversationFound) {
-    /*
-      O evento pertence a um chat que ainda não
-      está na lista local.
-
-      Não fazemos uma requisição automática aqui.
-      O chat aparecerá ao atualizar ou reconectar.
-    */
-    return conversations;
-  }
-
-  return sortConversations(updatedConversations);
+  return sortConversations(updated);
 }
 
 function applyUpdatedMessageToList(
   conversations: Conversation[],
   message: ServerChatMessage,
 ): Conversation[] {
-  const updatedConversations = conversations.map((conversation) => {
-    if (
-      conversation.id !== message.chatId ||
-      conversation.lastMessage?.id !== message.id
-    ) {
-      return conversation;
-    }
+  return sortConversations(
+    conversations.map((conversation) => {
+      if (
+        conversation.id !== message.chatId ||
+        conversation.lastMessage?.id !== message.id
+      ) {
+        return conversation;
+      }
 
-    return {
-      ...conversation,
-
-      lastMessage: toConversationLastMessage(message),
-
-      updatedAt:
-        message.updatedAt ||
-        message.editedAt ||
-        message.deletedAt ||
-        message.createdAt,
-    };
-  });
-
-  return sortConversations(updatedConversations);
+      return {
+        ...conversation,
+        lastMessage: toConversationLastMessage(message),
+        updatedAt:
+          message.updatedAt ||
+          message.editedAt ||
+          message.deletedAt ||
+          message.createdAt,
+      };
+    }),
+  );
 }
 
 export function useConversations({
@@ -197,74 +152,181 @@ export function useConversations({
 }: UseConversationsOptions) {
   const { socket } = useSocket();
 
-  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [conversationStore, setConversationStore] =
+    useState<ConversationStore>({ ownerUserId: null, items: [] });
+  const [loadStore, setLoadStore] = useState<LoadStore>({
+    ownerUserId: null,
+    status: "loading",
+    errorMessage: null,
+  });
 
-  const [status, setStatus] = useState<ConversationsStatus>("loading");
+  const conversationStoreRef = useRef(conversationStore);
+  const currentUserIdRef = useRef(currentUserId);
+  const requestSequenceRef = useRef(0);
+  const syncTimerRef = useRef<number | null>(null);
 
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  useEffect(() => {
+    conversationStoreRef.current = conversationStore;
+  }, [conversationStore]);
 
-  const refresh = useCallback(async () => {
-    setStatus("loading");
-    setErrorMessage(null);
+  useEffect(() => {
+    currentUserIdRef.current = currentUserId;
+  }, [currentUserId]);
 
-    try {
-      const response = await listConversations();
+  const visibleConversations =
+    conversationStore.ownerUserId === currentUserId
+      ? conversationStore.items
+      : [];
 
-      setConversations(sortConversations(response.data));
+  const status =
+    loadStore.ownerUserId === currentUserId ? loadStore.status : "loading";
+  const errorMessage =
+    loadStore.ownerUserId === currentUserId ? loadStore.errorMessage : null;
 
-      setStatus("ready");
-    } catch (error: unknown) {
-      setErrorMessage(getAuthErrorMessage(error));
+  const refresh = useCallback(
+    async (options: { silent?: boolean } = {}) => {
+      const ownerUserId = currentUserIdRef.current;
+      if (!ownerUserId) return;
 
-      setStatus("error");
-    }
-  }, []);
+      const requestSequence = ++requestSequenceRef.current;
+      const hasVisibleData =
+        conversationStoreRef.current.ownerUserId === ownerUserId &&
+        conversationStoreRef.current.items.length > 0;
 
-  const markConversationAsReadLocally = useCallback((chatId: number) => {
-    setConversations((current) =>
-      current.map((conversation) =>
-        conversation.id === chatId
-          ? {
-              ...conversation,
-              unreadCount: 0,
-            }
-          : conversation,
-      ),
-    );
+      if (!options.silent) {
+        setLoadStore({
+          ownerUserId,
+          status: hasVisibleData ? "refreshing" : "loading",
+          errorMessage: null,
+        });
+      }
+
+      try {
+        const response = await listConversations();
+
+        if (
+          requestSequence !== requestSequenceRef.current ||
+          ownerUserId !== currentUserIdRef.current
+        ) {
+          return;
+        }
+
+        setConversationStore({
+          ownerUserId,
+          items: sortConversations(response.data),
+        });
+        setLoadStore({
+          ownerUserId,
+          status: "ready",
+          errorMessage: null,
+        });
+      } catch (error: unknown) {
+        if (
+          requestSequence !== requestSequenceRef.current ||
+          ownerUserId !== currentUserIdRef.current
+        ) {
+          return;
+        }
+
+        setLoadStore({
+          ownerUserId,
+          status: hasVisibleData ? "ready" : "error",
+          errorMessage: getAuthErrorMessage(error),
+        });
+      }
+    },
+    [],
+  );
+
+  const confirmConversationRead = useCallback((chatId: number) => {
+    const ownerUserId = currentUserIdRef.current;
+    if (!ownerUserId) return;
+
+    setConversationStore((current) => {
+      if (current.ownerUserId !== ownerUserId) return current;
+
+      return {
+        ...current,
+        items: current.items.map((conversation) =>
+          conversation.id === chatId
+            ? { ...conversation, unreadCount: 0 }
+            : conversation,
+        ),
+      };
+    });
   }, []);
 
   useEffect(() => {
-    let cancelled = false;
+    if (!currentUserId) return;
 
-    void listConversations()
+    const ownerUserId = currentUserId;
+    const requestSequence = ++requestSequenceRef.current;
+    const controller = new AbortController();
+    let active = true;
+
+    void listConversations({ signal: controller.signal })
       .then((response) => {
-        if (cancelled) {
+        if (
+          !active ||
+          requestSequence !== requestSequenceRef.current ||
+          ownerUserId !== currentUserIdRef.current
+        ) {
           return;
         }
 
-        setConversations(sortConversations(response.data));
-
-        setErrorMessage(null);
-        setStatus("ready");
+        setConversationStore({
+          ownerUserId,
+          items: sortConversations(response.data),
+        });
+        setLoadStore({
+          ownerUserId,
+          status: "ready",
+          errorMessage: null,
+        });
       })
       .catch((error: unknown) => {
-        if (cancelled) {
+        if (
+          !active ||
+          requestSequence !== requestSequenceRef.current ||
+          ownerUserId !== currentUserIdRef.current
+        ) {
           return;
         }
 
-        setErrorMessage(getAuthErrorMessage(error));
-
-        setStatus("error");
+        setLoadStore({
+          ownerUserId,
+          status: "error",
+          errorMessage: getAuthErrorMessage(error),
+        });
       });
 
     return () => {
-      cancelled = true;
+      active = false;
+      controller.abort();
     };
-  }, []);
+  }, [currentUserId]);
 
   useEffect(() => {
-    if (!socket) {
-      return;
+    if (!socket || !currentUserId) return;
+
+    const userId = currentUserId;
+
+    function queueEventSync() {
+      if (syncTimerRef.current !== null) return;
+
+      syncTimerRef.current = window.setTimeout(() => {
+        syncTimerRef.current = null;
+        void refresh({ silent: true });
+      }, 250);
+    }
+
+    function hasConversation(chatId: number) {
+      return (
+        conversationStoreRef.current.ownerUserId === userId &&
+        conversationStoreRef.current.items.some(
+          (conversation) => conversation.id === chatId,
+        )
+      );
     }
 
     function handleChatMessage(payload: unknown) {
@@ -275,148 +337,143 @@ export function useConversations({
           "[LG Chat] Mensagem inválida recebida para a lista:",
           parsed.error,
         );
-
         return;
       }
 
-      setConversations((current) =>
-        applyMessageToConversationList(current, parsed.data, {
-          selectedChatId,
-          currentUserId,
-        }),
-      );
+      if (!hasConversation(parsed.data.chatId)) {
+        queueEventSync();
+        return;
+      }
+
+      setConversationStore((current) => {
+        if (current.ownerUserId !== userId) return current;
+
+        return {
+          ...current,
+          items: applyMessageToConversationList(
+            current.items,
+            parsed.data,
+            userId,
+          ),
+        };
+      });
     }
 
     function handleChatMessageUpdated(payload: unknown) {
       const parsed = chatMessageSchema.safeParse(payload);
+      if (!parsed.success) return;
 
-      if (!parsed.success) {
-        console.error(
-          "[LG Chat] Atualização de mensagem inválida:",
-          parsed.error,
-        );
+      setConversationStore((current) => {
+        if (current.ownerUserId !== userId) return current;
 
-        return;
-      }
-
-      setConversations((current) =>
-        applyUpdatedMessageToList(current, parsed.data),
-      );
+        return {
+          ...current,
+          items: applyUpdatedMessageToList(current.items, parsed.data),
+        };
+      });
     }
 
     function handleChatUpdated(payload: unknown) {
       const parsed = chatUpdatedPayloadSchema.safeParse(payload);
+      if (!parsed.success) return;
 
-      if (!parsed.success) {
-        console.error("[LG Chat] Atualização de chat inválida:", parsed.error);
-
+      if (!hasConversation(parsed.data.chatId)) {
+        queueEventSync();
         return;
       }
 
       const data = parsed.data;
 
-      setConversations((current) => {
-        const updated = current.map((conversation) => {
-          if (conversation.id !== data.chatId) {
-            return conversation;
-          }
+      setConversationStore((current) => {
+        if (current.ownerUserId !== userId) return current;
 
-          return {
-            ...conversation,
-
-            updatedAt: data.updatedAt ?? conversation.updatedAt,
-
-            name: data.name === undefined ? conversation.name : data.name,
-
-            description:
-              data.description === undefined
-                ? conversation.description
-                : data.description,
-
-            avatarUrl:
-              data.avatarUrl === undefined
-                ? conversation.avatarUrl
-                : data.avatarUrl,
-          };
-        });
-
-        return sortConversations(updated);
+        return {
+          ...current,
+          items: sortConversations(
+            current.items.map((conversation) =>
+              conversation.id !== data.chatId
+                ? conversation
+                : {
+                    ...conversation,
+                    updatedAt: data.updatedAt ?? conversation.updatedAt,
+                    name:
+                      data.name === undefined ? conversation.name : data.name,
+                    description:
+                      data.description === undefined
+                        ? conversation.description
+                        : data.description,
+                    avatarUrl:
+                      data.avatarUrl === undefined
+                        ? conversation.avatarUrl
+                        : data.avatarUrl,
+                  },
+            ),
+          ),
+        };
       });
     }
 
     function handleUserStatus(payload: unknown) {
       const parsed = userStatusPayloadSchema.safeParse(payload);
-
-      if (!parsed.success) {
-        console.error("[LG Chat] Status de usuário inválido:", parsed.error);
-
-        return;
-      }
+      if (!parsed.success) return;
 
       const data = parsed.data;
 
-      setConversations((current) =>
-        current.map((conversation) => {
-          if (conversation.privateUser?.id !== data.userId) {
-            return conversation;
-          }
+      setConversationStore((current) => {
+        if (current.ownerUserId !== userId) return current;
 
-          return {
-            ...conversation,
+        return {
+          ...current,
+          items: current.items.map((conversation) => {
+            if (conversation.privateUser?.id !== data.userId) {
+              return conversation;
+            }
 
-            privateUser: {
-              ...conversation.privateUser,
-
-              isOnline: data.isOnline,
-
-              lastSeenAt:
-                data.lastSeenAt === undefined
-                  ? conversation.privateUser.lastSeenAt
-                  : data.lastSeenAt,
-            },
-          };
-        }),
-      );
+            return {
+              ...conversation,
+              privateUser: {
+                ...conversation.privateUser,
+                isOnline: data.isOnline,
+                lastSeenAt:
+                  data.lastSeenAt === undefined
+                    ? conversation.privateUser.lastSeenAt
+                    : data.lastSeenAt,
+              },
+            };
+          }),
+        };
+      });
     }
 
     function handleReconnect() {
-      /*
-        Uma única sincronização após reconectar.
-
-        Não é polling.
-      */
-      void refresh();
+      void refresh({ silent: true });
     }
 
     socket.on("chat_message", handleChatMessage);
-
     socket.on("chat_message_updated", handleChatMessageUpdated);
-
     socket.on("chat_updated", handleChatUpdated);
-
     socket.on("user_status", handleUserStatus);
-
     socket.io.on("reconnect", handleReconnect);
 
     return () => {
       socket.off("chat_message", handleChatMessage);
-
       socket.off("chat_message_updated", handleChatMessageUpdated);
-
       socket.off("chat_updated", handleChatUpdated);
-
       socket.off("user_status", handleUserStatus);
-
       socket.io.off("reconnect", handleReconnect);
+
+      if (syncTimerRef.current !== null) {
+        window.clearTimeout(syncTimerRef.current);
+        syncTimerRef.current = null;
+      }
     };
-  }, [socket, selectedChatId, currentUserId, refresh]);
+  }, [socket, currentUserId, selectedChatId, refresh]);
 
   return {
-    conversations,
+    conversations: visibleConversations,
     status,
     errorMessage,
-
     refresh,
-    markConversationAsReadLocally,
+    confirmConversationRead,
   };
 }

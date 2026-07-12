@@ -1,10 +1,16 @@
 import { apiRequest, type ApiSuccess } from "../../api/apiClient";
-
 import { chatUsersSchema, type ChatUser } from "./users.schemas";
 
-export async function listAvailableUsers(): Promise<ApiSuccess<ChatUser[]>> {
+type RequestOptions = {
+  signal?: AbortSignal;
+};
+
+export async function listAvailableUsers(
+  options: RequestOptions = {},
+): Promise<ApiSuccess<ChatUser[]>> {
   const response = await apiRequest<unknown>("/api/users", {
     method: "GET",
+    signal: options.signal,
   });
 
   return {

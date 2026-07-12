@@ -1,3 +1,5 @@
+import styles from "../app/PublicPage.module.css";
+
 type FullPageStatusProps = {
   title: string;
   message: string;
@@ -12,22 +14,26 @@ export function FullPageStatus({
   onAction,
 }: FullPageStatusProps) {
   return (
-    <main className="page-container">
-      <section className="page-card" aria-live="polite">
-        <span className="brand-badge">LG</span>
+    <main className={styles.page}>
+      <section className={styles.card} aria-live="polite">
+        <span className={styles.badge} aria-hidden="true">
+          LG
+        </span>
 
-        <h1>{title}</h1>
+        <h1 className={styles.title}>{title}</h1>
 
-        <p>{message}</p>
+        <p className={styles.description}>{message}</p>
 
         {actionLabel && onAction ? (
-          <button
-            className="button button-primary"
-            type="button"
-            onClick={onAction}
-          >
-            {actionLabel}
-          </button>
+          <div className={styles.actions}>
+            <button
+              className={`${styles.button} ${styles.primary}`}
+              type="button"
+              onClick={onAction}
+            >
+              {actionLabel}
+            </button>
+          </div>
         ) : null}
       </section>
     </main>
