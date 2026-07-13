@@ -8,12 +8,14 @@ import {
 
 type RequestOptions = {
   signal?: AbortSignal;
+  archived?: boolean;
 };
 
 export async function listConversations(
   options: RequestOptions = {},
 ): Promise<ApiSuccess<Conversation[]>> {
-  const response = await apiRequest<unknown>("/api/chats", {
+  const path = options.archived ? "/api/chats?archived=true" : "/api/chats";
+  const response = await apiRequest<unknown>(path, {
     method: "GET",
     signal: options.signal,
   });

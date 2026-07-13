@@ -1,9 +1,12 @@
 import { useMemo, useState } from "react";
 
+import type { Conversation } from "../../../conversations/conversations.schemas";
+import { MessageSearchDialog } from "../../../search/MessageSearchDialog";
 import { useMessages } from "../../hooks/useMessages";
 import { useTypingIndicator } from "../../hooks/useTypingIndicator";
-import type { ChatMessage } from "../../messages.schemas";
+import type { ChatMessage, ServerChatMessage } from "../../messages.schemas";
 import { MessageComposer } from "../MessageComposer";
+import { ForwardMessageDialog } from "../ForwardMessageDialog";
 import { MessageList } from "../MessageList";
 
 import styles from "./styles.module.css";
@@ -13,6 +16,13 @@ type MessagesPanelProps = {
   currentUserId: number;
   disabledReason?: string | null;
   onReadConfirmed?: (chatId: number, messageId: number) => void;
+  conversation: Conversation;
+  conversations: Conversation[];
+  searchOpen: boolean;
+  onSearchClose: () => void;
+  onViewportAtBottom?: (isAtBottom: boolean) => void;
+  onAccessLost?: () => void;
+  initialLocatedMessage?: ServerChatMessage | null;
 };
 
 export function MessagesPanel({
@@ -20,14 +30,24 @@ export function MessagesPanel({
   currentUserId,
   disabledReason,
   onReadConfirmed,
+  conversation,
+  conversations,
+  searchOpen,
+  onSearchClose,
+  onViewportAtBottom,
+  onAccessLost,
+  initialLocatedMessage,
 }: MessagesPanelProps) {
   const messages = useMessages({
     chatId,
     currentUserId,
     onReadConfirmed,
+    onAccessLost,
+    initialMessage: initialLocatedMessage,
   });
   const typing = useTypingIndicator({ chatId, currentUserId });
   const [replyToMessageId, setReplyToMessageId] = useState<number | null>(null);
+  const [forwardingMessage, setForwardingMessage] = useState<ChatMessage | null>(null);
 
   const socketDisabledReason =
     messages.socketStatus === "connected"
@@ -121,8 +141,12 @@ export function MessagesPanel({
           isLoadingOlder={messages.isLoadingOlder}
           hasMore={messages.hasMore}
           pendingMessageIds={messages.pendingMessageIds}
+          highlightedMessageId={messages.highlightedMessageId}
           onLoadOlder={() => void messages.loadOlder()}
-          onAtBottomChange={messages.setViewportAtBottom}
+          onAtBottomChange={(isAtBottom) => {
+            messages.setViewportAtBottom(isAtBottom);
+            onViewportAtBottom?.(isAtBottom);
+          }}
           onReply={handleReply}
           onReact={(messageId, emoji) => {
             void messages.reactToMessage(messageId, emoji);
@@ -130,6 +154,9 @@ export function MessagesPanel({
           onToggleStar={(messageId, starred) => {
             void messages.toggleStar(messageId, starred);
           }}
+          onEdit={messages.editMessage}
+          onDelete={messages.deleteMessage}
+          onForward={setForwardingMessage}
         />
       )}
 
@@ -144,6 +171,26 @@ export function MessagesPanel({
         onTyping={typing.notifyTyping}
         onStopTyping={typing.stopTyping}
       />
+
+      {searchOpen ? (
+        <MessageSearchDialog
+          chatId={chatId}
+          currentUserId={currentUserId}
+          otherUserName={conversation.privateUser?.nome}
+          onClose={onSearchClose}
+          onSelect={messages.locateMessage}
+        />
+      ) : null}
+
+      {forwardingMessage ? (
+        <ForwardMessageDialog
+          message={forwardingMessage}
+          conversations={conversations}
+          busy={messages.pendingMessageIds.has(forwardingMessage.id)}
+          onClose={() => setForwardingMessage(null)}
+          onForward={(targetChatIds) => messages.forwardToChats(forwardingMessage.id, targetChatIds)}
+        />
+      ) : null}
     </section>
   );
 }

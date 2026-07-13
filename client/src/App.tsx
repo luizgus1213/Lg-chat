@@ -26,6 +26,9 @@ function App() {
       <Route element={<RequireAuth />}>
         <Route path="/app" element={<ChatHomePage />} />
         <Route path="/app/chat/:chatId" element={<ChatHomePage />} />
+        <Route path="/app/status" element={<ChatHomePage />} />
+        <Route path="/app/starred" element={<ChatHomePage />} />
+        <Route path="/app/archived" element={<ChatHomePage />} />
       </Route>
 
       <Route path="/entrar" element={<Navigate to="/login" replace />} />

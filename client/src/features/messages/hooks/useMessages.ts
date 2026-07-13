@@ -4,6 +4,9 @@ import { ApiError } from "../../../api/apiClient";
 import { useSocket } from "../../../socket/useSocket";
 import { getAuthErrorMessage } from "../../auth/auth.errors";
 import {
+  deleteMessage,
+  editMessage,
+  forwardMessage,
   listMessages,
   markChatAsRead,
   sendMediaMessage,
@@ -66,6 +69,8 @@ type UseMessagesOptions = {
   chatId: number;
   currentUserId: number;
   onReadConfirmed?: (chatId: number, messageId: number) => void;
+  onAccessLost?: () => void;
+  initialMessage?: ServerChatMessage | null;
 };
 
 type PendingConfirmation = {
@@ -199,10 +204,14 @@ export function useMessages({
   chatId,
   currentUserId,
   onReadConfirmed,
+  onAccessLost,
+  initialMessage,
 }: UseMessagesOptions) {
   const { socket, status: socketStatus } = useSocket();
 
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>(() =>
+    initialMessage ? [asSentMessage(initialMessage)] : [],
+  );
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
   const [isSending, setIsSending] = useState(false);
@@ -215,9 +224,12 @@ export function useMessages({
   const [pendingMessageIds, setPendingMessageIds] = useState<Set<number>>(
     () => new Set(),
   );
+  const [highlightedMessageId, setHighlightedMessageId] = useState<number | null>(initialMessage?.id ?? null);
 
   const mountedRef = useRef(false);
-  const messagesRef = useRef<ChatMessage[]>([]);
+  const messagesRef = useRef<ChatMessage[]>(
+    initialMessage ? [asSentMessage(initialMessage)] : [],
+  );
   const requestSequenceRef = useRef(0);
   const localMessageIdRef = useRef(-1);
   const viewportAtBottomRef = useRef(false);
@@ -232,8 +244,12 @@ export function useMessages({
   const olderRequestControllerRef = useRef<AbortController | null>(null);
   const readControllerRef = useRef<AbortController | null>(null);
   const actionControllersRef = useRef(new Set<AbortController>());
+  const pendingActionIdsRef = useRef(new Set<number>());
   const sendingRef = useRef(false);
   const loadingOlderRef = useRef(false);
+  const oldestLoadedMessageIdRef = useRef<number | null>(null);
+  const accessLostRef = useRef(false);
+  const highlightTimerRef = useRef<number | null>(null);
 
   const commitMessages = useCallback(
     (updater: (current: ChatMessage[]) => ChatMessage[]) => {
@@ -249,6 +265,7 @@ export function useMessages({
   useEffect(() => {
     mountedRef.current = true;
     const actionControllers = actionControllersRef.current;
+    const pendingActionIds = pendingActionIdsRef.current;
     const pendingConfirmations = pendingConfirmationsRef.current;
 
     return () => {
@@ -261,6 +278,7 @@ export function useMessages({
         controller.abort();
       }
       actionControllers.clear();
+      pendingActionIds.clear();
 
       for (const confirmation of pendingConfirmations.values()) {
         confirmation.cancel();
@@ -271,8 +289,18 @@ export function useMessages({
         window.clearTimeout(readTimerRef.current);
         readTimerRef.current = null;
       }
+      if (highlightTimerRef.current !== null) {
+        window.clearTimeout(highlightTimerRef.current);
+        highlightTimerRef.current = null;
+      }
     };
   }, []);
+
+  useEffect(() => {
+    if (!initialMessage) return;
+    const timer = window.setTimeout(() => setHighlightedMessageId(null), 3_000);
+    return () => window.clearTimeout(timer);
+  }, [initialMessage]);
 
   const canConfirmRead = useCallback(() => {
     return (
@@ -383,6 +411,7 @@ export function useMessages({
       }
 
       const loadedMessages = response.data.map(asSentMessage);
+      oldestLoadedMessageIdRef.current = loadedMessages.find((message) => message.id > 0)?.id ?? null;
       commitMessages((current) => mergeManyMessages(current, loadedMessages));
       setHasMore(loadedMessages.length === PAGE_SIZE);
       setErrorMessage(null);
@@ -396,6 +425,14 @@ export function useMessages({
         return;
       }
       setErrorMessage(getAuthErrorMessage(error));
+      if (
+        !accessLostRef.current &&
+        error instanceof ApiError &&
+        ["CHAT_ACCESS_DENIED", "CHAT_NOT_FOUND", "GROUP_NOT_FOUND"].includes(error.code)
+      ) {
+        accessLostRef.current = true;
+        onAccessLost?.();
+      }
     } finally {
       if (
         mountedRef.current &&
@@ -406,7 +443,7 @@ export function useMessages({
         setIsLoading(false);
       }
     }
-  }, [chatId, commitMessages]);
+  }, [chatId, commitMessages, onAccessLost]);
 
   useEffect(() => {
     let active = true;
@@ -502,8 +539,8 @@ export function useMessages({
   const loadOlder = useCallback(async () => {
     if (loadingOlderRef.current || !hasMore) return;
 
-    const oldestMessage = messagesRef.current.find((message) => message.id > 0);
-    if (!oldestMessage) {
+    const oldestLoadedMessageId = oldestLoadedMessageIdRef.current;
+    if (!oldestLoadedMessageId) {
       setHasMore(false);
       return;
     }
@@ -518,12 +555,14 @@ export function useMessages({
     try {
       const response = await listMessages(
         chatId,
-        { limit: PAGE_SIZE, beforeId: oldestMessage.id },
+        { limit: PAGE_SIZE, beforeId: oldestLoadedMessageId },
         { signal: controller.signal },
       );
       if (!mountedRef.current || controller.signal.aborted) return;
 
       const olderMessages = response.data.map(asSentMessage);
+      const nextOldestId = olderMessages.find((message) => message.id > 0)?.id;
+      if (nextOldestId) oldestLoadedMessageIdRef.current = nextOldestId;
       commitMessages((current) => mergeManyMessages(current, olderMessages));
       setHasMore(olderMessages.length === PAGE_SIZE);
     } catch (error: unknown) {
@@ -735,10 +774,11 @@ export function useMessages({
       messageId: number,
       request: (controller: AbortController) => Promise<ServerChatMessage>,
     ) => {
-      if (messageId <= 0 || pendingMessageIds.has(messageId)) return;
+      if (messageId <= 0 || pendingActionIdsRef.current.has(messageId)) return false;
 
       const controller = new AbortController();
       actionControllersRef.current.add(controller);
+      pendingActionIdsRef.current.add(messageId);
       setPendingMessageIds((current) => {
         const next = new Set(current);
         next.add(messageId);
@@ -748,16 +788,19 @@ export function useMessages({
 
       try {
         const message = await request(controller);
-        if (!mountedRef.current || controller.signal.aborted) return;
+        if (!mountedRef.current || controller.signal.aborted) return false;
         commitMessages((current) =>
           mergeOneMessage(current, asSentMessage(message)),
         );
+        return true;
       } catch (error: unknown) {
         if (mountedRef.current && !controller.signal.aborted) {
           setActionErrorMessage(getAuthErrorMessage(error));
         }
+        return false;
       } finally {
         actionControllersRef.current.delete(controller);
+        pendingActionIdsRef.current.delete(messageId);
         if (mountedRef.current) {
           setPendingMessageIds((current) => {
             const next = new Set(current);
@@ -767,12 +810,12 @@ export function useMessages({
         }
       }
     },
-    [commitMessages, pendingMessageIds],
+    [commitMessages],
   );
 
   const reactToMessage = useCallback(
     async (messageId: number, emoji: string) => {
-      await runMessageAction(messageId, async (controller) => {
+      return runMessageAction(messageId, async (controller) => {
         const response = await toggleMessageReaction(
           chatId,
           messageId,
@@ -787,7 +830,7 @@ export function useMessages({
 
   const toggleStar = useCallback(
     async (messageId: number, starred: boolean) => {
-      await runMessageAction(messageId, async (controller) => {
+      return runMessageAction(messageId, async (controller) => {
         const response = await setMessageStarred(
           chatId,
           messageId,
@@ -800,6 +843,72 @@ export function useMessages({
     [chatId, runMessageAction],
   );
 
+  const edit = useCallback(
+    async (messageId: number, rawText: string) => {
+      const text = rawText.trim();
+      if (!text) throw new Error("Digite o novo texto da mensagem.");
+      if (text.length > 1_000) throw new Error("A mensagem pode ter no máximo 1.000 caracteres.");
+      return runMessageAction(messageId, async (controller) => {
+        const response = await editMessage(chatId, messageId, text, { signal: controller.signal });
+        return response.data;
+      });
+    },
+    [chatId, runMessageAction],
+  );
+
+  const remove = useCallback(
+    async (messageId: number) => {
+      return runMessageAction(messageId, async (controller) => {
+        const response = await deleteMessage(chatId, messageId, { signal: controller.signal });
+        return response.data;
+      });
+    },
+    [chatId, runMessageAction],
+  );
+
+  const forwardToChats = useCallback(
+    async (messageId: number, targetChatIds: number[]) => {
+      if (messageId <= 0 || targetChatIds.length === 0 || pendingActionIdsRef.current.has(messageId)) return false;
+      const controller = new AbortController();
+      actionControllersRef.current.add(controller);
+      pendingActionIdsRef.current.add(messageId);
+      setPendingMessageIds((current) => new Set(current).add(messageId));
+      setActionErrorMessage(null);
+      try {
+        await forwardMessage(chatId, messageId, targetChatIds, { signal: controller.signal });
+        return !controller.signal.aborted;
+      } catch (error: unknown) {
+        if (!controller.signal.aborted) {
+          setActionErrorMessage(
+            `${getAuthErrorMessage(error)} O encaminhamento pode ter sido concluído em parte; verifique os destinos antes de tentar novamente.`,
+          );
+        }
+        return false;
+      } finally {
+        actionControllersRef.current.delete(controller);
+        pendingActionIdsRef.current.delete(messageId);
+        if (mountedRef.current) {
+          setPendingMessageIds((current) => {
+            const next = new Set(current);
+            next.delete(messageId);
+            return next;
+          });
+        }
+      }
+    },
+    [chatId],
+  );
+
+  const locateMessage = useCallback((message: ServerChatMessage) => {
+    commitMessages((current) => mergeOneMessage(current, asSentMessage(message)));
+    setHighlightedMessageId(message.id);
+    if (highlightTimerRef.current !== null) window.clearTimeout(highlightTimerRef.current);
+    highlightTimerRef.current = window.setTimeout(() => {
+      highlightTimerRef.current = null;
+      setHighlightedMessageId(null);
+    }, 3_000);
+  }, [commitMessages]);
+
   return {
     messages,
     isLoading,
@@ -810,6 +919,7 @@ export function useMessages({
     readErrorMessage,
     actionErrorMessage,
     pendingMessageIds,
+    highlightedMessageId,
     socketStatus,
     reload: loadLatest,
     loadOlder,
@@ -817,6 +927,10 @@ export function useMessages({
     sendMedia,
     reactToMessage,
     toggleStar,
+    editMessage: edit,
+    deleteMessage: remove,
+    forwardToChats,
+    locateMessage,
     setViewportAtBottom,
     retryRead: flushPendingRead,
   };

@@ -30,6 +30,67 @@ async function parseMessageResponse(
   };
 }
 
+export async function editMessage(
+  chatId: number,
+  messageId: number,
+  text: string,
+  requestOptions: RequestOptions = {},
+) {
+  const response = await apiRequest<unknown>(
+    `/api/chats/${chatId}/messages/${messageId}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({ text }),
+      signal: requestOptions.signal,
+    },
+  );
+  return parseMessageResponse(response);
+}
+
+export async function deleteMessage(
+  chatId: number,
+  messageId: number,
+  requestOptions: RequestOptions = {},
+) {
+  const response = await apiRequest<unknown>(
+    `/api/chats/${chatId}/messages/${messageId}`,
+    { method: "DELETE", signal: requestOptions.signal },
+  );
+  return parseMessageResponse(response);
+}
+
+export async function forwardMessage(
+  chatId: number,
+  messageId: number,
+  targetChatIds: number[],
+  requestOptions: RequestOptions = {},
+) {
+  const response = await apiRequest<unknown>(
+    `/api/chats/${chatId}/messages/${messageId}/forward`,
+    {
+      method: "POST",
+      body: JSON.stringify({ targetChatIds }),
+      signal: requestOptions.signal,
+    },
+  );
+  return {
+    ...response,
+    data: chatMessagesSchema.parse(response.data),
+  };
+}
+
+export async function listStarredMessages(
+  chatId: number,
+  limit = 100,
+  requestOptions: RequestOptions = {},
+) {
+  const response = await apiRequest<unknown>(
+    `/api/chats/${chatId}/messages/starred?limit=${limit}`,
+    { method: "GET", signal: requestOptions.signal },
+  );
+  return { ...response, data: chatMessagesSchema.parse(response.data) };
+}
+
 export async function listMessages(
   chatId: number,
   options: ListMessagesOptions = {},

@@ -5,6 +5,7 @@ import { BrowserRouter } from "react-router-dom";
 import App from "./App";
 
 import { AuthProvider } from "./features/auth/AuthProvider";
+import { CallProvider } from "./features/calls";
 import { SocketProvider } from "./socket/SocketProvider";
 
 import "./styles/global.css";
@@ -20,7 +21,9 @@ createRoot(rootElement).render(
     <BrowserRouter>
       <AuthProvider>
         <SocketProvider>
-          <App />
+          <CallProvider>
+            <App />
+          </CallProvider>
         </SocketProvider>
       </AuthProvider>
     </BrowserRouter>

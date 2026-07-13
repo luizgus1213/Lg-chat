@@ -1,0 +1,17 @@
+.options { display: grid; gap: 7px; }
+.options > button {
+  display: grid; width: 100%; gap: 4px; padding: 12px 13px; border: 1px solid var(--border-soft);
+  border-radius: 11px; background: var(--surface-light); color: var(--text); cursor: pointer; text-align: left;
+}
+.options > button:hover:not(:disabled) { border-color: var(--primary); background: var(--surface-hover); }
+.options > button:disabled { cursor: wait; opacity: 0.55; }
+.options span { font-weight: 800; }
+.options small { color: var(--text-muted); line-height: 1.35; }
+.options .danger { border-color: rgb(255 91 104 / 22%); }
+.options .danger span { color: #ffadb4; }
+.confirm { display: grid; gap: 9px; margin-top: 14px; padding: 13px; border: 1px solid rgb(255 91 104 / 30%); border-radius: 11px; background: rgb(255 91 104 / 8%); }
+.confirm > span { color: var(--text-muted); font-size: 0.8rem; line-height: 1.4; }
+.confirm > div { display: flex; justify-content: flex-end; gap: 8px; }
+.confirm button { min-height: 36px; padding: 0 12px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface-light); color: var(--text); cursor: pointer; font-weight: 800; }
+.confirm .confirmDanger { border-color: transparent; background: var(--danger); color: #180307; }
+.error { margin-top: 12px; padding: 10px 12px; border-radius: 9px; background: rgb(255 91 104 / 10%); color: #ffadb4; font-size: 0.82rem; }

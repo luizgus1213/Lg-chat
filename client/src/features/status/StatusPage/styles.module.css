@@ -1,0 +1,108 @@
+.page { width: 100%; min-width: 0; min-height: 0; height: 100%; padding: max(26px, env(safe-area-inset-top)) max(24px, env(safe-area-inset-right)) max(32px, env(safe-area-inset-bottom)) max(24px, env(safe-area-inset-left)); overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; }
+.pageHeader { display: flex; max-width: 1040px; margin: 0 auto 26px; align-items: flex-start; justify-content: space-between; gap: 20px; }
+.titleRow { display: flex; min-width: 0; align-items: flex-start; gap: 12px; }
+.titleRow > div { min-width: 0; }
+.eyebrow { display: block; margin-bottom: 5px; color: var(--primary); font-size: 0.72rem; font-weight: 850; letter-spacing: 0.12em; text-transform: uppercase; }
+.pageHeader h1 { margin: 0; font-size: clamp(1.75rem, 4vw, 2.5rem); line-height: 1.1; }
+.pageHeader p { max-width: 590px; margin: 8px 0 0; color: var(--text-muted); line-height: 1.5; }
+.backButton { display: grid; width: 42px; height: 42px; flex: 0 0 auto; place-items: center; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-light); cursor: pointer; font-size: 2rem; line-height: 1; }
+.refreshButton { min-height: 42px; flex: 0 0 auto; border: 1px solid var(--border); border-radius: 11px; padding: 0 16px; background: var(--surface-light); cursor: pointer; font-weight: 750; }
+.refreshButton:disabled { cursor: wait; opacity: 0.55; }
+.myStatusSection,
+.contactsSection { max-width: 1040px; margin: 0 auto 24px; border: 1px solid var(--border); border-radius: 20px; background: rgb(17 24 39 / 84%); box-shadow: 0 18px 55px rgb(0 0 0 / 18%); }
+.sectionHeading { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 16px; padding: 19px 20px; border-bottom: 1px solid var(--border-soft); }
+.sectionHeading h2 { margin: 0; font-size: 1.05rem; }
+.sectionHeading p { margin: 5px 0 0; color: var(--text-muted); font-size: 0.8rem; }
+.createActions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.createActions button { min-height: 39px; border: 0; border-radius: 10px; padding: 0 13px; background: var(--primary); color: var(--primary-text); cursor: pointer; font-size: 0.82rem; font-weight: 850; }
+.createActions button:last-child { border: 1px solid var(--border); background: var(--surface-light); color: var(--text); }
+.mineCard { padding: 10px 20px 18px; }
+.mineIdentity { display: flex; width: 100%; min-width: 0; align-items: center; gap: 13px; border: 0; padding: 10px 0; background: transparent; color: var(--text); cursor: pointer; text-align: left; }
+.mineIdentity:disabled { cursor: default; }
+.mineIdentity > span:last-child { display: flex; min-width: 0; flex-direction: column; gap: 4px; }
+.mineIdentity strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mineIdentity small,
+.groupInfo small { color: var(--text-muted); font-size: 0.78rem; }
+.avatarRing { display: grid; width: 57px; height: 57px; flex: 0 0 auto; place-items: center; border: 3px solid; border-radius: 50%; padding: 3px; }
+.unseenRing { border-color: var(--primary); }
+.seenRing { border-color: #526078; }
+.avatar { display: grid; width: 100%; height: 100%; place-items: center; overflow: hidden; border-radius: 50%; background: var(--surface-hover); font-size: 0.75rem; font-weight: 850; }
+.avatar img { width: 100%; height: 100%; object-fit: cover; }
+.mineList,
+.groupList { margin: 0; padding: 0; list-style: none; }
+.mineList { margin-top: 6px; border-top: 1px solid var(--border-soft); }
+.mineList li { display: flex; min-width: 0; align-items: center; gap: 8px; padding: 9px 0; border-bottom: 1px solid var(--border-soft); }
+.mineList li:last-child { border-bottom: 0; }
+.statusSummary { display: flex; min-width: 0; flex: 1; align-items: center; gap: 11px; border: 0; padding: 0; background: transparent; cursor: pointer; color: var(--text); text-align: left; }
+.statusSummary > span:last-child { display: flex; min-width: 0; flex-direction: column; gap: 3px; }
+.statusSummary strong,
+.statusSummary small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.statusSummary small { color: var(--text-muted); font-size: 0.75rem; }
+.statusThumbnail { display: grid; width: 43px; height: 43px; flex: 0 0 auto; place-items: center; overflow: hidden; border-radius: 10px; background: #090d15; font-size: 0.8rem; font-weight: 850; }
+.statusThumbnail img { width: 100%; height: 100%; object-fit: cover; }
+.inlineButton,
+.inlineDeleteButton { flex: 0 0 auto; border: 0; padding: 7px 8px; background: transparent; color: var(--primary); cursor: pointer; font-size: 0.76rem; font-weight: 750; }
+.inlineDeleteButton { color: #ff8c95; }
+.groupList { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px; background: var(--border-soft); }
+.groupList li { min-width: 0; background: var(--surface); }
+.groupList li > button { display: flex; width: 100%; min-width: 0; align-items: center; gap: 12px; border: 0; padding: 15px 18px; background: transparent; color: var(--text); cursor: pointer; text-align: left; }
+.groupList li > button:hover { background: var(--surface-hover); }
+.groupInfo { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 4px; }
+.groupInfo strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.unseenBadge,
+.seenBadge { flex: 0 0 auto; border-radius: 999px; padding: 4px 7px; font-size: 0.68rem; font-weight: 850; }
+.unseenBadge { background: rgb(36 211 102 / 14%); color: #58e98e; }
+.seenBadge { background: var(--surface-light); color: var(--text-subtle); }
+.statusCount { display: grid; min-width: 23px; height: 23px; place-items: center; border-radius: 999px; background: var(--surface-light); color: var(--text-muted); font-size: 0.68rem; font-weight: 800; }
+.loadingState,
+.emptyState,
+.errorState { display: grid; min-height: 220px; place-items: center; align-content: center; gap: 9px; padding: 28px; text-align: center; }
+.loadingState p,
+.emptyState p,
+.errorState p { max-width: 500px; margin: 0; color: var(--text-muted); line-height: 1.45; }
+.emptyState > span { color: var(--text-subtle); font-size: 3.2rem; }
+.errorState strong { color: #ffb5bb; }
+.errorState button { min-height: 39px; margin-top: 6px; border: 0; border-radius: 9px; padding: 0 14px; background: var(--primary); color: var(--primary-text); cursor: pointer; font-weight: 800; }
+.spinner { width: 30px; height: 30px; border: 3px solid var(--border); border-top-color: var(--primary); border-radius: 50%; animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.secondaryButton,
+.dangerButton { min-height: 42px; border-radius: 10px; padding: 0 16px; cursor: pointer; font-weight: 800; }
+.secondaryButton { border: 1px solid var(--border); background: var(--surface-light); }
+.dangerButton { border: 0; background: var(--danger); color: #180305; }
+.secondaryButton:disabled,
+.dangerButton:disabled { cursor: wait; opacity: 0.55; }
+.deletePreview { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 13px; border-radius: 11px; background: var(--surface-light); }
+.deletePreview span { color: var(--text-muted); }
+.dialogError { margin: 13px 0 0; color: #ff9ba3; font-size: 0.84rem; }
+.liveRegion { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+
+@media (max-width: 720px) {
+  .page { padding-inline: max(14px, env(safe-area-inset-left)); }
+  .pageHeader { align-items: center; }
+  .pageHeader p { display: none; }
+  .groupList { grid-template-columns: 1fr; }
+  .mineCard { padding-inline: 15px; }
+  .sectionHeading { align-items: flex-start; padding-inline: 15px; }
+  .createActions { max-width: 200px; }
+}
+
+@media (max-width: 480px) {
+  .page { padding-top: max(16px, env(safe-area-inset-top)); padding-inline: 10px; }
+  .pageHeader { margin-bottom: 16px; }
+  .refreshButton { padding-inline: 11px; font-size: 0.78rem; }
+  .backButton { width: 38px; height: 38px; }
+  .myStatusSection, .contactsSection { border-radius: 15px; }
+  .sectionHeading { flex-direction: column; }
+  .createActions { width: 100%; max-width: none; justify-content: stretch; }
+  .createActions button { flex: 1; padding-inline: 8px; }
+  .mineList li { flex-wrap: wrap; }
+  .statusSummary { flex-basis: calc(100% - 50px); }
+  .inlineButton { margin-left: 54px; }
+  .avatarRing { width: 52px; height: 52px; }
+  .groupList li > button { padding-inline: 13px; }
+  .unseenBadge, .seenBadge { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner { animation-duration: 1.8s; }
+}

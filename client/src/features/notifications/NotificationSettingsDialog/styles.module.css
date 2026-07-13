@@ -1,0 +1,7 @@
+.settings { display: grid; gap: 10px; }
+.settings label, .system { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 14px; padding: 12px; border: 1px solid var(--border-soft); border-radius: 11px; background: var(--surface-light); }
+.settings span { display: grid; min-width: 0; gap: 4px; }
+.settings small { color: var(--text-muted); line-height: 1.4; }
+.settings input { width: 20px; height: 20px; accent-color: var(--primary); }
+.settings button { min-height: 36px; padding: 0 11px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-hover); color: var(--text); cursor: pointer; font-weight: 800; }
+.error { padding: 9px 11px; border-radius: 8px; background: rgb(255 91 104 / 10%); color: #ffadb4; font-size: 0.8rem; }

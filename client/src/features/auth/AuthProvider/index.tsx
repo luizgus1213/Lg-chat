@@ -78,6 +78,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
     return true;
   }, []);
 
+  const updateUser = useCallback((nextUser: AuthUser) => {
+    setUser((current) =>
+      current?.id === nextUser.id ? { ...current, ...nextUser } : current,
+    );
+  }, []);
+
   const refreshSession = useCallback(async () => {
     if (sessionRequestRef.current) return;
 
@@ -160,6 +166,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       isAuthenticated: status === "authenticated",
       errorMessage,
       completeAuthentication,
+      updateUser,
       refreshSession,
       signOut,
     }),
@@ -168,6 +175,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       user,
       errorMessage,
       completeAuthentication,
+      updateUser,
       refreshSession,
       signOut,
     ],

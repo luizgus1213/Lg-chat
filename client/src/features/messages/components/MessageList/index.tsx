@@ -1,4 +1,4 @@
-import { useCallback, useLayoutEffect, useRef } from "react";
+import { useCallback, useLayoutEffect, useRef, useState } from "react";
 
 import type { ChatMessage } from "../../messages.schemas";
 import { MessageItem } from "../MessageItem";
@@ -12,11 +12,15 @@ type MessageListProps = {
   isLoadingOlder: boolean;
   hasMore: boolean;
   pendingMessageIds: ReadonlySet<number>;
+  highlightedMessageId: number | null;
   onLoadOlder: () => void;
   onAtBottomChange: (isAtBottom: boolean) => void;
   onReply: (message: ChatMessage) => void;
   onReact: (messageId: number, emoji: string) => void;
   onToggleStar: (messageId: number, starred: boolean) => void;
+  onEdit: (messageId: number, text: string) => Promise<boolean>;
+  onDelete: (messageId: number) => Promise<boolean>;
+  onForward: (message: ChatMessage) => void;
 };
 
 const BOTTOM_THRESHOLD_PX = 80;
@@ -28,11 +32,15 @@ export function MessageList({
   isLoadingOlder,
   hasMore,
   pendingMessageIds,
+  highlightedMessageId,
   onLoadOlder,
   onAtBottomChange,
   onReply,
   onReact,
   onToggleStar,
+  onEdit,
+  onDelete,
+  onForward,
 }: MessageListProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const initializedRef = useRef(false);
@@ -42,6 +50,8 @@ export function MessageList({
     height: number;
     top: number;
   } | null>(null);
+  const messageElementsRef = useRef(new Map<number, HTMLElement>());
+  const [hasNewMessages, setHasNewMessages] = useState(false);
 
   const updateBottomState = useCallback(() => {
     const container = containerRef.current;
@@ -52,6 +62,7 @@ export function MessageList({
     const isAtBottom = distanceFromBottom <= BOTTOM_THRESHOLD_PX;
 
     atBottomRef.current = isAtBottom;
+    if (isAtBottom) setHasNewMessages(false);
     onAtBottomChange(isAtBottom);
   }, [onAtBottomChange]);
 
@@ -99,6 +110,8 @@ export function MessageList({
 
       if (shouldFollowMessage) {
         container.scrollTop = container.scrollHeight;
+      } else {
+        setHasNewMessages(true);
       }
 
       previousLastIdRef.current = lastId;
@@ -111,6 +124,12 @@ export function MessageList({
     isLoadingOlder,
     updateBottomState,
   ]);
+
+  useLayoutEffect(() => {
+    if (!highlightedMessageId) return;
+    const element = messageElementsRef.current.get(highlightedMessageId);
+    element?.scrollIntoView({ block: "center", behavior: "smooth" });
+  }, [highlightedMessageId, messages]);
 
   if (isLoading && messages.length === 0) {
     return (
@@ -150,12 +169,33 @@ export function MessageList({
             message={message}
             currentUserId={currentUserId}
             isActionPending={pendingMessageIds.has(message.id)}
+            highlighted={message.id === highlightedMessageId}
+            itemRef={(element) => {
+              if (element) messageElementsRef.current.set(message.id, element);
+              else messageElementsRef.current.delete(message.id);
+            }}
             onReply={onReply}
             onReact={onReact}
             onToggleStar={onToggleStar}
+            onEdit={onEdit}
+            onDelete={onDelete}
+            onForward={onForward}
           />
         ))
       )}
+      {hasNewMessages ? (
+        <button
+          className={styles.newMessages}
+          type="button"
+          onClick={() => {
+            const container = containerRef.current;
+            if (container) container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
+            setHasNewMessages(false);
+          }}
+        >
+          Novas mensagens ↓
+        </button>
+      ) : null}
     </div>
   );
 }

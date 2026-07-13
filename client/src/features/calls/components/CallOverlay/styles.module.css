@@ -1,0 +1,330 @@
+.backdrop {
+  position: fixed;
+  z-index: 1000;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgb(2 6 12 / 82%);
+  backdrop-filter: blur(16px);
+}
+
+.dialog {
+  width: min(100%, 430px);
+  min-height: min(590px, calc(100dvh - 40px));
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  overflow: hidden;
+  border: 1px solid rgb(255 255 255 / 10%);
+  border-radius: 30px;
+  background:
+    radial-gradient(circle at 50% 15%, rgb(36 211 102 / 18%), transparent 40%),
+    #0b111c;
+  color: #f7f9fc;
+  box-shadow: 0 35px 100px rgb(0 0 0 / 60%);
+}
+
+.videoDialog {
+  width: min(100%, 880px);
+  min-height: min(720px, calc(100dvh - 40px));
+}
+
+.mediaStage {
+  position: relative;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+
+.remoteVideo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background: #03060b;
+}
+
+.localVideo {
+  position: absolute;
+  z-index: 2;
+  top: 18px;
+  right: 18px;
+  width: clamp(104px, 24%, 190px);
+  aspect-ratio: 3 / 4;
+  object-fit: cover;
+  border: 1px solid rgb(255 255 255 / 20%);
+  border-radius: 18px;
+  background: #111827;
+  box-shadow: 0 12px 35px rgb(0 0 0 / 42%);
+  transition: opacity 160ms ease;
+}
+
+.localVideoMirrored {
+  transform: scaleX(-1);
+}
+
+.localVideoHidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.identity {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  justify-items: center;
+  gap: 24px;
+  padding: 42px 28px;
+  text-align: center;
+}
+
+.identityOnVideo {
+  align-self: end;
+  width: 100%;
+  padding-top: 120px;
+  background: linear-gradient(transparent, rgb(0 0 0 / 76%));
+}
+
+.avatar,
+.avatarFallback {
+  width: 132px;
+  height: 132px;
+  border: 3px solid rgb(255 255 255 / 14%);
+  border-radius: 50%;
+  box-shadow: 0 16px 45px rgb(0 0 0 / 36%);
+}
+
+.avatar {
+  object-fit: cover;
+}
+
+.avatarFallback {
+  display: grid;
+  place-items: center;
+  background: linear-gradient(145deg, #24d366, #159449);
+  color: #031109;
+  font-size: 52px;
+  font-weight: 800;
+}
+
+.identityOnVideo .avatar,
+.identityOnVideo .avatarFallback {
+  display: none;
+}
+
+.identityText h2 {
+  margin: 0;
+  font-size: clamp(24px, 5vw, 34px);
+  line-height: 1.1;
+}
+
+.identityText p {
+  margin: 10px 0 0;
+  color: #b8c2d4;
+  font-size: 15px;
+}
+
+.duration {
+  display: inline-block;
+  margin-top: 10px;
+  color: #f7f9fc;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.08em;
+}
+
+.error {
+  position: absolute;
+  z-index: 4;
+  right: 20px;
+  bottom: 18px;
+  left: 20px;
+  padding: 12px 14px;
+  border: 1px solid rgb(255 91 104 / 32%);
+  border-radius: 12px;
+  background: rgb(72 16 25 / 90%);
+  color: #ffd8dc;
+  text-align: center;
+  font-size: 14px;
+}
+
+.playbackButton {
+  position: absolute;
+  z-index: 5;
+  top: 18px;
+  left: 50%;
+  padding: 10px 14px;
+  border: 1px solid rgb(255 255 255 / 18%);
+  border-radius: 999px;
+  background: rgb(5 10 18 / 88%);
+  color: #fff;
+  cursor: pointer;
+  transform: translateX(-50%);
+}
+
+.controls {
+  position: relative;
+  z-index: 5;
+  min-height: 126px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 20px;
+  background: rgb(6 10 17 / 94%);
+  border-top: 1px solid rgb(255 255 255 / 8%);
+}
+
+.controlButton {
+  min-width: 68px;
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #e8edf5;
+  cursor: pointer;
+}
+
+.controlButton::before {
+  content: "";
+  grid-area: 1 / 1;
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  background: #1b2638;
+  transition:
+    transform 140ms ease,
+    background 140ms ease;
+}
+
+.controlButton:hover::before {
+  transform: translateY(-2px);
+  background: #26344b;
+}
+
+.controlButton:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+.controlButton .icon {
+  grid-area: 1 / 1;
+  align-self: center;
+  z-index: 1;
+}
+
+.controlButton span {
+  font-size: 12px;
+  color: #aeb9ca;
+}
+
+.answerButton::before {
+  background: #24d366;
+}
+
+.answerButton:hover::before {
+  background: #2ee276;
+}
+
+.answerButton .icon {
+  color: #031109;
+}
+
+.rejectButton::before {
+  background: #ef4453;
+}
+
+.rejectButton:hover::before {
+  background: #ff5867;
+}
+
+.rejectButton .icon {
+  color: #fff;
+}
+
+.inactiveButton::before {
+  background: #f3f5f8;
+}
+
+.inactiveButton .icon {
+  color: #111827;
+}
+
+.closeButton::before {
+  background: #26344b;
+}
+
+.icon {
+  width: 25px;
+  height: 25px;
+}
+
+.progress {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #b8c2d4;
+}
+
+.spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid rgb(255 255 255 / 20%);
+  border-top-color: #24d366;
+  border-radius: 50%;
+  animation: spin 800ms linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 620px) {
+  .backdrop {
+    padding: 0;
+  }
+
+  .dialog,
+  .videoDialog {
+    width: 100%;
+    min-height: 100dvh;
+    border: 0;
+    border-radius: 0;
+  }
+
+  .localVideo {
+    top: max(14px, env(safe-area-inset-top));
+    right: 14px;
+    width: 112px;
+  }
+
+  .controls {
+    min-height: calc(122px + env(safe-area-inset-bottom));
+    padding: 18px 12px max(18px, env(safe-area-inset-bottom));
+    gap: 6px;
+  }
+
+  .controlButton {
+    min-width: 62px;
+  }
+
+  .controlButton::before {
+    width: 54px;
+    height: 54px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .controlButton::before {
+    transition: none;
+  }
+
+  .spinner {
+    animation-duration: 1.6s;
+  }
+}

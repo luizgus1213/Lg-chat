@@ -1,6 +1,7 @@
 import {
   useEffect,
   useId,
+  useMemo,
   useRef,
   useState,
   type ChangeEvent,
@@ -91,6 +92,17 @@ export function MessageComposer({
   useEffect(() => {
     if (replyTo && !disabled) textareaRef.current?.focus();
   }, [disabled, replyTo]);
+
+  const previewUrl = useMemo(() => {
+    if (!selectedFile || (!selectedFile.type.startsWith("image/") && !selectedFile.type.startsWith("video/"))) return null;
+    return URL.createObjectURL(selectedFile);
+  }, [selectedFile]);
+
+  useEffect(() => {
+    return () => {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+    };
+  }, [previewUrl]);
 
   function resizeTextarea(element: HTMLTextAreaElement) {
     element.style.height = "auto";
@@ -202,6 +214,12 @@ export function MessageComposer({
 
       {selectedFile ? (
         <div className={styles.filePreview}>
+          {previewUrl && selectedFile.type.startsWith("image/") ? (
+            <img className={styles.previewMedia} src={previewUrl} alt="Prévia do arquivo selecionado" />
+          ) : null}
+          {previewUrl && selectedFile.type.startsWith("video/") ? (
+            <video className={styles.previewMedia} src={previewUrl} controls preload="metadata" aria-label="Prévia do vídeo selecionado" />
+          ) : null}
           <span aria-hidden="true">📎</span>
           <span className={styles.fileDetails}>
             <strong>{selectedFile.name}</strong>

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import type { ChatMessage } from "../../messages.schemas";
 
@@ -10,9 +10,14 @@ type MessageItemProps = {
   message: ChatMessage;
   currentUserId: number;
   isActionPending: boolean;
+  highlighted: boolean;
+  itemRef: (element: HTMLElement | null) => void;
   onReply: (message: ChatMessage) => void;
   onReact: (messageId: number, emoji: string) => void;
   onToggleStar: (messageId: number, starred: boolean) => void;
+  onEdit: (messageId: number, text: string) => Promise<boolean>;
+  onDelete: (messageId: number) => Promise<boolean>;
+  onForward: (message: ChatMessage) => void;
 };
 
 type MediaStatus = "loading" | "ready" | "error";
@@ -171,12 +176,48 @@ export function MessageItem({
   message,
   currentUserId,
   isActionPending,
+  highlighted,
+  itemRef,
   onReply,
   onReact,
   onToggleStar,
+  onEdit,
+  onDelete,
+  onForward,
 }: MessageItemProps) {
   const [isReactionPickerOpen, setIsReactionPickerOpen] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [editingText, setEditingText] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const wrapperRef = useRef<HTMLElement | null>(null);
   const isOwn = message.fromUserId === currentUserId;
+
+  useEffect(() => {
+    itemRef(wrapperRef.current);
+    return () => itemRef(null);
+  }, [itemRef]);
+
+  useEffect(() => {
+    if (!isMenuOpen && !isReactionPickerOpen) return;
+    function closeOnOutside(event: PointerEvent) {
+      if (!wrapperRef.current?.contains(event.target as Node)) {
+        setIsMenuOpen(false);
+        setIsReactionPickerOpen(false);
+      }
+    }
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setIsMenuOpen(false);
+        setIsReactionPickerOpen(false);
+      }
+    }
+    document.addEventListener("pointerdown", closeOnOutside);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOnOutside);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [isMenuOpen, isReactionPickerOpen]);
 
   if (message.type === "system") {
     return (
@@ -191,9 +232,11 @@ export function MessageItem({
 
   return (
     <article
+      ref={wrapperRef}
       className={[
         styles.wrapper,
         isOwn ? styles.own : styles.received,
+        highlighted ? styles.highlighted : "",
       ].join(" ")}
     >
       <div
@@ -224,7 +267,27 @@ export function MessageItem({
               key={message.mediaUrl || "media-" + message.id}
               message={message}
             />
-            {visibleText ? <p className={styles.text}>{visibleText}</p> : null}
+            {editingText !== null ? (
+              <form
+                className={styles.editForm}
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  if (!editingText.trim()) return;
+                  void onEdit(message.id, editingText).then((success) => {
+                    if (success) setEditingText(null);
+                  });
+                }}
+              >
+                <label>
+                  <span>Editar mensagem</span>
+                  <textarea autoFocus value={editingText} maxLength={1_000} rows={3} disabled={isActionPending} onChange={(event) => setEditingText(event.target.value)} />
+                </label>
+                <div>
+                  <button type="button" disabled={isActionPending} onClick={() => setEditingText(null)}>Cancelar</button>
+                  <button type="submit" disabled={isActionPending || !editingText.trim()}>Salvar</button>
+                </div>
+              </form>
+            ) : visibleText ? <p className={styles.text}>{visibleText}</p> : null}
           </>
         )}
 
@@ -277,30 +340,27 @@ export function MessageItem({
         </footer>
 
         {canUseActions ? (
-          <div className={styles.actions}>
+          <div className={styles.menuArea}>
             <button
+              className={styles.menuButton}
               type="button"
+              aria-haspopup="menu"
+              aria-expanded={isMenuOpen}
               disabled={isActionPending}
-              onClick={() => onReply(message)}
+              onClick={() => setIsMenuOpen((current) => !current)}
             >
-              Responder
+              Ações
             </button>
-            <button
-              type="button"
-              aria-pressed={message.isStarred}
-              disabled={isActionPending}
-              onClick={() => onToggleStar(message.id, !message.isStarred)}
-            >
-              {message.isStarred ? "Desfavoritar" : "Favoritar"}
-            </button>
-            <button
-              type="button"
-              aria-expanded={isReactionPickerOpen}
-              disabled={isActionPending}
-              onClick={() => setIsReactionPickerOpen((current) => !current)}
-            >
-              Reagir
-            </button>
+            {isMenuOpen ? (
+              <div className={styles.actions} role="menu">
+                <button type="button" role="menuitem" onClick={() => { setIsMenuOpen(false); onReply(message); }}>Responder</button>
+                <button type="button" role="menuitem" aria-pressed={message.isStarred} onClick={() => { setIsMenuOpen(false); onToggleStar(message.id, !message.isStarred); }}>{message.isStarred ? "Desfavoritar" : "Favoritar"}</button>
+                <button type="button" role="menuitem" onClick={() => { setIsMenuOpen(false); setIsReactionPickerOpen(true); }}>Reagir</button>
+                <button type="button" role="menuitem" onClick={() => { setIsMenuOpen(false); onForward(message); }}>Encaminhar</button>
+                {isOwn ? <button type="button" role="menuitem" onClick={() => { setIsMenuOpen(false); setEditingText(message.text ?? ""); }}>Editar</button> : null}
+                {isOwn ? <button className={styles.dangerAction} type="button" role="menuitem" onClick={() => { setIsMenuOpen(false); setConfirmDelete(true); }}>Excluir</button> : null}
+              </div>
+            ) : null}
           </div>
         ) : null}
 
@@ -320,6 +380,18 @@ export function MessageItem({
                 {emoji}
               </button>
             ))}
+          </div>
+        ) : null}
+
+        {confirmDelete ? (
+          <div className={styles.deleteConfirm} role="alertdialog" aria-label="Confirmar exclusão da mensagem">
+            <span>Apagar para todos?</span>
+            <div>
+              <button type="button" disabled={isActionPending} onClick={() => setConfirmDelete(false)}>Cancelar</button>
+              <button type="button" disabled={isActionPending} onClick={() => void onDelete(message.id).then((success) => {
+                if (success) setConfirmDelete(false);
+              })}>Apagar</button>
+            </div>
           </div>
         ) : null}
 

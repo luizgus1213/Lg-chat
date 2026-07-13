@@ -1,0 +1,37 @@
+.layout { display: grid; gap: 20px; }
+.state { display: grid; justify-items: center; gap: 12px; padding: 36px; color: var(--text-muted); text-align: center; }
+.state button, .primary, .secondary, .fileButton { min-height: 38px; padding: 0 13px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface-light); color: var(--text); cursor: pointer; font-weight: 800; }
+.summary { display: flex; min-width: 0; align-items: center; gap: 14px; padding-bottom: 18px; border-bottom: 1px solid var(--border-soft); }
+.summary > div { display: grid; min-width: 0; flex: 1; gap: 5px; }
+.summary strong, .summary span { overflow-wrap: anywhere; }
+.summary span { color: var(--text-muted); font-size: 0.82rem; line-height: 1.4; }
+.fileButton { display: inline-flex; align-items: center; flex: 0 0 auto; }
+.hiddenInput { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.detailsForm { display: grid; gap: 12px; padding: 15px; border: 1px solid var(--border-soft); border-radius: 12px; }
+.field { display: grid; min-width: 0; gap: 6px; color: var(--text-muted); font-size: 0.78rem; font-weight: 800; }
+.field input, .field textarea, .field select { width: 100%; min-width: 0; padding: 10px 11px; border: 1px solid var(--border); border-radius: 9px; outline: none; background: var(--surface-light); color: var(--text); }
+.field input:focus, .field textarea:focus, .field select:focus { border-color: var(--primary); }
+.primary { justify-self: end; border-color: transparent; background: var(--primary); color: var(--primary-text); }
+.members { display: grid; gap: 12px; }
+.sectionTitle { display: flex; align-items: center; justify-content: space-between; }
+.sectionTitle span { display: grid; min-width: 26px; height: 26px; place-items: center; border-radius: 99px; background: var(--surface-light); font-size: 0.75rem; }
+.addMember { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 10px; }
+.memberList { display: grid; max-height: 310px; margin: 0; padding: 0; overflow-y: auto; border: 1px solid var(--border-soft); border-radius: 12px; list-style: none; }
+.memberList li { display: flex; min-width: 0; align-items: center; gap: 10px; padding: 10px 11px; border-bottom: 1px solid var(--border-soft); }
+.memberList li:last-child { border-bottom: 0; }
+.memberList li > span { display: grid; min-width: 0; flex: 1; gap: 2px; }
+.memberList strong, .memberList small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.memberList small { color: var(--text-muted); }
+.memberList em { padding: 4px 7px; border-radius: 99px; background: rgb(36 211 102 / 10%); color: #8af0af; font-size: 0.68rem; font-style: normal; }
+.memberList button { border: 0; background: transparent; color: #ffadb4; cursor: pointer; font-size: 0.75rem; }
+.dangerZone { display: flex; flex-wrap: wrap; gap: 8px; padding-top: 15px; border-top: 1px solid var(--border-soft); }
+.dangerZone button { min-height: 38px; padding: 0 12px; border: 1px solid rgb(255 91 104 / 30%); border-radius: 9px; background: rgb(255 91 104 / 8%); color: #ffadb4; cursor: pointer; font-weight: 800; }
+.confirm { display: grid; gap: 8px; padding: 13px; border: 1px solid rgb(255 91 104 / 28%); border-radius: 11px; background: rgb(255 91 104 / 8%); }
+.confirm > span { color: var(--text-muted); font-size: 0.8rem; }
+.confirm > div { display: flex; justify-content: flex-end; gap: 8px; }
+.confirm button { min-height: 36px; padding: 0 11px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-light); color: var(--text); cursor: pointer; }
+.confirm .dangerButton { border-color: transparent; background: var(--danger); color: #180307; font-weight: 900; }
+.error { padding: 10px 12px; border-radius: 9px; background: rgb(255 91 104 / 10%); color: #ffadb4; font-size: 0.82rem; overflow-wrap: anywhere; }
+button:disabled, .fileButton:has(+ input:disabled) { cursor: wait; opacity: 0.55; }
+@media (max-width: 520px) { .summary { align-items: flex-start; flex-wrap: wrap; } .summary > div { flex-basis: calc(100% - 90px); } .fileButton { margin-left: 86px; } .addMember { grid-template-columns: 1fr; } .secondary { justify-self: stretch; } .memberList em { display: none; } }
+@media (max-width: 350px) { .fileButton { margin-left: 0; } .memberList li { gap: 7px; padding-inline: 8px; } }
