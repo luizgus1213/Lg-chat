@@ -16,6 +16,11 @@
 
 .error,
 .readError {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   padding: 9px 14px;
   border-bottom: 1px solid rgb(255 91 104 / 25%);
   background: rgb(255 91 104 / 10%);
@@ -77,8 +82,8 @@
   }
 }
 
-.error button {
-  margin-top: 8px;
+.error button,
+.readError button {
   padding: 7px 12px;
   border: 1px solid rgb(255 255 255 / 16%);
   border-radius: 8px;
@@ -86,4 +91,12 @@
   color: var(--text);
   cursor: pointer;
   font-weight: 700;
+}
+
+.error > div {
+  flex-basis: 100%;
+}
+
+.error > div button {
+  margin-top: 2px;
 }

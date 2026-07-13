@@ -20,7 +20,7 @@ export function ConversationList({
 }: ConversationListProps) {
   if (conversations.length === 0) {
     return (
-      <div className={styles.empty}>
+      <div className={styles.empty} role="status" aria-live="polite">
         <strong>{emptyTitle}</strong>
         <span>{emptyMessage}</span>
       </div>
@@ -28,15 +28,16 @@ export function ConversationList({
   }
 
   return (
-    <div className={styles.list}>
+    <ul className={styles.list} aria-label="Lista de conversas">
       {conversations.map((conversation) => (
-        <ConversationItem
-          key={conversation.id}
-          conversation={conversation}
-          selected={conversation.id === selectedChatId}
-          onSelect={onSelect}
-        />
+        <li key={conversation.id}>
+          <ConversationItem
+            conversation={conversation}
+            selected={conversation.id === selectedChatId}
+            onSelect={onSelect}
+          />
+        </li>
       ))}
-    </div>
+    </ul>
   );
 }

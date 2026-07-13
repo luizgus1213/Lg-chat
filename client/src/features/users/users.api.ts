@@ -1,4 +1,4 @@
-import { apiRequest, type ApiSuccess } from "../../api/apiClient";
+import { ApiError, apiRequest, type ApiSuccess } from "../../api/apiClient";
 import { chatUsersSchema, type ChatUser } from "./users.schemas";
 
 type RequestOptions = {
@@ -13,8 +13,15 @@ export async function listAvailableUsers(
     signal: options.signal,
   });
 
-  return {
-    ...response,
-    data: chatUsersSchema.parse(response.data),
-  };
+  const parsed = chatUsersSchema.safeParse(response.data);
+  if (!parsed.success) {
+    throw new ApiError({
+      statusCode: 200,
+      code: "INVALID_API_RESPONSE",
+      message: "O servidor retornou uma resposta inválida.",
+      details: parsed.error,
+    });
+  }
+
+  return { ...response, data: parsed.data };
 }

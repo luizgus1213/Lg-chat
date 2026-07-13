@@ -1,5 +1,6 @@
 import { apiRequest, type ApiSuccess } from "../../../api/apiClient";
 import {
+  chatMessageSchema,
   chatMessagesSchema,
   markReadResultSchema,
   type MarkReadResult,
@@ -14,6 +15,20 @@ type ListMessagesOptions = {
 type RequestOptions = {
   signal?: AbortSignal;
 };
+
+type SendMediaOptions = RequestOptions & {
+  caption?: string;
+  replyToMessageId?: number;
+};
+
+async function parseMessageResponse(
+  response: ApiSuccess<unknown>,
+): Promise<ApiSuccess<ServerChatMessage>> {
+  return {
+    ...response,
+    data: chatMessageSchema.parse(response.data),
+  };
+}
 
 export async function listMessages(
   chatId: number,
@@ -45,14 +60,76 @@ export async function listMessages(
 export async function markChatAsRead(
   chatId: number,
   messageId: number,
+  requestOptions: RequestOptions = {},
 ): Promise<ApiSuccess<MarkReadResult>> {
   const response = await apiRequest<unknown>(`/api/chats/${chatId}/read`, {
     method: "POST",
     body: JSON.stringify({ messageId }),
+    signal: requestOptions.signal,
   });
 
   return {
     ...response,
     data: markReadResultSchema.parse(response.data),
   };
+}
+
+export async function sendMediaMessage(
+  chatId: number,
+  file: File,
+  options: SendMediaOptions = {},
+): Promise<ApiSuccess<ServerChatMessage>> {
+  const formData = new FormData();
+  formData.set("media", file, file.name);
+
+  const caption = options.caption?.trim();
+  if (caption) formData.set("caption", caption);
+  if (options.replyToMessageId) {
+    formData.set("replyToMessageId", String(options.replyToMessageId));
+  }
+
+  const response = await apiRequest<unknown>(`/api/chats/${chatId}/media`, {
+    method: "POST",
+    body: formData,
+    signal: options.signal,
+    timeoutMs: 90_000,
+  });
+
+  return parseMessageResponse(response);
+}
+
+export async function toggleMessageReaction(
+  chatId: number,
+  messageId: number,
+  emoji: string,
+  requestOptions: RequestOptions = {},
+): Promise<ApiSuccess<ServerChatMessage>> {
+  const response = await apiRequest<unknown>(
+    `/api/chats/${chatId}/messages/${messageId}/reactions`,
+    {
+      method: "POST",
+      body: JSON.stringify({ emoji }),
+      signal: requestOptions.signal,
+    },
+  );
+
+  return parseMessageResponse(response);
+}
+
+export async function setMessageStarred(
+  chatId: number,
+  messageId: number,
+  starred: boolean,
+  requestOptions: RequestOptions = {},
+): Promise<ApiSuccess<ServerChatMessage>> {
+  const response = await apiRequest<unknown>(
+    `/api/chats/${chatId}/messages/${messageId}/star`,
+    {
+      method: "POST",
+      body: JSON.stringify({ starred }),
+      signal: requestOptions.signal,
+    },
+  );
+
+  return parseMessageResponse(response);
 }

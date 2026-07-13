@@ -27,6 +27,9 @@ export async function listConversations(
 const createdPrivateChatSchema = z
   .object({
     id: z.number().int().positive(),
+    type: z.literal("private"),
+    createdAt: z.string().datetime({ offset: true }),
+    updatedAt: z.string().datetime({ offset: true }),
   })
   .passthrough();
 
@@ -36,14 +39,16 @@ export async function createPrivateConversation(
   userId: number,
   options: RequestOptions = {},
 ): Promise<ApiSuccess<CreatedPrivateChat>> {
-  if (!Number.isInteger(userId) || userId <= 0) {
-    throw new Error("Usuário inválido.");
-  }
+  const validUserId = z
+    .number()
+    .int()
+    .positive("Usuário inválido.")
+    .parse(userId);
 
   const response = await apiRequest<unknown>("/api/chats/private", {
     method: "POST",
     signal: options.signal,
-    body: JSON.stringify({ userId }),
+    body: JSON.stringify({ userId: validUserId }),
   });
 
   return {

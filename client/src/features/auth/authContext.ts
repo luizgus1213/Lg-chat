@@ -14,7 +14,7 @@ export type AuthContextValue = {
   isAuthenticated: boolean;
   errorMessage: string | null;
 
-  completeAuthentication: (session: AuthSession) => void;
+  completeAuthentication: (session: AuthSession) => boolean;
 
   refreshSession: () => Promise<void>;
   signOut: () => void;

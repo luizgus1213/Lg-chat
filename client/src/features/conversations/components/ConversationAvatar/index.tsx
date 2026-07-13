@@ -13,8 +13,9 @@ export function ConversationAvatar({
   src,
   size = "medium",
 }: ConversationAvatarProps) {
-  const [imageFailed, setImageFailed] = useState(false);
+  const [failedSource, setFailedSource] = useState<string | null>(null);
   const initial = name.trim().charAt(0).toUpperCase() || "?";
+  const shouldShowImage = Boolean(src && src !== failedSource);
 
   return (
     <span
@@ -22,12 +23,13 @@ export function ConversationAvatar({
       aria-label={name}
       role="img"
     >
-      {src && !imageFailed ? (
+      {src && shouldShowImage ? (
         <img
           src={src}
           alt=""
           loading="lazy"
-          onError={() => setImageFailed(true)}
+          decoding="async"
+          onError={() => setFailedSource(src)}
         />
       ) : (
         <span aria-hidden="true">{initial}</span>

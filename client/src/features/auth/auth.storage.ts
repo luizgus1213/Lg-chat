@@ -17,13 +17,14 @@ export function getAuthToken(): string | null {
   }
 }
 
-export function saveAuthToken(token: string): void {
-  if (!canUseLocalStorage()) return;
+export function saveAuthToken(token: string): boolean {
+  if (!canUseLocalStorage() || !token.trim()) return false;
 
   try {
     window.localStorage.setItem(AUTH_TOKEN_KEY, token);
+    return window.localStorage.getItem(AUTH_TOKEN_KEY) === token;
   } catch {
-    // O navegador pode bloquear o armazenamento.
+    return false;
   }
 }
 

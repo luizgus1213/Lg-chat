@@ -1,59 +1,137 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
-import { ApiError } from "../../../api/apiClient";
-import { getAuthErrorMessage } from "../../auth/auth.errors";
+import { isRequestCancellation } from "../../auth/auth.errors";
+import { useAuth } from "../../auth/useAuth";
 import { listAvailableUsers } from "../users.api";
+import { getUsersErrorMessage } from "../users.errors";
 import type { ChatUser } from "../users.schemas";
 
-type UsersStatus = "loading" | "ready" | "error";
+type UsersStatus = "loading" | "refreshing" | "ready" | "error";
 
-function isCancellation(error: unknown) {
-  return error instanceof ApiError && error.code === "REQUEST_CANCELLED";
-}
+type UsersState = {
+  ownerId: number | null;
+  users: ChatUser[];
+  status: UsersStatus;
+  errorMessage: string | null;
+};
 
 export function useUsers() {
-  const [users, setUsers] = useState<ChatUser[]>([]);
-  const [status, setStatus] = useState<UsersStatus>("loading");
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const { user } = useAuth();
+  const currentUserId = user?.id ?? null;
 
-  const refresh = useCallback(async () => {
-    setStatus("loading");
-    setErrorMessage(null);
+  const [state, setState] = useState<UsersState>({
+    ownerId: currentUserId,
+    users: [],
+    status: "loading",
+    errorMessage: null,
+  });
+
+  const mountedRef = useRef(true);
+  const usersRef = useRef<ChatUser[]>([]);
+  const requestRef = useRef<AbortController | null>(null);
+  const requestGenerationRef = useRef(0);
+
+  const loadUsers = useCallback(async (preserveUsers: boolean) => {
+    if (currentUserId === null) return;
+
+    const ownerId = currentUserId;
+    requestRef.current?.abort();
+
+    const controller = new AbortController();
+    const generation = ++requestGenerationRef.current;
+    requestRef.current = controller;
+
+    setState({
+      ownerId,
+      users: preserveUsers ? usersRef.current : [],
+      status: preserveUsers ? "refreshing" : "loading",
+      errorMessage: null,
+    });
 
     try {
-      const response = await listAvailableUsers();
-      setUsers(response.data);
-      setStatus("ready");
+      const response = await listAvailableUsers({ signal: controller.signal });
+
+      if (
+        !mountedRef.current ||
+        controller.signal.aborted ||
+        generation !== requestGenerationRef.current ||
+        ownerId !== currentUserId
+      ) {
+        return;
+      }
+
+      usersRef.current = response.data;
+      setState({
+        ownerId,
+        users: response.data,
+        status: "ready",
+        errorMessage: null,
+      });
     } catch (error: unknown) {
-      setErrorMessage(getAuthErrorMessage(error));
-      setStatus("error");
+      if (
+        !mountedRef.current ||
+        controller.signal.aborted ||
+        generation !== requestGenerationRef.current ||
+        ownerId !== currentUserId ||
+        isRequestCancellation(error)
+      ) {
+        return;
+      }
+
+      const retainedUsers = preserveUsers ? usersRef.current : [];
+      setState({
+        ownerId,
+        users: retainedUsers,
+        status: retainedUsers.length > 0 ? "ready" : "error",
+        errorMessage: getUsersErrorMessage(error),
+      });
+    } finally {
+      if (requestRef.current === controller) {
+        requestRef.current = null;
+      }
     }
-  }, []);
+  }, [currentUserId]);
+
+  const refresh = useCallback(async () => {
+    if (requestRef.current) return;
+    await loadUsers(usersRef.current.length > 0);
+  }, [loadUsers]);
 
   useEffect(() => {
-    const controller = new AbortController();
     let active = true;
+    mountedRef.current = true;
+    requestRef.current?.abort();
+    requestGenerationRef.current += 1;
+    usersRef.current = [];
 
-    void listAvailableUsers({ signal: controller.signal })
-      .then((response) => {
-        if (!active) return;
-
-        setUsers(response.data);
-        setErrorMessage(null);
-        setStatus("ready");
-      })
-      .catch((error: unknown) => {
-        if (!active || isCancellation(error)) return;
-
-        setErrorMessage(getAuthErrorMessage(error));
-        setStatus("error");
+    if (currentUserId !== null) {
+      queueMicrotask(() => {
+        if (active) void loadUsers(false);
       });
+    }
 
     return () => {
       active = false;
-      controller.abort();
+      mountedRef.current = false;
+      requestGenerationRef.current += 1;
+      requestRef.current?.abort();
+      requestRef.current = null;
     };
-  }, []);
+  }, [currentUserId, loadUsers]);
 
-  return { users, status, errorMessage, refresh };
+  if (state.ownerId !== currentUserId) {
+    return {
+      users: [],
+      status: "loading" as const,
+      errorMessage: null,
+      refresh,
+    };
+  }
+
+  return {
+    users: state.users,
+    status: state.status,
+    errorMessage: state.errorMessage,
+    refresh,
+  };
 }

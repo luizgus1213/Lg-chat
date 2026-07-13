@@ -1,8 +1,8 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
 import { registerUser } from "../auth.api";
-import { getAuthErrorMessage } from "../auth.errors";
+import { getAuthErrorMessage, isRequestCancellation } from "../auth.errors";
 import { savePendingVerificationEmail } from "../auth.storage";
 
 import styles from "./AuthPages.module.css";
@@ -24,14 +24,29 @@ export function RegisterPage() {
   });
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const requestRef = useRef<AbortController | null>(null);
+  const mountedRef = useRef(true);
+  const submittingRef = useRef(false);
+
+  useEffect(() => {
+    mountedRef.current = true;
+
+    return () => {
+      mountedRef.current = false;
+      requestRef.current?.abort();
+      requestRef.current = null;
+      submittingRef.current = false;
+    };
+  }, []);
 
   function updateField(field: keyof RegisterFormState, value: string) {
     setForm((current) => ({ ...current, [field]: value }));
+    setErrorMessage(null);
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (isSubmitting) return;
+    if (submittingRef.current) return;
 
     setErrorMessage(null);
 
@@ -40,6 +55,9 @@ export function RegisterPage() {
       return;
     }
 
+    const controller = new AbortController();
+    submittingRef.current = true;
+    requestRef.current = controller;
     setIsSubmitting(true);
 
     try {
@@ -47,19 +65,33 @@ export function RegisterPage() {
         nome: form.nome,
         email: form.email,
         senha: form.senha,
-      });
+      }, { signal: controller.signal });
+
+      if (!mountedRef.current || controller.signal.aborted) return;
 
       const email = response.data.email.trim().toLowerCase();
       savePendingVerificationEmail(email);
 
       navigate(`/verificar-email?email=${encodeURIComponent(email)}`, {
         replace: true,
-        state: { message: response.message },
+        state: { message: response.message, codeSentAt: Date.now() },
       });
     } catch (error: unknown) {
+      if (
+        !mountedRef.current ||
+        controller.signal.aborted ||
+        isRequestCancellation(error)
+      ) {
+        return;
+      }
+
       setErrorMessage(getAuthErrorMessage(error));
     } finally {
-      setIsSubmitting(false);
+      if (requestRef.current === controller) {
+        requestRef.current = null;
+        submittingRef.current = false;
+        if (mountedRef.current) setIsSubmitting(false);
+      }
     }
   }
 
@@ -75,7 +107,12 @@ export function RegisterPage() {
           <p>Crie sua conta e confirme o código enviado para seu e-mail.</p>
         </header>
 
-        <form className={styles.form} onSubmit={handleSubmit} noValidate>
+        <form
+          className={styles.form}
+          onSubmit={handleSubmit}
+          aria-busy={isSubmitting}
+          noValidate
+        >
           <label className={styles.field} htmlFor="register-name">
             <span>Nome</span>
             <input
@@ -88,6 +125,8 @@ export function RegisterPage() {
               autoComplete="name"
               disabled={isSubmitting}
               maxLength={80}
+              aria-invalid={Boolean(errorMessage)}
+              aria-describedby={errorMessage ? "register-error" : undefined}
               required
             />
           </label>
@@ -105,6 +144,8 @@ export function RegisterPage() {
               inputMode="email"
               disabled={isSubmitting}
               maxLength={150}
+              aria-invalid={Boolean(errorMessage)}
+              aria-describedby={errorMessage ? "register-error" : undefined}
               required
             />
           </label>
@@ -121,6 +162,8 @@ export function RegisterPage() {
               autoComplete="new-password"
               disabled={isSubmitting}
               maxLength={72}
+              aria-invalid={Boolean(errorMessage)}
+              aria-describedby={errorMessage ? "register-error" : undefined}
               required
             />
             <small>Use pelo menos uma letra e um número.</small>
@@ -140,12 +183,18 @@ export function RegisterPage() {
               autoComplete="new-password"
               disabled={isSubmitting}
               maxLength={72}
+              aria-invalid={Boolean(errorMessage)}
+              aria-describedby={errorMessage ? "register-error" : undefined}
               required
             />
           </label>
 
           {errorMessage ? (
-            <div className={`${styles.message} ${styles.error}`} role="alert">
+            <div
+              id="register-error"
+              className={`${styles.message} ${styles.error}`}
+              role="alert"
+            >
               {errorMessage}
             </div>
           ) : null}

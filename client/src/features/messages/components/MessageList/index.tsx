@@ -11,8 +11,12 @@ type MessageListProps = {
   isLoading: boolean;
   isLoadingOlder: boolean;
   hasMore: boolean;
+  pendingMessageIds: ReadonlySet<number>;
   onLoadOlder: () => void;
   onAtBottomChange: (isAtBottom: boolean) => void;
+  onReply: (message: ChatMessage) => void;
+  onReact: (messageId: number, emoji: string) => void;
+  onToggleStar: (messageId: number, starred: boolean) => void;
 };
 
 const BOTTOM_THRESHOLD_PX = 80;
@@ -23,8 +27,12 @@ export function MessageList({
   isLoading,
   isLoadingOlder,
   hasMore,
+  pendingMessageIds,
   onLoadOlder,
   onAtBottomChange,
+  onReply,
+  onReact,
+  onToggleStar,
 }: MessageListProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const initializedRef = useRef(false);
@@ -105,7 +113,11 @@ export function MessageList({
   ]);
 
   if (isLoading && messages.length === 0) {
-    return <div className={styles.status}>Carregando mensagens...</div>;
+    return (
+      <div className={styles.status} role="status" aria-live="polite">
+        Carregando mensagens…
+      </div>
+    );
   }
 
   return (
@@ -114,6 +126,8 @@ export function MessageList({
       className={styles.container}
       role="log"
       aria-live="polite"
+      aria-busy={isLoadingOlder}
+      aria-relevant="additions text"
       onScroll={updateBottomState}
     >
       {hasMore ? (
@@ -132,9 +146,13 @@ export function MessageList({
       ) : (
         messages.map((message) => (
           <MessageItem
-            key={`${message.id}-${message.clientId || ""}`}
+            key={message.clientId || "message-" + message.id}
             message={message}
             currentUserId={currentUserId}
+            isActionPending={pendingMessageIds.has(message.id)}
+            onReply={onReply}
+            onReact={onReact}
+            onToggleStar={onToggleStar}
           />
         ))
       )}

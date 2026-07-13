@@ -9,6 +9,7 @@ import {
 
 import { ApiError } from "../../../api/apiClient";
 import { getMySession } from "../auth.api";
+import { getAuthErrorMessage, isRequestCancellation } from "../auth.errors";
 import {
   clearAuthStorage,
   getAuthToken,
@@ -37,12 +38,6 @@ function isInvalidSessionError(error: unknown): boolean {
   );
 }
 
-function getSessionErrorMessage(error: unknown): string {
-  if (error instanceof ApiError) return error.message;
-  if (error instanceof Error) return error.message;
-  return "Não foi possível restaurar sua sessão.";
-}
-
 export function AuthProvider({ children }: AuthProviderProps) {
   const [status, setStatus] = useState<AuthStatus>(() =>
     getAuthToken() ? "loading" : "unauthenticated",
@@ -51,8 +46,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const sessionGenerationRef = useRef(0);
+  const sessionRequestRef = useRef<AbortController | null>(null);
 
   const signOut = useCallback(() => {
+    sessionRequestRef.current?.abort();
+    sessionRequestRef.current = null;
     sessionGenerationRef.current += 1;
     clearAuthStorage();
     setUser(null);
@@ -61,15 +59,28 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, []);
 
   const completeAuthentication = useCallback((session: AuthSession) => {
+    sessionRequestRef.current?.abort();
+    sessionRequestRef.current = null;
     sessionGenerationRef.current += 1;
-    saveAuthToken(session.token);
+
+    if (!saveAuthToken(session.token)) {
+      clearAuthStorage();
+      setUser(null);
+      setErrorMessage(null);
+      setStatus("unauthenticated");
+      return false;
+    }
+
     removePendingVerificationEmail();
     setUser(session.user);
     setErrorMessage(null);
     setStatus("authenticated");
+    return true;
   }, []);
 
   const refreshSession = useCallback(async () => {
+    if (sessionRequestRef.current) return;
+
     const token = getAuthToken();
     const generation = ++sessionGenerationRef.current;
 
@@ -80,18 +91,33 @@ export function AuthProvider({ children }: AuthProviderProps) {
       return;
     }
 
+    const controller = new AbortController();
+    sessionRequestRef.current = controller;
+
     setStatus("loading");
     setErrorMessage(null);
 
     try {
-      const response = await getMySession();
+      const response = await getMySession({ signal: controller.signal });
 
-      if (generation !== sessionGenerationRef.current) return;
+      if (
+        controller.signal.aborted ||
+        generation !== sessionGenerationRef.current
+      ) {
+        return;
+      }
 
       setUser(response.data.user);
+      setErrorMessage(null);
       setStatus("authenticated");
     } catch (error: unknown) {
-      if (generation !== sessionGenerationRef.current) return;
+      if (
+        controller.signal.aborted ||
+        generation !== sessionGenerationRef.current ||
+        isRequestCancellation(error)
+      ) {
+        return;
+      }
 
       if (isInvalidSessionError(error)) {
         clearAuthStorage();
@@ -102,46 +128,30 @@ export function AuthProvider({ children }: AuthProviderProps) {
       }
 
       setUser(null);
-      setErrorMessage(getSessionErrorMessage(error));
+      setErrorMessage(getAuthErrorMessage(error));
       setStatus("error");
+    } finally {
+      if (sessionRequestRef.current === controller) {
+        sessionRequestRef.current = null;
+      }
     }
   }, []);
 
   useEffect(() => {
-    const token = getAuthToken();
-    if (!token) return;
-
-    const generation = ++sessionGenerationRef.current;
     let active = true;
 
-    void getMySession()
-      .then((response) => {
-        if (!active || generation !== sessionGenerationRef.current) return;
-
-        setUser(response.data.user);
-        setErrorMessage(null);
-        setStatus("authenticated");
-      })
-      .catch((error: unknown) => {
-        if (!active || generation !== sessionGenerationRef.current) return;
-
-        if (isInvalidSessionError(error)) {
-          clearAuthStorage();
-          setUser(null);
-          setErrorMessage(null);
-          setStatus("unauthenticated");
-          return;
-        }
-
-        setUser(null);
-        setErrorMessage(getSessionErrorMessage(error));
-        setStatus("error");
+    if (getAuthToken()) {
+      queueMicrotask(() => {
+        if (active) void refreshSession();
       });
+    }
 
     return () => {
       active = false;
+      sessionRequestRef.current?.abort();
+      sessionRequestRef.current = null;
     };
-  }, []);
+  }, [refreshSession]);
 
   const value = useMemo<AuthContextValue>(
     () => ({

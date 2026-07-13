@@ -1,6 +1,7 @@
 import { ConversationAvatar } from "../ConversationAvatar";
 import {
   formatConversationTime,
+  getConversationActivityDate,
   getConversationPreview,
   getConversationTitle,
 } from "../../conversations.utils";
@@ -22,6 +23,7 @@ export function ConversationItem({
   const title = getConversationTitle(conversation);
   const preview = getConversationPreview(conversation);
   const time = formatConversationTime(conversation);
+  const activityDate = getConversationActivityDate(conversation);
 
   return (
     <button
@@ -35,12 +37,19 @@ export function ConversationItem({
       <span className={styles.content}>
         <span className={styles.top}>
           <strong title={title}>{title}</strong>
-          <time>{time}</time>
+          {time ? <time dateTime={activityDate}>{time}</time> : null}
         </span>
 
         <span className={styles.bottom}>
           <span className={styles.preview} title={preview}>
-            {conversation.isMuted ? "🔇 " : ""}
+            {conversation.isMuted ? (
+              <span
+                aria-label="Conversa silenciada"
+                title="Conversa silenciada"
+              >
+                <span aria-hidden="true">🔇 </span>
+              </span>
+            ) : null}
             {preview}
           </span>
 
@@ -52,8 +61,12 @@ export function ConversationItem({
               {conversation.unreadCount > 99 ? "99+" : conversation.unreadCount}
             </span>
           ) : conversation.isPinned ? (
-            <span className={styles.pinned} title="Conversa fixada" aria-label="Conversa fixada">
-              📌
+            <span
+              className={styles.pinned}
+              title="Conversa fixada"
+              aria-label="Conversa fixada"
+            >
+              <span aria-hidden="true">📌</span>
             </span>
           ) : null}
         </span>

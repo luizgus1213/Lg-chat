@@ -17,7 +17,15 @@
   background: rgb(255 255 255 / 4%);
 }
 
-.selected {
+.item:focus-visible {
+  position: relative;
+  z-index: 1;
+  outline: 2px solid var(--primary);
+  outline-offset: -2px;
+}
+
+.selected,
+.selected:hover {
   background: rgb(36 211 102 / 10%);
 }
 

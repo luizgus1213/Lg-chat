@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 
 import { io, type Socket } from "socket.io-client";
+import { z } from "zod";
 
 import { useAuth } from "../../features/auth/useAuth";
 import { getAuthToken } from "../../features/auth/auth.storage";
@@ -26,6 +27,20 @@ const disconnectedValue: SocketContextValue = {
   errorMessage: null,
 };
 
+const serverErrorSchema = z
+  .object({
+    message: z.string().trim().min(1).max(300),
+  })
+  .passthrough();
+
+function getConnectionErrorMessage(error: Error): string {
+  if (/autentic|login|sessão|sessao|token/i.test(error.message)) {
+    return "Sua sessão não pôde ser autenticada. Entre novamente.";
+  }
+
+  return "Não foi possível conectar às atualizações em tempo real.";
+}
+
 function ConnectedSocketProvider({
   children,
   token,
@@ -45,7 +60,7 @@ function ConnectedSocketProvider({
       transports: ["websocket", "polling"],
 
       reconnection: true,
-      reconnectionAttempts: 10,
+      reconnectionAttempts: Infinity,
       reconnectionDelay: 700,
       reconnectionDelayMax: 5_000,
       timeout: 12_000,
@@ -63,13 +78,16 @@ function ConnectedSocketProvider({
     }
 
     function handleDisconnect() {
-      setStatus("disconnected");
+      setStatus(socket.active ? "connecting" : "disconnected");
+
+      if (socket.active) {
+        setErrorMessage(null);
+      }
     }
 
     function handleConnectError(error: Error) {
       setStatus("error");
-
-      setErrorMessage(error.message || "Erro ao conectar em tempo real.");
+      setErrorMessage(getConnectionErrorMessage(error));
     }
 
     function handleReconnectAttempt() {
@@ -77,8 +95,30 @@ function ConnectedSocketProvider({
       setErrorMessage(null);
     }
 
-    function handleServerError(error: unknown) {
-      console.error("[LG Chat] Erro recebido pelo servidor:", error);
+    function handleReconnectError(error: Error) {
+      setStatus("connecting");
+      setErrorMessage(getConnectionErrorMessage(error));
+    }
+
+    function handleReconnectFailed() {
+      setStatus("error");
+      setErrorMessage(
+        "A conexão em tempo real foi interrompida. Verifique sua conexão.",
+      );
+    }
+
+    function handleServerError(payload: unknown) {
+      const parsed = serverErrorSchema.safeParse(payload);
+
+      setErrorMessage(
+        parsed.success
+          ? parsed.data.message
+          : "O servidor recusou uma operação em tempo real.",
+      );
+
+      if (!parsed.success && import.meta.env.DEV) {
+        console.warn("[LG Chat] Evento server_error inválido.");
+      }
     }
 
     socket.on("connect", handleConnect);
@@ -90,10 +130,18 @@ function ConnectedSocketProvider({
     socket.on("server_error", handleServerError);
 
     socket.io.on("reconnect_attempt", handleReconnectAttempt);
+    socket.io.on("reconnect_error", handleReconnectError);
+    socket.io.on("reconnect_failed", handleReconnectFailed);
 
-    socket.connect();
+    // Adiar um tick evita que o primeiro ciclo de efeito do StrictMode abra
+    // um handshake que será descartado imediatamente pelo cleanup de teste.
+    const connectTimer = window.setTimeout(() => {
+      socket.connect();
+    }, 0);
 
     return () => {
+      window.clearTimeout(connectTimer);
+
       socket.off("connect", handleConnect);
 
       socket.off("disconnect", handleDisconnect);
@@ -103,6 +151,8 @@ function ConnectedSocketProvider({
       socket.off("server_error", handleServerError);
 
       socket.io.off("reconnect_attempt", handleReconnectAttempt);
+      socket.io.off("reconnect_error", handleReconnectError);
+      socket.io.off("reconnect_failed", handleReconnectFailed);
 
       socket.disconnect();
     };

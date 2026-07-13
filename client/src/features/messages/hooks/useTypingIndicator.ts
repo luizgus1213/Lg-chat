@@ -177,7 +177,9 @@ export function useTypingIndicator({
       const parsed = typingPayloadSchema.safeParse(payload);
 
       if (!parsed.success) {
-        console.error("[LG Chat] Evento typing_start inválido:", parsed.error);
+        if (import.meta.env.DEV) {
+          console.error("[LG Chat] Evento typing_start inválido:", parsed.error);
+        }
 
         return;
       }
@@ -212,7 +214,9 @@ export function useTypingIndicator({
       const parsed = typingPayloadSchema.safeParse(payload);
 
       if (!parsed.success) {
-        console.error("[LG Chat] Evento typing_stop inválido:", parsed.error);
+        if (import.meta.env.DEV) {
+          console.error("[LG Chat] Evento typing_stop inválido:", parsed.error);
+        }
 
         return;
       }

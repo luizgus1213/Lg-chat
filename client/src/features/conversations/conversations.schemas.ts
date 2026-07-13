@@ -1,16 +1,24 @@
 import { z } from "zod";
 
-const nullableStringSchema = z.string().nullable().optional().default(null);
+const textSchema = (maximumLength: number) => z.string().max(maximumLength);
+const nullableTextSchema = (maximumLength: number) =>
+  textSchema(maximumLength).nullable().optional().default(null);
+
+const dateTimeSchema = z.string().datetime({ offset: true });
+const nullableDateTimeSchema = dateTimeSchema
+  .nullable()
+  .optional()
+  .default(null);
 
 export const conversationUserSchema = z.object({
   id: z.number().int().positive(),
-  nome: z.string().min(1),
-  email: z.string().email(),
+  nome: z.string().trim().min(1).max(120),
+  email: z.string().email().max(255),
 
-  avatarUrl: nullableStringSchema,
-  about: z.string().optional().default("Disponível"),
+  avatarUrl: nullableTextSchema(500),
+  about: z.string().max(140).optional().default("Disponível"),
   isOnline: z.boolean().optional().default(false),
-  lastSeenAt: nullableStringSchema,
+  lastSeenAt: nullableDateTimeSchema,
 });
 
 export const messageSummarySchema = z.object({
@@ -18,18 +26,18 @@ export const messageSummarySchema = z.object({
   chatId: z.number().int().positive(),
   fromUserId: z.number().int().positive(),
 
-  text: nullableStringSchema,
-  type: z.string().min(1),
+  text: nullableTextSchema(1_000),
+  type: z.enum(["text", "system", "image", "video", "audio", "file"]),
 
-  mediaUrl: nullableStringSchema,
-  mediaMimeType: nullableStringSchema,
-  mediaOriginalName: nullableStringSchema,
+  mediaUrl: nullableTextSchema(700),
+  mediaMimeType: nullableTextSchema(120),
+  mediaOriginalName: nullableTextSchema(255),
 
-  createdAt: z.string().min(1),
-  updatedAt: z.string().min(1).optional(),
+  createdAt: dateTimeSchema,
+  updatedAt: nullableDateTimeSchema,
 
-  editedAt: nullableStringSchema,
-  deletedAt: nullableStringSchema,
+  editedAt: nullableDateTimeSchema,
+  deletedAt: nullableDateTimeSchema,
 });
 
 export const chatBlockSchema = z.object({
@@ -43,27 +51,37 @@ export const conversationSchema = z.object({
 
   type: z.enum(["private", "group"]),
 
-  name: nullableStringSchema,
-  description: nullableStringSchema,
-  avatarUrl: nullableStringSchema,
+  name: nullableTextSchema(120),
+  description: nullableTextSchema(500),
+  avatarUrl: nullableTextSchema(500),
 
   createdById: z.number().int().positive().nullable().optional().default(null),
 
-  createdAt: z.string().min(1),
-  updatedAt: z.string().min(1),
+  createdAt: dateTimeSchema,
+  updatedAt: dateTimeSchema,
 
-  myRole: z.string().nullable().optional().default(null),
-  lastReadMessageId: z.number().int().nullable().optional().default(null),
+  myRole: z
+    .enum(["owner", "admin", "member"])
+    .nullable()
+    .optional()
+    .default(null),
+  lastReadMessageId: z
+    .number()
+    .int()
+    .positive()
+    .nullable()
+    .optional()
+    .default(null),
 
   isPinned: z.boolean().optional().default(false),
   isArchived: z.boolean().optional().default(false),
   isMuted: z.boolean().optional().default(false),
 
-  pinnedAt: nullableStringSchema,
-  archivedAt: nullableStringSchema,
-  mutedUntil: nullableStringSchema,
-  chatClearedAt: nullableStringSchema,
-  chatDeletedAt: nullableStringSchema,
+  pinnedAt: nullableDateTimeSchema,
+  archivedAt: nullableDateTimeSchema,
+  mutedUntil: nullableDateTimeSchema,
+  chatClearedAt: nullableDateTimeSchema,
+  chatDeletedAt: nullableDateTimeSchema,
 
   unreadCount: z.number().int().nonnegative().optional().default(0),
 
@@ -73,6 +91,22 @@ export const conversationSchema = z.object({
 });
 
 export const conversationsListSchema = z.array(conversationSchema);
+
+export const chatUpdatedPayloadSchema = z
+  .object({
+    chatId: z.number().int().positive(),
+    updatedAt: dateTimeSchema.optional(),
+    name: textSchema(120).nullable().optional(),
+    description: textSchema(500).nullable().optional(),
+    avatarUrl: textSchema(500).nullable().optional(),
+  })
+  .passthrough();
+
+export const userStatusPayloadSchema = z.object({
+  userId: z.number().int().positive(),
+  isOnline: z.boolean(),
+  lastSeenAt: dateTimeSchema.nullable().optional(),
+});
 
 export type Conversation = z.infer<typeof conversationSchema>;
 export type ConversationUser = z.infer<typeof conversationUserSchema>;

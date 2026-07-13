@@ -1,4 +1,10 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+} from "react";
 import {
   Link,
   useLocation,
@@ -6,8 +12,17 @@ import {
   useSearchParams,
 } from "react-router-dom";
 
+import { ApiError } from "../../../api/apiClient";
 import { resendVerificationEmail, verifyEmail } from "../auth.api";
-import { getAuthErrorMessage } from "../auth.errors";
+import {
+  AUTH_STORAGE_ERROR_MESSAGE,
+  getAuthErrorMessage,
+  isRequestCancellation,
+} from "../auth.errors";
+import {
+  resendEmailInputSchema,
+  verifyEmailInputSchema,
+} from "../auth.schemas";
 import {
   getPendingVerificationEmail,
   savePendingVerificationEmail,
@@ -18,6 +33,7 @@ import styles from "./AuthPages.module.css";
 
 type VerificationLocationState = {
   message?: string;
+  codeSentAt?: number;
 };
 
 const RESEND_COOLDOWN_SECONDS = 60;
@@ -39,78 +55,167 @@ export function VerifyEmailPage() {
   const [email, setEmail] = useState(initialEmail);
   const [codigo, setCodigo] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [successMessage, setSuccessMessage] = useState<string | null>(
-    locationState?.message || null,
+  const [successMessage, setSuccessMessage] = useState<string | null>(() =>
+    typeof locationState?.message === "string" ? locationState.message : null,
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isResending, setIsResending] = useState(false);
-  const [resendCooldown, setResendCooldown] = useState(0);
+  const [resendCooldown, setResendCooldown] = useState(() => {
+    const codeSentAt = locationState?.codeSentAt;
+    if (typeof codeSentAt !== "number" || !Number.isFinite(codeSentAt)) {
+      return 0;
+    }
+
+    const remainingMs = codeSentAt + RESEND_COOLDOWN_SECONDS * 1_000 - Date.now();
+    return Math.min(
+      RESEND_COOLDOWN_SECONDS,
+      Math.max(0, Math.ceil(remainingMs / 1_000)),
+    );
+  });
+
+  const mountedRef = useRef(true);
+  const verifyRequestRef = useRef<AbortController | null>(null);
+  const resendRequestRef = useRef<AbortController | null>(null);
+  const verifyInFlightRef = useRef(false);
+  const resendInFlightRef = useRef(false);
+
+  useEffect(() => {
+    mountedRef.current = true;
+
+    return () => {
+      mountedRef.current = false;
+      verifyRequestRef.current?.abort();
+      resendRequestRef.current?.abort();
+      verifyRequestRef.current = null;
+      resendRequestRef.current = null;
+      verifyInFlightRef.current = false;
+      resendInFlightRef.current = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (resendCooldown <= 0) return;
 
-    const timer = window.setInterval(() => {
+    const timer = window.setTimeout(() => {
       setResendCooldown((current) => Math.max(0, current - 1));
     }, 1_000);
 
-    return () => window.clearInterval(timer);
+    return () => window.clearTimeout(timer);
   }, [resendCooldown]);
 
   function handleCodeChange(value: string) {
     setCodigo(value.replace(/\D/g, "").slice(0, 6));
+    setErrorMessage(null);
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (isSubmitting) return;
+    if (verifyInFlightRef.current || resendInFlightRef.current) return;
+
+    const controller = new AbortController();
+    verifyInFlightRef.current = true;
+    verifyRequestRef.current = controller;
 
     setErrorMessage(null);
     setSuccessMessage(null);
     setIsSubmitting(true);
 
     try {
-      const normalizedEmail = email.trim().toLowerCase();
-      savePendingVerificationEmail(normalizedEmail);
+      const input = verifyEmailInputSchema.parse({ email, codigo });
+      savePendingVerificationEmail(input.email);
 
-      const response = await verifyEmail({
-        email: normalizedEmail,
-        codigo,
-      });
+      const response = await verifyEmail(input, { signal: controller.signal });
 
-      auth.completeAuthentication(response.data);
+      if (!mountedRef.current || controller.signal.aborted) return;
+
+      if (!auth.completeAuthentication(response.data)) {
+        setErrorMessage(AUTH_STORAGE_ERROR_MESSAGE);
+        return;
+      }
+
       navigate("/app", { replace: true });
     } catch (error: unknown) {
+      if (
+        !mountedRef.current ||
+        controller.signal.aborted ||
+        isRequestCancellation(error)
+      ) {
+        return;
+      }
+
       setErrorMessage(getAuthErrorMessage(error));
     } finally {
-      setIsSubmitting(false);
+      if (verifyRequestRef.current === controller) {
+        verifyRequestRef.current = null;
+        verifyInFlightRef.current = false;
+        if (mountedRef.current) setIsSubmitting(false);
+      }
     }
   }
 
   async function handleResend() {
-    if (isResending || resendCooldown > 0) return;
+    if (
+      verifyInFlightRef.current ||
+      resendInFlightRef.current ||
+      resendCooldown > 0
+    ) {
+      return;
+    }
+
+    const controller = new AbortController();
+    resendInFlightRef.current = true;
+    resendRequestRef.current = controller;
 
     setErrorMessage(null);
     setSuccessMessage(null);
     setIsResending(true);
 
     try {
-      const normalizedEmail = email.trim().toLowerCase();
-      savePendingVerificationEmail(normalizedEmail);
+      const input = resendEmailInputSchema.parse({ email });
+      savePendingVerificationEmail(input.email);
 
-      const response = await resendVerificationEmail({
-        email: normalizedEmail,
+      const response = await resendVerificationEmail(input, {
+        signal: controller.signal,
       });
+
+      if (!mountedRef.current || controller.signal.aborted) return;
+
+      if (response.data.email) {
+        setEmail(response.data.email);
+        savePendingVerificationEmail(response.data.email);
+      }
 
       setSuccessMessage(
         response.message || "Um novo código foi enviado para seu e-mail.",
       );
       setResendCooldown(RESEND_COOLDOWN_SECONDS);
     } catch (error: unknown) {
+      if (
+        !mountedRef.current ||
+        controller.signal.aborted ||
+        isRequestCancellation(error)
+      ) {
+        return;
+      }
+
+      if (error instanceof ApiError && error.code === "EMAIL_CODE_COOLDOWN") {
+        const seconds = Number(error.message.match(/(\d+)\s+segundos?/i)?.[1]);
+        if (Number.isFinite(seconds) && seconds > 0) {
+          setResendCooldown(seconds);
+        }
+      }
+
       setErrorMessage(getAuthErrorMessage(error));
     } finally {
-      setIsResending(false);
+      if (resendRequestRef.current === controller) {
+        resendRequestRef.current = null;
+        resendInFlightRef.current = false;
+        if (mountedRef.current) setIsResending(false);
+      }
     }
   }
+
+  const isBusy = isSubmitting || isResending;
 
   return (
     <main className={styles.page}>
@@ -124,7 +229,12 @@ export function VerifyEmailPage() {
           <p>Digite o código de seis números enviado para seu e-mail.</p>
         </header>
 
-        <form className={styles.form} onSubmit={handleSubmit} noValidate>
+        <form
+          className={styles.form}
+          onSubmit={handleSubmit}
+          aria-busy={isBusy}
+          noValidate
+        >
           <label className={styles.field} htmlFor="verification-email">
             <span>E-mail</span>
             <input
@@ -132,11 +242,17 @@ export function VerifyEmailPage() {
               className={styles.input}
               type="email"
               value={email}
-              onChange={(event) => setEmail(event.target.value)}
+              onChange={(event) => {
+                setEmail(event.target.value);
+                setErrorMessage(null);
+              }}
               placeholder="seu@email.com"
               autoComplete="email"
               inputMode="email"
-              disabled={isSubmitting || isResending}
+              disabled={isBusy}
+              maxLength={150}
+              aria-invalid={Boolean(errorMessage)}
+              aria-describedby={errorMessage ? "verification-error" : undefined}
               required
             />
           </label>
@@ -153,14 +269,20 @@ export function VerifyEmailPage() {
               autoComplete="one-time-code"
               inputMode="numeric"
               maxLength={6}
-              disabled={isSubmitting}
+              disabled={isBusy}
+              aria-invalid={Boolean(errorMessage)}
+              aria-describedby={errorMessage ? "verification-error" : undefined}
               autoFocus
               required
             />
           </label>
 
           {errorMessage ? (
-            <div className={`${styles.message} ${styles.error}`} role="alert">
+            <div
+              id="verification-error"
+              className={`${styles.message} ${styles.error}`}
+              role="alert"
+            >
               {errorMessage}
             </div>
           ) : null}
@@ -174,7 +296,7 @@ export function VerifyEmailPage() {
           <button
             className={`${styles.button} ${styles.primary}`}
             type="submit"
-            disabled={isSubmitting || codigo.length !== 6}
+            disabled={isBusy || codigo.length !== 6}
           >
             {isSubmitting ? "Verificando..." : "Verificar e-mail"}
           </button>
@@ -183,7 +305,7 @@ export function VerifyEmailPage() {
             className={`${styles.button} ${styles.secondary}`}
             type="button"
             onClick={() => void handleResend()}
-            disabled={isResending || resendCooldown > 0 || !email.trim()}
+            disabled={isBusy || resendCooldown > 0 || !email.trim()}
           >
             {isResending
               ? "Reenviando..."

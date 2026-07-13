@@ -1,14 +1,20 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { z } from "zod";
+import { ZodError } from "zod";
 
+import { ApiError } from "../../api/apiClient";
+import { useSocket } from "../../socket/useSocket";
 import { getAuthErrorMessage } from "../auth/auth.errors";
 import {
   chatMessageSchema,
   type ServerChatMessage,
 } from "../messages/messages.schemas";
-import { useSocket } from "../../socket/useSocket";
 import { listConversations } from "./conversations.api";
-import type { Conversation } from "./conversations.schemas";
+import {
+  chatUpdatedPayloadSchema,
+  userStatusPayloadSchema,
+  type Conversation,
+} from "./conversations.schemas";
+import { sortConversations } from "./conversations.utils";
 
 export type ConversationsStatus =
   | "loading"
@@ -21,6 +27,11 @@ type UseConversationsOptions = {
   currentUserId: number | null;
 };
 
+type RefreshOptions = {
+  silent?: boolean;
+  initial?: boolean;
+};
+
 type ConversationStore = {
   ownerUserId: number | null;
   items: Conversation[];
@@ -30,50 +41,21 @@ type LoadStore = {
   ownerUserId: number | null;
   status: ConversationsStatus;
   errorMessage: string | null;
+  hasLoaded: boolean;
 };
 
 type ConversationLastMessage = NonNullable<Conversation["lastMessage"]>;
 
-const chatUpdatedPayloadSchema = z
-  .object({
-    chatId: z.number().int().positive(),
-    updatedAt: z.string().min(1).optional(),
-    name: z.string().nullable().optional(),
-    description: z.string().nullable().optional(),
-    avatarUrl: z.string().nullable().optional(),
-  })
-  .passthrough();
-
-const userStatusPayloadSchema = z.object({
-  userId: z.number().int().positive(),
-  isOnline: z.boolean(),
-  lastSeenAt: z.string().nullable().optional(),
-});
-
-function getTimestamp(value?: string | null): number {
-  if (!value) return 0;
-  const timestamp = new Date(value).getTime();
-  return Number.isFinite(timestamp) ? timestamp : 0;
+function isCancellation(error: unknown): boolean {
+  return error instanceof ApiError && error.code === "REQUEST_CANCELLED";
 }
 
-function sortConversations(conversations: Conversation[]): Conversation[] {
-  return [...conversations].sort((first, second) => {
-    if (first.isPinned !== second.isPinned) {
-      return Number(second.isPinned) - Number(first.isPinned);
-    }
+function getConversationErrorMessage(error: unknown): string {
+  if (error instanceof ZodError) {
+    return "O servidor retornou dados de conversas inválidos.";
+  }
 
-    if (first.isPinned && second.isPinned) {
-      const pinnedDifference =
-        getTimestamp(second.pinnedAt) - getTimestamp(first.pinnedAt);
-
-      if (pinnedDifference !== 0) return pinnedDifference;
-    }
-
-    const firstUpdatedAt = first.lastMessage?.createdAt || first.updatedAt;
-    const secondUpdatedAt = second.lastMessage?.createdAt || second.updatedAt;
-
-    return getTimestamp(secondUpdatedAt) - getTimestamp(firstUpdatedAt);
-  });
+  return getAuthErrorMessage(error);
 }
 
 function toConversationLastMessage(
@@ -89,7 +71,7 @@ function toConversationLastMessage(
     mediaMimeType: message.mediaMimeType,
     mediaOriginalName: message.mediaOriginalName,
     createdAt: message.createdAt,
-    ...(message.updatedAt ? { updatedAt: message.updatedAt } : {}),
+    updatedAt: message.updatedAt,
     editedAt: message.editedAt,
     deletedAt: message.deletedAt,
   };
@@ -100,54 +82,102 @@ function applyMessageToConversationList(
   message: ServerChatMessage,
   currentUserId: number,
 ): Conversation[] {
+  let changed = false;
+
   const updated = conversations.map((conversation) => {
     if (conversation.id !== message.chatId) return conversation;
 
-    const alreadyApplied = conversation.lastMessage?.id === message.id;
-    const isOwnMessage = message.fromUserId === currentUserId;
+    const previousMessageId = conversation.lastMessage?.id ?? 0;
+
+    // IDs são crescentes no backend. Broadcasts repetidos ou fora de ordem
+    // não podem rebaixar o preview nem somar o badge novamente.
+    if (message.id <= previousMessageId) return conversation;
+
+    changed = true;
+
+    const shouldIncrementUnread =
+      message.fromUserId !== currentUserId && message.type !== "system";
 
     return {
       ...conversation,
       lastMessage: toConversationLastMessage(message),
       updatedAt: message.createdAt,
-      unreadCount:
-        !isOwnMessage && !alreadyApplied
-          ? conversation.unreadCount + 1
-          : conversation.unreadCount,
+      unreadCount: shouldIncrementUnread
+        ? conversation.unreadCount + 1
+        : conversation.unreadCount,
     };
   });
 
-  return sortConversations(updated);
+  return changed ? sortConversations(updated) : conversations;
 }
 
 function applyUpdatedMessageToList(
   conversations: Conversation[],
   message: ServerChatMessage,
 ): Conversation[] {
-  return sortConversations(
-    conversations.map((conversation) => {
-      if (
-        conversation.id !== message.chatId ||
-        conversation.lastMessage?.id !== message.id
-      ) {
-        return conversation;
-      }
+  let changed = false;
 
-      return {
-        ...conversation,
-        lastMessage: toConversationLastMessage(message),
-        updatedAt:
-          message.updatedAt ||
-          message.editedAt ||
-          message.deletedAt ||
-          message.createdAt,
-      };
-    }),
+  const updated = conversations.map((conversation) => {
+    if (
+      conversation.id !== message.chatId ||
+      conversation.lastMessage?.id !== message.id
+    ) {
+      return conversation;
+    }
+
+    changed = true;
+
+    return {
+      ...conversation,
+      lastMessage: toConversationLastMessage(message),
+      updatedAt:
+        message.updatedAt ||
+        message.editedAt ||
+        message.deletedAt ||
+        message.createdAt,
+    };
+  });
+
+  return changed ? sortConversations(updated) : conversations;
+}
+
+function mergeServerSnapshot(
+  serverItems: Conversation[],
+  currentItems: Conversation[],
+  mutationVersions: ReadonlyMap<number, number>,
+  requestMutationVersion: number,
+): Conversation[] {
+  const currentById = new Map(
+    currentItems.map((conversation) => [conversation.id, conversation]),
   );
+  const serverIds = new Set(serverItems.map((conversation) => conversation.id));
+
+  const merged = serverItems.map((serverConversation) => {
+    const currentConversation = currentById.get(serverConversation.id);
+    const mutationVersion = mutationVersions.get(serverConversation.id) ?? 0;
+
+    return currentConversation && mutationVersion > requestMutationVersion
+      ? currentConversation
+      : serverConversation;
+  });
+
+  // Uma resposta iniciada antes de um evento não deve apagar uma conversa
+  // que acabou de mudar e ainda não fazia parte do snapshot HTTP.
+  for (const currentConversation of currentItems) {
+    const mutationVersion = mutationVersions.get(currentConversation.id) ?? 0;
+
+    if (
+      mutationVersion > requestMutationVersion &&
+      !serverIds.has(currentConversation.id)
+    ) {
+      merged.push(currentConversation);
+    }
+  }
+
+  return sortConversations(merged);
 }
 
 export function useConversations({
-  selectedChatId,
   currentUserId,
 }: UseConversationsOptions) {
   const { socket } = useSocket();
@@ -158,51 +188,94 @@ export function useConversations({
     ownerUserId: null,
     status: "loading",
     errorMessage: null,
+    hasLoaded: false,
   });
 
   const conversationStoreRef = useRef(conversationStore);
+  const loadStoreRef = useRef(loadStore);
   const currentUserIdRef = useRef(currentUserId);
   const requestSequenceRef = useRef(0);
+  const activeRequestRef = useRef<AbortController | null>(null);
   const syncTimerRef = useRef<number | null>(null);
+  const mutationVersionRef = useRef(0);
+  const conversationMutationVersionsRef = useRef(new Map<number, number>());
 
-  useEffect(() => {
-    conversationStoreRef.current = conversationStore;
-  }, [conversationStore]);
+  const updateConversationStore = useCallback(
+    (updater: (current: ConversationStore) => ConversationStore) => {
+      const next = updater(conversationStoreRef.current);
 
-  useEffect(() => {
-    currentUserIdRef.current = currentUserId;
-  }, [currentUserId]);
+      if (next === conversationStoreRef.current) return;
+
+      conversationStoreRef.current = next;
+      setConversationStore(next);
+    },
+    [],
+  );
+
+  const updateLoadStore = useCallback(
+    (updater: (current: LoadStore) => LoadStore) => {
+      const next = updater(loadStoreRef.current);
+
+      if (next === loadStoreRef.current) return;
+
+      loadStoreRef.current = next;
+      setLoadStore(next);
+    },
+    [],
+  );
+
+  const markConversationMutated = useCallback((chatId: number) => {
+    const nextVersion = mutationVersionRef.current + 1;
+    mutationVersionRef.current = nextVersion;
+    conversationMutationVersionsRef.current.set(chatId, nextVersion);
+  }, []);
 
   const visibleConversations =
     conversationStore.ownerUserId === currentUserId
       ? conversationStore.items
       : [];
 
-  const status =
-    loadStore.ownerUserId === currentUserId ? loadStore.status : "loading";
+  const status: ConversationsStatus =
+    currentUserId === null
+      ? "ready"
+      : loadStore.ownerUserId === currentUserId
+        ? loadStore.status
+        : "loading";
   const errorMessage =
     loadStore.ownerUserId === currentUserId ? loadStore.errorMessage : null;
 
   const refresh = useCallback(
-    async (options: { silent?: boolean } = {}) => {
+    async (options: RefreshOptions = {}) => {
       const ownerUserId = currentUserIdRef.current;
       if (!ownerUserId) return;
 
-      const requestSequence = ++requestSequenceRef.current;
-      const hasVisibleData =
-        conversationStoreRef.current.ownerUserId === ownerUserId &&
-        conversationStoreRef.current.items.length > 0;
+      const requestSequence = requestSequenceRef.current + 1;
+      requestSequenceRef.current = requestSequence;
 
-      if (!options.silent) {
-        setLoadStore({
+      activeRequestRef.current?.abort();
+
+      const controller = new AbortController();
+      activeRequestRef.current = controller;
+
+      const requestMutationVersion = mutationVersionRef.current;
+      const currentStore = conversationStoreRef.current;
+      const currentLoad = loadStoreRef.current;
+      const hasSnapshot =
+        currentStore.ownerUserId === ownerUserId &&
+        currentLoad.ownerUserId === ownerUserId &&
+        currentLoad.hasLoaded;
+
+      if (!options.silent && !options.initial) {
+        updateLoadStore(() => ({
           ownerUserId,
-          status: hasVisibleData ? "refreshing" : "loading",
+          status: hasSnapshot ? "refreshing" : "loading",
           errorMessage: null,
-        });
+          hasLoaded: hasSnapshot,
+        }));
       }
 
       try {
-        const response = await listConversations();
+        const response = await listConversations({ signal: controller.signal });
 
         if (
           requestSequence !== requestSequenceRef.current ||
@@ -211,105 +284,143 @@ export function useConversations({
           return;
         }
 
-        setConversationStore({
-          ownerUserId,
-          items: sortConversations(response.data),
-        });
-        setLoadStore({
+        const latestStore = conversationStoreRef.current;
+        const items =
+          latestStore.ownerUserId === ownerUserId
+            ? mergeServerSnapshot(
+                response.data,
+                latestStore.items,
+                conversationMutationVersionsRef.current,
+                requestMutationVersion,
+              )
+            : sortConversations(response.data);
+
+        updateConversationStore(() => ({ ownerUserId, items }));
+        updateLoadStore(() => ({
           ownerUserId,
           status: "ready",
           errorMessage: null,
-        });
+          hasLoaded: true,
+        }));
       } catch (error: unknown) {
         if (
           requestSequence !== requestSequenceRef.current ||
-          ownerUserId !== currentUserIdRef.current
+          ownerUserId !== currentUserIdRef.current ||
+          isCancellation(error)
         ) {
           return;
         }
 
-        setLoadStore({
+        updateLoadStore(() => ({
           ownerUserId,
-          status: hasVisibleData ? "ready" : "error",
-          errorMessage: getAuthErrorMessage(error),
-        });
+          status: hasSnapshot ? "ready" : "error",
+          errorMessage: getConversationErrorMessage(error),
+          hasLoaded: hasSnapshot,
+        }));
+      } finally {
+        if (activeRequestRef.current === controller) {
+          activeRequestRef.current = null;
+        }
       }
     },
-    [],
+    [updateConversationStore, updateLoadStore],
   );
 
-  const confirmConversationRead = useCallback((chatId: number) => {
-    const ownerUserId = currentUserIdRef.current;
-    if (!ownerUserId) return;
+  const confirmConversationRead = useCallback(
+    (chatId: number, confirmedMessageId?: number) => {
+      if (!Number.isInteger(chatId) || chatId <= 0) return;
 
-    setConversationStore((current) => {
-      if (current.ownerUserId !== ownerUserId) return current;
+      const ownerUserId = currentUserIdRef.current;
+      if (!ownerUserId) return;
 
-      return {
-        ...current,
-        items: current.items.map((conversation) =>
-          conversation.id === chatId
-            ? { ...conversation, unreadCount: 0 }
-            : conversation,
-        ),
-      };
-    });
-  }, []);
+      let needsExactSync = false;
 
-  useEffect(() => {
-    if (!currentUserId) return;
+      updateConversationStore((current) => {
+        if (current.ownerUserId !== ownerUserId) return current;
 
-    const ownerUserId = currentUserId;
-    const requestSequence = ++requestSequenceRef.current;
-    const controller = new AbortController();
-    let active = true;
+        let changed = false;
+        const items = current.items.map((conversation) => {
+          if (conversation.id !== chatId) return conversation;
 
-    void listConversations({ signal: controller.signal })
-      .then((response) => {
-        if (
-          !active ||
-          requestSequence !== requestSequenceRef.current ||
-          ownerUserId !== currentUserIdRef.current
-        ) {
-          return;
-        }
+          const validConfirmedId =
+            typeof confirmedMessageId === "number" &&
+            Number.isInteger(confirmedMessageId) &&
+            confirmedMessageId > 0
+              ? confirmedMessageId
+              : null;
+          const hasNewerMessage = Boolean(
+            validConfirmedId &&
+              conversation.lastMessage &&
+              conversation.lastMessage.id > validConfirmedId,
+          );
+          const nextUnreadCount = hasNewerMessage
+            ? conversation.unreadCount
+            : 0;
+          const nextLastReadMessageId = validConfirmedId
+            ? Math.max(conversation.lastReadMessageId ?? 0, validConfirmedId)
+            : conversation.lastReadMessageId;
 
-        setConversationStore({
-          ownerUserId,
-          items: sortConversations(response.data),
+          if (
+            nextUnreadCount === conversation.unreadCount &&
+            nextLastReadMessageId === conversation.lastReadMessageId
+          ) {
+            return conversation;
+          }
+
+          changed = true;
+          needsExactSync ||= hasNewerMessage;
+
+          return {
+            ...conversation,
+            unreadCount: nextUnreadCount,
+            lastReadMessageId: nextLastReadMessageId,
+          };
         });
-        setLoadStore({
-          ownerUserId,
-          status: "ready",
-          errorMessage: null,
-        });
-      })
-      .catch((error: unknown) => {
-        if (
-          !active ||
-          requestSequence !== requestSequenceRef.current ||
-          ownerUserId !== currentUserIdRef.current
-        ) {
-          return;
-        }
 
-        setLoadStore({
-          ownerUserId,
-          status: "error",
-          errorMessage: getAuthErrorMessage(error),
-        });
+        if (!changed) return current;
+
+        markConversationMutated(chatId);
+        return { ...current, items };
       });
 
-    return () => {
-      active = false;
-      controller.abort();
-    };
+      if (needsExactSync) {
+        void refresh({ silent: true });
+      }
+    },
+    [markConversationMutated, refresh, updateConversationStore],
+  );
+
+  useEffect(() => {
+    currentUserIdRef.current = currentUserId;
   }, [currentUserId]);
+
+  useEffect(() => {
+    activeRequestRef.current?.abort();
+    requestSequenceRef.current += 1;
+    mutationVersionRef.current = 0;
+    conversationMutationVersionsRef.current.clear();
+
+    if (currentUserId) {
+      void refresh({ initial: true });
+    }
+
+    return () => {
+      requestSequenceRef.current += 1;
+      activeRequestRef.current?.abort();
+      activeRequestRef.current = null;
+    };
+  }, [currentUserId, refresh]);
 
   useEffect(() => {
     if (!socket || !currentUserId) return;
 
     const userId = currentUserId;
+
+    function logInvalidEvent(eventName: string, error: ZodError) {
+      if (import.meta.env.DEV) {
+        console.warn(`[LG Chat] Evento ${eventName} inválido.`, error.issues);
+      }
+    }
 
     function queueEventSync() {
       if (syncTimerRef.current !== null) return;
@@ -333,10 +444,7 @@ export function useConversations({
       const parsed = chatMessageSchema.safeParse(payload);
 
       if (!parsed.success) {
-        console.error(
-          "[LG Chat] Mensagem inválida recebida para a lista:",
-          parsed.error,
-        );
+        logInvalidEvent("chat_message", parsed.error);
         return;
       }
 
@@ -345,37 +453,53 @@ export function useConversations({
         return;
       }
 
-      setConversationStore((current) => {
+      updateConversationStore((current) => {
         if (current.ownerUserId !== userId) return current;
 
-        return {
-          ...current,
-          items: applyMessageToConversationList(
-            current.items,
-            parsed.data,
-            userId,
-          ),
-        };
+        const items = applyMessageToConversationList(
+          current.items,
+          parsed.data,
+          userId,
+        );
+
+        if (items === current.items) return current;
+
+        markConversationMutated(parsed.data.chatId);
+        return { ...current, items };
       });
     }
 
     function handleChatMessageUpdated(payload: unknown) {
       const parsed = chatMessageSchema.safeParse(payload);
-      if (!parsed.success) return;
 
-      setConversationStore((current) => {
+      if (!parsed.success) {
+        logInvalidEvent("chat_message_updated", parsed.error);
+        return;
+      }
+
+      if (!hasConversation(parsed.data.chatId)) {
+        queueEventSync();
+        return;
+      }
+
+      updateConversationStore((current) => {
         if (current.ownerUserId !== userId) return current;
 
-        return {
-          ...current,
-          items: applyUpdatedMessageToList(current.items, parsed.data),
-        };
+        const items = applyUpdatedMessageToList(current.items, parsed.data);
+        if (items === current.items) return current;
+
+        markConversationMutated(parsed.data.chatId);
+        return { ...current, items };
       });
     }
 
     function handleChatUpdated(payload: unknown) {
       const parsed = chatUpdatedPayloadSchema.safeParse(payload);
-      if (!parsed.success) return;
+
+      if (!parsed.success) {
+        logInvalidEvent("chat_updated", parsed.error);
+        return;
+      }
 
       if (!hasConversation(parsed.data.chatId)) {
         queueEventSync();
@@ -384,68 +508,103 @@ export function useConversations({
 
       const data = parsed.data;
 
-      setConversationStore((current) => {
+      updateConversationStore((current) => {
         if (current.ownerUserId !== userId) return current;
 
-        return {
-          ...current,
-          items: sortConversations(
-            current.items.map((conversation) =>
-              conversation.id !== data.chatId
-                ? conversation
-                : {
-                    ...conversation,
-                    updatedAt: data.updatedAt ?? conversation.updatedAt,
-                    name:
-                      data.name === undefined ? conversation.name : data.name,
-                    description:
-                      data.description === undefined
-                        ? conversation.description
-                        : data.description,
-                    avatarUrl:
-                      data.avatarUrl === undefined
-                        ? conversation.avatarUrl
-                        : data.avatarUrl,
-                  },
-            ),
-          ),
-        };
+        let changed = false;
+        const updatedItems = current.items.map((conversation) => {
+          if (conversation.id !== data.chatId) return conversation;
+
+          const nextConversation = {
+            ...conversation,
+            updatedAt: data.updatedAt ?? conversation.updatedAt,
+            name: data.name === undefined ? conversation.name : data.name,
+            description:
+              data.description === undefined
+                ? conversation.description
+                : data.description,
+            avatarUrl:
+              data.avatarUrl === undefined
+                ? conversation.avatarUrl
+                : data.avatarUrl,
+          };
+
+          changed =
+            nextConversation.updatedAt !== conversation.updatedAt ||
+            nextConversation.name !== conversation.name ||
+            nextConversation.description !== conversation.description ||
+            nextConversation.avatarUrl !== conversation.avatarUrl;
+
+          return changed ? nextConversation : conversation;
+        });
+
+        if (!changed) return current;
+
+        markConversationMutated(data.chatId);
+        return { ...current, items: sortConversations(updatedItems) };
       });
     }
 
     function handleUserStatus(payload: unknown) {
       const parsed = userStatusPayloadSchema.safeParse(payload);
-      if (!parsed.success) return;
+
+      if (!parsed.success) {
+        logInvalidEvent("user_status", parsed.error);
+        return;
+      }
 
       const data = parsed.data;
 
-      setConversationStore((current) => {
+      updateConversationStore((current) => {
         if (current.ownerUserId !== userId) return current;
 
-        return {
-          ...current,
-          items: current.items.map((conversation) => {
-            if (conversation.privateUser?.id !== data.userId) {
-              return conversation;
-            }
+        const changedChatIds: number[] = [];
+        const items = current.items.map((conversation) => {
+          const privateUser = conversation.privateUser;
+          if (privateUser?.id !== data.userId) return conversation;
 
-            return {
-              ...conversation,
-              privateUser: {
-                ...conversation.privateUser,
-                isOnline: data.isOnline,
-                lastSeenAt:
-                  data.lastSeenAt === undefined
-                    ? conversation.privateUser.lastSeenAt
-                    : data.lastSeenAt,
-              },
-            };
-          }),
-        };
+          const lastSeenAt =
+            data.lastSeenAt === undefined
+              ? privateUser.lastSeenAt
+              : data.lastSeenAt;
+
+          if (
+            privateUser.isOnline === data.isOnline &&
+            privateUser.lastSeenAt === lastSeenAt
+          ) {
+            return conversation;
+          }
+
+          changedChatIds.push(conversation.id);
+
+          return {
+            ...conversation,
+            privateUser: {
+              ...privateUser,
+              isOnline: data.isOnline,
+              lastSeenAt,
+            },
+          };
+        });
+
+        if (changedChatIds.length === 0) return current;
+
+        for (const chatId of changedChatIds) {
+          markConversationMutated(chatId);
+        }
+
+        return { ...current, items };
       });
     }
 
     function handleReconnect() {
+      if (syncTimerRef.current !== null) {
+        window.clearTimeout(syncTimerRef.current);
+        syncTimerRef.current = null;
+      }
+
+      // O Manager emite uma vez por reconexão concluída. O backend já
+      // reinscreve todas as salas do usuário antes dos próximos eventos.
       void refresh({ silent: true });
     }
 
@@ -467,7 +626,13 @@ export function useConversations({
         syncTimerRef.current = null;
       }
     };
-  }, [socket, currentUserId, selectedChatId, refresh]);
+  }, [
+    socket,
+    currentUserId,
+    markConversationMutated,
+    refresh,
+    updateConversationStore,
+  ]);
 
   return {
     conversations: visibleConversations,

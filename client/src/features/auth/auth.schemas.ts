@@ -2,14 +2,15 @@ import { z } from "zod";
 
 export const authUserSchema = z.object({
   id: z.number().int().positive(),
-  nome: z.string().min(1),
-  email: z.string().email(),
+  nome: z.string().trim().min(1).max(120),
+  email: z.string().trim().email().max(150),
 
-  avatarUrl: z.string().nullable().optional().default(null),
-  about: z.string().optional().default("Disponível"),
+  avatarUrl: z.string().trim().min(1).nullable().optional().default(null),
+  about: z.string().max(140).optional().default("Disponível"),
   isOnline: z.boolean().optional().default(false),
-  lastSeenAt: z.string().nullable().optional().default(null),
-  emailVerificado: z.boolean().optional().default(true),
+  lastSeenAt: z.string().datetime().nullable().optional().default(null),
+  // `/api/auth/me` não inclui este campo; login e verificação incluem.
+  emailVerificado: z.boolean().optional(),
 });
 
 export const registerInputSchema = z.object({
@@ -43,9 +44,13 @@ export const loginInputSchema = z.object({
     .string()
     .trim()
     .email("Digite um email válido.")
+    .max(150, "Email muito grande.")
     .transform((email) => email.toLowerCase()),
 
-  senha: z.string().min(1, "Digite sua senha.").max(72),
+  senha: z
+    .string()
+    .min(1, "Digite sua senha.")
+    .max(72, "Senha muito grande."),
 });
 
 export const verifyEmailInputSchema = z.object({
@@ -53,6 +58,7 @@ export const verifyEmailInputSchema = z.object({
     .string()
     .trim()
     .email("Digite um email válido.")
+    .max(150, "Email muito grande.")
     .transform((email) => email.toLowerCase()),
 
   codigo: z
@@ -66,11 +72,12 @@ export const resendEmailInputSchema = z.object({
     .string()
     .trim()
     .email("Digite um email válido.")
+    .max(150, "Email muito grande.")
     .transform((email) => email.toLowerCase()),
 });
 
 export const authSessionSchema = z.object({
-  token: z.string().min(1),
+  token: z.string().trim().min(1).max(8_192),
   user: authUserSchema,
 });
 
