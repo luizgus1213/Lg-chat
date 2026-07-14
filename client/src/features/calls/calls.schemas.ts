@@ -6,7 +6,6 @@ export const callParticipantSchema = z
   .object({
     id: z.number().int().positive(),
     nome: z.string().trim().min(1).max(120),
-    email: z.string().trim().email().max(254),
     avatarUrl: z.string().trim().min(1).max(700).nullable().optional(),
   })
   .strict();
@@ -203,6 +202,14 @@ export const iceServerSchema = z
   .strict();
 
 export const iceServersSchema = z.array(iceServerSchema).min(1);
+
+export const iceConfigurationSchema = z
+  .object({
+    iceServers: iceServersSchema,
+    expiresAt: z.string().datetime({ offset: true }).nullable(),
+    hasTurn: z.boolean(),
+  })
+  .strict();
 
 export type CallType = z.infer<typeof callTypeSchema>;
 export type CallParticipant = z.infer<typeof callParticipantSchema>;

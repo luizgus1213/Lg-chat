@@ -15,15 +15,21 @@ import {
   listStatusViewsController,
   markStatusViewedController,
 } from "../controllers/StatusControllers";
+import { csrfProtection } from "../middlewares/csrfProtection";
 
 export const statusRoutes = Router();
 
 statusRoutes.use(authMiddleware);
+statusRoutes.use(csrfProtection);
 
 statusRoutes.get("/", asyncHandler(listStatusesController));
 statusRoutes.get("/me", asyncHandler(listMyStatusesController));
 
-statusRoutes.post("/text", statusCreateRateLimit, asyncHandler(createTextStatusController));
+statusRoutes.post(
+  "/text",
+  statusCreateRateLimit,
+  asyncHandler(createTextStatusController),
+);
 statusRoutes.post(
   "/media",
   statusCreateRateLimit,
@@ -31,6 +37,14 @@ statusRoutes.post(
   asyncHandler(createMediaStatusController),
 );
 
-statusRoutes.post("/:statusId/view", statusRateLimit, asyncHandler(markStatusViewedController));
+statusRoutes.post(
+  "/:statusId/view",
+  statusRateLimit,
+  asyncHandler(markStatusViewedController),
+);
 statusRoutes.get("/:statusId/views", asyncHandler(listStatusViewsController));
-statusRoutes.delete("/:statusId", statusRateLimit, asyncHandler(deleteStatusController));
+statusRoutes.delete(
+  "/:statusId",
+  statusRateLimit,
+  asyncHandler(deleteStatusController),
+);

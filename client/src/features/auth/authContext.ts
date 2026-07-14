@@ -3,10 +3,7 @@ import { createContext } from "react";
 import type { AuthSession, AuthUser } from "./auth.schemas";
 
 export type AuthStatus =
-  | "loading"
-  | "authenticated"
-  | "unauthenticated"
-  | "error";
+  "loading" | "authenticated" | "unauthenticated" | "error";
 
 export type AuthContextValue = {
   status: AuthStatus;

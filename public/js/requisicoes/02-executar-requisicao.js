@@ -11,11 +11,18 @@ async function executeRequest(path, options = {}) {
     for (let attempt = 0; attempt <= Number(options.retries ?? MAX_GET_RETRIES); attempt += 1) {
       const timeout = createTimeoutController(timeoutMs, options.signal);
 
+      const csrfCookie = document.cookie
+        .split(";")
+        .map((item) => item.trim())
+        .find((item) => item.startsWith("lgchat_csrf="));
       const headers = {
         Accept: "application/json",
-        Authorization: state.token ? `Bearer ${state.token}` : "",
         ...(options.headers || {}),
       };
+
+      if (!["GET", "HEAD", "OPTIONS"].includes(method) && csrfCookie) {
+        headers["X-CSRF-Token"] = decodeURIComponent(csrfCookie.slice("lgchat_csrf=".length));
+      }
 
       if (!isFormData) {
         headers["Content-Type"] = "application/json";
@@ -26,6 +33,7 @@ async function executeRequest(path, options = {}) {
           ...options,
           method,
           headers,
+          credentials: "include",
           signal: timeout.controller.signal,
         });
 

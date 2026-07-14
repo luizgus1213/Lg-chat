@@ -33,7 +33,8 @@ export const uploadRateLimit = makeSecurityRateLimit({
   windowMs: 60 * 1000,
   limit: 20,
   code: "UPLOAD_RATE_LIMIT",
-  message: "Muitos uploads em pouco tempo. Aguarde antes de enviar outro arquivo.",
+  message:
+    "Muitos uploads em pouco tempo. Aguarde antes de enviar outro arquivo.",
 });
 
 export const statusRateLimit = makeSecurityRateLimit({
@@ -54,5 +55,6 @@ export const profileUploadRateLimit = makeSecurityRateLimit({
   windowMs: 5 * 60 * 1000,
   limit: 10,
   code: "PROFILE_UPLOAD_RATE_LIMIT",
-  message: "Muitas alterações de foto em pouco tempo. Aguarde antes de tentar novamente.",
+  message:
+    "Muitas alterações de foto em pouco tempo. Aguarde antes de tentar novamente.",
 });

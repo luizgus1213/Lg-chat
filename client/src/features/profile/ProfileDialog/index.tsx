@@ -53,7 +53,10 @@ export function ProfileDialog({ onClose }: ProfileDialogProps) {
     return () => requestRef.current?.abort();
   }, []);
 
-  const previewUrl = useMemo(() => (avatar ? URL.createObjectURL(avatar) : null), [avatar]);
+  const previewUrl = useMemo(
+    () => (avatar ? URL.createObjectURL(avatar) : null),
+    [avatar],
+  );
 
   useEffect(() => {
     return () => {
@@ -120,7 +123,8 @@ export function ProfileDialog({ onClose }: ProfileDialogProps) {
       }
       if (!controller.signal.aborted) onClose();
     } catch (requestError: unknown) {
-      if (!controller.signal.aborted) setError(getAuthErrorMessage(requestError));
+      if (!controller.signal.aborted)
+        setError(getAuthErrorMessage(requestError));
     } finally {
       if (requestRef.current === controller) requestRef.current = null;
       submittingRef.current = false;
@@ -139,16 +143,31 @@ export function ProfileDialog({ onClose }: ProfileDialogProps) {
       busy={busy}
       footer={
         <>
-          <button className={styles.secondary} type="button" disabled={busy} onClick={onClose}>
+          <button
+            className={styles.secondary}
+            type="button"
+            disabled={busy}
+            onClick={onClose}
+          >
             Cancelar
           </button>
-          <button className={styles.primary} type="submit" form="profile-form" disabled={busy}>
+          <button
+            className={styles.primary}
+            type="submit"
+            form="profile-form"
+            disabled={busy}
+          >
             {busy ? "Salvando…" : "Salvar perfil"}
           </button>
         </>
       }
     >
-      <form id="profile-form" className={styles.form} onSubmit={submit} noValidate>
+      <form
+        id="profile-form"
+        className={styles.form}
+        onSubmit={submit}
+        noValidate
+      >
         <div className={styles.avatarRow}>
           <ConversationAvatar
             name={nome || user.nome}
@@ -156,7 +175,9 @@ export function ProfileDialog({ onClose }: ProfileDialogProps) {
             size="large"
           />
           <div>
-            <label className={styles.fileButton} htmlFor={fileId}>Escolher foto</label>
+            <label className={styles.fileButton} htmlFor={fileId}>
+              Escolher foto
+            </label>
             <input
               id={fileId}
               className={styles.hiddenInput}
@@ -178,7 +199,10 @@ export function ProfileDialog({ onClose }: ProfileDialogProps) {
             maxLength={120}
             disabled={busy}
             autoComplete="name"
-            onChange={(event) => { setNome(event.target.value); setError(null); }}
+            onChange={(event) => {
+              setNome(event.target.value);
+              setError(null);
+            }}
           />
         </label>
 
@@ -190,12 +214,19 @@ export function ProfileDialog({ onClose }: ProfileDialogProps) {
             maxLength={140}
             rows={3}
             disabled={busy}
-            onChange={(event) => { setAbout(event.target.value); setError(null); }}
+            onChange={(event) => {
+              setAbout(event.target.value);
+              setError(null);
+            }}
           />
           <small>{about.length}/140</small>
         </label>
 
-        {error ? <div className={styles.error} role="alert">{error}</div> : null}
+        {error ? (
+          <div className={styles.error} role="alert">
+            {error}
+          </div>
+        ) : null}
       </form>
     </Modal>
   );

@@ -88,13 +88,36 @@
 }
 
 @keyframes highlight-message {
-  0%, 35% { box-shadow: 0 0 0 4px rgb(36 211 102 / 50%); }
-  100% { box-shadow: 0 4px 14px rgb(0 0 0 / 14%); }
+  0%,
+  35% {
+    box-shadow: 0 0 0 4px rgb(36 211 102 / 50%);
+  }
+  100% {
+    box-shadow: 0 4px 14px rgb(0 0 0 / 14%);
+  }
 }
 
 .mediaLink {
   display: block;
   min-width: 0;
+}
+
+button.mediaLink {
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: zoom-in;
+}
+
+.openMedia {
+  width: 100%;
+  margin-top: 6px;
+  border: 0;
+  color: #bceee1;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
 }
 
 .image,
@@ -198,6 +221,17 @@
   font-weight: 900;
 }
 
+.localError button {
+  margin-left: 8px;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  font-weight: 800;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
 .reactions {
   display: flex;
   flex-wrap: wrap;
@@ -231,9 +265,35 @@
   background: rgb(36 211 102 / 13%);
 }
 
-.menuArea { position: relative; display: flex; justify-content: flex-end; margin-top: 4px; }
-.menuButton { min-height: 27px; padding: 2px 7px; border: 0; border-radius: 7px; background: transparent; color: var(--text-muted); cursor: pointer; font-size: 0.68rem; }
-.actions { position: absolute; z-index: 5; right: 0; bottom: 30px; display: grid; min-width: 150px; padding: 5px; border: 1px solid var(--border); border-radius: 10px; background: #111a2a; box-shadow: 0 12px 30px rgb(0 0 0 / 35%); }
+.menuArea {
+  position: relative;
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 4px;
+}
+.menuButton {
+  min-height: 27px;
+  padding: 2px 7px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 0.68rem;
+}
+.actions {
+  position: absolute;
+  z-index: 5;
+  right: 0;
+  bottom: 30px;
+  display: grid;
+  min-width: 150px;
+  padding: 5px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #111a2a;
+  box-shadow: 0 12px 30px rgb(0 0 0 / 35%);
+}
 
 .actions button {
   min-height: 34px;
@@ -247,7 +307,9 @@
   text-align: left;
 }
 
-.actions .dangerAction { color: #ffadb4; }
+.actions .dangerAction {
+  color: #ffadb4;
+}
 
 .actions button:hover:not(:disabled),
 .actions button[aria-pressed="true"] {
@@ -283,14 +345,62 @@
   background: var(--surface-hover);
 }
 
-.editForm { display: grid; gap: 7px; min-width: min(330px, 68vw); }
-.editForm label { display: grid; gap: 5px; }
-.editForm label > span { color: var(--text-muted); font-size: 0.7rem; }
-.editForm textarea { width: 100%; min-width: 0; resize: vertical; padding: 8px; border: 1px solid var(--border); border-radius: 8px; background: rgb(0 0 0 / 18%); color: var(--text); }
-.editForm > div, .deleteConfirm > div { display: flex; justify-content: flex-end; gap: 6px; }
-.editForm button, .deleteConfirm button { min-height: 30px; padding: 0 8px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface-light); color: var(--text); cursor: pointer; font-size: 0.72rem; }
-.deleteConfirm { display: grid; gap: 7px; margin-top: 7px; padding: 8px; border: 1px solid rgb(255 91 104 / 28%); border-radius: 8px; background: rgb(255 91 104 / 8%); font-size: 0.75rem; }
-.deleteConfirm button:last-child { border-color: transparent; background: var(--danger); color: #180307; font-weight: 800; }
+.editForm {
+  display: grid;
+  gap: 7px;
+  min-width: min(330px, 68vw);
+}
+.editForm label {
+  display: grid;
+  gap: 5px;
+}
+.editForm label > span {
+  color: var(--text-muted);
+  font-size: 0.7rem;
+}
+.editForm textarea {
+  width: 100%;
+  min-width: 0;
+  resize: vertical;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgb(0 0 0 / 18%);
+  color: var(--text);
+}
+.editForm > div,
+.deleteConfirm > div {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+.editForm button,
+.deleteConfirm button {
+  min-height: 30px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface-light);
+  color: var(--text);
+  cursor: pointer;
+  font-size: 0.72rem;
+}
+.deleteConfirm {
+  display: grid;
+  gap: 7px;
+  margin-top: 7px;
+  padding: 8px;
+  border: 1px solid rgb(255 91 104 / 28%);
+  border-radius: 8px;
+  background: rgb(255 91 104 / 8%);
+  font-size: 0.75rem;
+}
+.deleteConfirm button:last-child {
+  border-color: transparent;
+  background: var(--danger);
+  color: #180307;
+  font-weight: 800;
+}
 
 @media (max-width: 520px) {
   .bubble {

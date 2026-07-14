@@ -16,6 +16,7 @@ build/
 .tmp/
 temp/
 coverage/
+*.map
 
 # =========================
 # ENV / SECRETS

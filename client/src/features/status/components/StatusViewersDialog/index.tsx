@@ -3,7 +3,11 @@ import { useEffect, useState } from "react";
 import { Modal } from "../../../../components/Modal";
 import { listStatusViewers } from "../../status.api";
 import type { StatusPost, StatusViewer } from "../../status.schemas";
-import { formatStatusDate, getInitials, getStatusErrorMessage } from "../../status.utils";
+import {
+  formatStatusDate,
+  getInitials,
+  getStatusErrorMessage,
+} from "../../status.utils";
 import styles from "./styles.module.css";
 
 type StatusViewersDialogProps = {
@@ -11,7 +15,10 @@ type StatusViewersDialogProps = {
   onClose: () => void;
 };
 
-export function StatusViewersDialog({ status, onClose }: StatusViewersDialogProps) {
+export function StatusViewersDialog({
+  status,
+  onClose,
+}: StatusViewersDialogProps) {
   const [viewers, setViewers] = useState<StatusViewer[]>([]);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -22,7 +29,8 @@ export function StatusViewersDialog({ status, onClose }: StatusViewersDialogProp
     void listStatusViewers(status.id, { signal: controller.signal })
       .then((response) => setViewers(response.data))
       .catch((error: unknown) => {
-        if (!controller.signal.aborted) setErrorMessage(getStatusErrorMessage(error));
+        if (!controller.signal.aborted)
+          setErrorMessage(getStatusErrorMessage(error));
       })
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false);
@@ -38,8 +46,16 @@ export function StatusViewersDialog({ status, onClose }: StatusViewersDialogProp
       onClose={onClose}
       size="small"
     >
-      {loading ? <p className={styles.state} aria-live="polite">Carregando visualizações…</p> : null}
-      {errorMessage ? <p className={styles.error} role="alert">{errorMessage}</p> : null}
+      {loading ? (
+        <p className={styles.state} aria-live="polite">
+          Carregando visualizações…
+        </p>
+      ) : null}
+      {errorMessage ? (
+        <p className={styles.error} role="alert">
+          {errorMessage}
+        </p>
+      ) : null}
       {!loading && !errorMessage && viewers.length === 0 ? (
         <div className={styles.empty}>
           <span aria-hidden="true">◎</span>
@@ -51,7 +67,11 @@ export function StatusViewersDialog({ status, onClose }: StatusViewersDialogProp
           {viewers.map(({ id, viewedAt, viewer }) => (
             <li key={id}>
               <div className={styles.avatar} aria-hidden="true">
-                {viewer?.avatarUrl ? <img src={viewer.avatarUrl} alt="" /> : getInitials(viewer?.nome ?? "Usuário")}
+                {viewer?.avatarUrl ? (
+                  <img src={viewer.avatarUrl} alt="" />
+                ) : (
+                  getInitials(viewer?.nome ?? "Usuário")
+                )}
               </div>
               <div>
                 <strong>{viewer?.nome ?? "Usuário indisponível"}</strong>

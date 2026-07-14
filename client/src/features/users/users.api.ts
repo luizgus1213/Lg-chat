@@ -1,19 +1,32 @@
 import { ApiError, apiRequest, type ApiSuccess } from "../../api/apiClient";
-import { chatUsersSchema, type ChatUser } from "./users.schemas";
+import { userDirectorySchema, type ChatUser } from "./users.schemas";
 
 type RequestOptions = {
   signal?: AbortSignal;
+  query?: string;
+  page?: number;
+  limit?: number;
 };
 
 export async function listAvailableUsers(
   options: RequestOptions = {},
 ): Promise<ApiSuccess<ChatUser[]>> {
-  const response = await apiRequest<unknown>("/api/users", {
-    method: "GET",
-    signal: options.signal,
+  const params = new URLSearchParams({
+    limit: String(options.limit ?? 50),
+    page: String(options.page ?? 1),
   });
+  const query = options.query?.trim();
+  if (query) params.set("q", query);
 
-  const parsed = chatUsersSchema.safeParse(response.data);
+  const response = await apiRequest<unknown>(
+    `/api/users/directory?${params.toString()}`,
+    {
+      method: "GET",
+      signal: options.signal,
+    },
+  );
+
+  const parsed = userDirectorySchema.safeParse(response.data);
   if (!parsed.success) {
     throw new ApiError({
       statusCode: 200,
@@ -23,5 +36,5 @@ export async function listAvailableUsers(
     });
   }
 
-  return { ...response, data: parsed.data };
+  return { ...response, data: parsed.data.items };
 }

@@ -16,4 +16,12 @@ export const chatUserSchema = z.object({
 
 export const chatUsersSchema = z.array(chatUserSchema);
 
+export const userDirectorySchema = z.object({
+  items: chatUsersSchema,
+  page: z.number().int().positive(),
+  limit: z.number().int().positive(),
+  total: z.number().int().nonnegative(),
+  hasMore: z.boolean(),
+});
+
 export type ChatUser = z.infer<typeof chatUserSchema>;

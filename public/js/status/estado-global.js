@@ -24,13 +24,21 @@ async function request(path, options = {}) {
       headers["Content-Type"] = "application/json";
     }
 
-    if (state.token) {
-      headers.Authorization = `Bearer ${state.token}`;
+    const method = String(options.method || "GET").toUpperCase();
+    const csrfCookie = document.cookie
+      .split(";")
+      .map((item) => item.trim())
+      .find((item) => item.startsWith("lgchat_csrf="));
+    if (!["GET", "HEAD", "OPTIONS"].includes(method) && csrfCookie) {
+      headers["X-CSRF-Token"] = decodeURIComponent(
+        csrfCookie.slice("lgchat_csrf=".length),
+      );
     }
 
     const response = await fetch(path, {
       ...options,
       headers,
+      credentials: "include",
     });
 
     const payload = await response.json().catch(() => null);

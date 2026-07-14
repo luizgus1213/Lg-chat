@@ -1,5 +1,6 @@
 import fs from "fs/promises";
-import path from "path";
+import { resolveUploadUrlToPath } from "../config/uploadPaths";
+import { logger } from "../utils/logger";
 import { Op } from "sequelize";
 import { AppError } from "../errors/AppError";
 import { User } from "../models/User";
@@ -19,16 +20,26 @@ export function publicUser(user: User) {
 function isLocalUserAvatar(avatarUrl?: string | null) {
   return Boolean(avatarUrl && avatarUrl.startsWith("/uploads/users/"));
 }
-
 async function removeOldUserAvatar(avatarUrl?: string | null) {
-  if (!isLocalUserAvatar(avatarUrl)) return;
+  if (!isLocalUserAvatar(avatarUrl)) {
+    return;
+  }
 
-  const relativePath = avatarUrl!.replace(/^\//, "");
-  const filePath = path.resolve("public", relativePath.replace(/^public[\\/]/, ""));
+  const filePath = resolveUploadUrlToPath(avatarUrl!, "users");
+
+  if (!filePath) {
+    logger.warn(
+      {
+        avatarUrl,
+      },
+      "Caminho inválido ao tentar remover avatar antigo do usuário",
+    );
+
+    return;
+  }
 
   await fs.unlink(filePath).catch(() => undefined);
 }
-
 export async function listUsers(currentUserId: number) {
   const users = await User.findAll({
     where: {
@@ -49,6 +60,52 @@ export async function listUsers(currentUserId: number) {
   });
 
   return users.map(publicUser);
+}
+
+export async function listUserDirectory(params: {
+  currentUserId: number;
+  query: string;
+  page: number;
+  limit: number;
+}) {
+  const search = params.query.trim();
+  const where = {
+    id: { [Op.ne]: params.currentUserId },
+    ...(search
+      ? {
+          [Op.or]: [
+            { nome: { [Op.iLike]: `%${search}%` } },
+            { email: { [Op.iLike]: `%${search}%` } },
+          ],
+        }
+      : {}),
+  };
+  const { rows, count } = await User.findAndCountAll({
+    where,
+    attributes: [
+      "id",
+      "nome",
+      "email",
+      "avatarUrl",
+      "about",
+      "isOnline",
+      "lastSeenAt",
+    ],
+    order: [
+      ["nome", "ASC"],
+      ["id", "ASC"],
+    ],
+    offset: (params.page - 1) * params.limit,
+    limit: params.limit,
+  });
+
+  return {
+    items: rows.map(publicUser),
+    page: params.page,
+    limit: params.limit,
+    total: count,
+    hasMore: params.page * params.limit < count,
+  };
 }
 
 export async function getUserProfile(userId: number) {

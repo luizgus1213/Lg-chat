@@ -43,7 +43,11 @@ export async function updateGroup(
   return { ...response, data: groupChatSchema.parse(response.data) };
 }
 
-export async function uploadGroupAvatar(chatId: number, file: File, options: RequestOptions = {}) {
+export async function uploadGroupAvatar(
+  chatId: number,
+  file: File,
+  options: RequestOptions = {},
+) {
   const formData = new FormData();
   formData.set("avatar", file, file.name);
   const response = await apiRequest<unknown>(`/api/chats/${chatId}/avatar`, {
@@ -55,7 +59,10 @@ export async function uploadGroupAvatar(chatId: number, file: File, options: Req
   return { ...response, data: groupChatSchema.parse(response.data) };
 }
 
-export async function listGroupMembers(chatId: number, options: RequestOptions = {}) {
+export async function listGroupMembers(
+  chatId: number,
+  options: RequestOptions = {},
+) {
   const response = await apiRequest<unknown>(`/api/chats/${chatId}/members`, {
     method: "GET",
     signal: options.signal,
@@ -63,7 +70,11 @@ export async function listGroupMembers(chatId: number, options: RequestOptions =
   return { ...response, data: groupMembersSchema.parse(response.data) };
 }
 
-export async function addGroupMember(chatId: number, userId: number, options: RequestOptions = {}) {
+export async function addGroupMember(
+  chatId: number,
+  userId: number,
+  options: RequestOptions = {},
+) {
   const response = await apiRequest<unknown>(`/api/chats/${chatId}/members`, {
     method: "POST",
     signal: options.signal,
@@ -72,11 +83,18 @@ export async function addGroupMember(chatId: number, userId: number, options: Re
   return { ...response, data: addedGroupMemberSchema.parse(response.data) };
 }
 
-export async function removeGroupMember(chatId: number, userId: number, options: RequestOptions = {}) {
-  const response = await apiRequest<unknown>(`/api/chats/${chatId}/members/${userId}`, {
-    method: "DELETE",
-    signal: options.signal,
-  });
+export async function removeGroupMember(
+  chatId: number,
+  userId: number,
+  options: RequestOptions = {},
+) {
+  const response = await apiRequest<unknown>(
+    `/api/chats/${chatId}/members/${userId}`,
+    {
+      method: "DELETE",
+      signal: options.signal,
+    },
+  );
   return { ...response, data: removedGroupMemberSchema.parse(response.data) };
 }
 
@@ -88,7 +106,10 @@ export async function leaveGroup(chatId: number, options: RequestOptions = {}) {
   return { ...response, data: leaveGroupResultSchema.parse(response.data) };
 }
 
-export async function deleteGroup(chatId: number, options: RequestOptions = {}) {
+export async function deleteGroup(
+  chatId: number,
+  options: RequestOptions = {},
+) {
   const response = await apiRequest<unknown>(`/api/chats/${chatId}`, {
     method: "DELETE",
     signal: options.signal,

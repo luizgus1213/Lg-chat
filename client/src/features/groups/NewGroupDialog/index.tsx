@@ -1,4 +1,11 @@
-import { useEffect, useId, useMemo, useRef, useState, type FormEvent } from "react";
+import {
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+} from "react";
 
 import { Modal } from "../../../components/Modal";
 import { useUsers } from "../../users/hooks/useUsers";
@@ -12,7 +19,12 @@ type Props = {
   onCreated: (chatId: number) => Promise<void> | void;
 };
 
-const AVATAR_TYPES = new Set(["image/jpeg", "image/jpg", "image/png", "image/webp"]);
+const AVATAR_TYPES = new Set([
+  "image/jpeg",
+  "image/jpg",
+  "image/png",
+  "image/webp",
+]);
 
 export function NewGroupDialog({ onClose, onCreated }: Props) {
   const { users, status, errorMessage, refresh } = useUsers();
@@ -65,9 +77,18 @@ export function NewGroupDialog({ onClose, onCreated }: Props) {
 
   function chooseAvatar(file: File | null) {
     setError(null);
-    if (!file) { setAvatar(null); return; }
-    if (!AVATAR_TYPES.has(file.type)) { setError("Use uma imagem JPG, PNG ou WEBP."); return; }
-    if (file.size <= 0 || file.size > 2 * 1024 * 1024) { setError("A imagem do grupo deve ter no máximo 2 MB."); return; }
+    if (!file) {
+      setAvatar(null);
+      return;
+    }
+    if (!AVATAR_TYPES.has(file.type)) {
+      setError("Use uma imagem JPG, PNG ou WEBP.");
+      return;
+    }
+    if (file.size <= 0 || file.size > 2 * 1024 * 1024) {
+      setError("A imagem do grupo deve ter no máximo 2 MB.");
+      return;
+    }
     setAvatar(file);
   }
 
@@ -80,7 +101,10 @@ export function NewGroupDialog({ onClose, onCreated }: Props) {
       setError("O nome do grupo deve ter entre 2 e 120 caracteres.");
       return;
     }
-    if (cleanDescription.length > 500) { setError("A descrição deve ter no máximo 500 caracteres."); return; }
+    if (cleanDescription.length > 500) {
+      setError("A descrição deve ter no máximo 500 caracteres.");
+      return;
+    }
 
     const controller = new AbortController();
     requestRef.current = controller;
@@ -90,16 +114,20 @@ export function NewGroupDialog({ onClose, onCreated }: Props) {
     try {
       let chatId = createdChatIdRef.current;
       if (!chatId) {
-        const created = await createGroup({
-          name: cleanName,
-          description: cleanDescription || null,
-          memberIds: Array.from(memberIds),
-        }, { signal: controller.signal });
+        const created = await createGroup(
+          {
+            name: cleanName,
+            description: cleanDescription || null,
+            memberIds: Array.from(memberIds),
+          },
+          { signal: controller.signal },
+        );
         chatId = created.data.id;
         createdChatIdRef.current = chatId;
         setCreatedChatId(chatId);
       }
-      if (avatar) await uploadGroupAvatar(chatId, avatar, { signal: controller.signal });
+      if (avatar)
+        await uploadGroupAvatar(chatId, avatar, { signal: controller.signal });
       if (controller.signal.aborted) return;
       await onCreated(chatId);
       createdChatIdRef.current = null;
@@ -131,53 +159,150 @@ export function NewGroupDialog({ onClose, onCreated }: Props) {
       size="large"
       footer={
         <>
-          <button className={styles.secondary} type="button" disabled={busy} onClick={closeDialog}>{createdChatId ? "Concluir sem foto" : "Cancelar"}</button>
-          <button className={styles.primary} type="submit" form="new-group-form" disabled={busy || name.trim().length < 2}>
+          <button
+            className={styles.secondary}
+            type="button"
+            disabled={busy}
+            onClick={closeDialog}
+          >
+            {createdChatId ? "Concluir sem foto" : "Cancelar"}
+          </button>
+          <button
+            className={styles.primary}
+            type="submit"
+            form="new-group-form"
+            disabled={busy || name.trim().length < 2}
+          >
             {busy ? "Criando grupo…" : "Criar grupo"}
           </button>
         </>
       }
     >
-      <form id="new-group-form" className={styles.form} onSubmit={submit} noValidate>
+      <form
+        id="new-group-form"
+        className={styles.form}
+        onSubmit={submit}
+        noValidate
+      >
         <div className={styles.grid}>
           <label className={styles.field} htmlFor={nameId}>
             <span>Nome do grupo</span>
-            <input ref={nameRef} id={nameId} value={name} maxLength={120} disabled={busy} onChange={(event) => { setName(event.target.value); setError(null); }} />
+            <input
+              ref={nameRef}
+              id={nameId}
+              value={name}
+              maxLength={120}
+              disabled={busy}
+              onChange={(event) => {
+                setName(event.target.value);
+                setError(null);
+              }}
+            />
           </label>
           <label className={styles.field} htmlFor={avatarId}>
             <span>Foto do grupo (opcional)</span>
-            <input id={avatarId} type="file" accept="image/jpeg,image/png,image/webp" disabled={busy} onChange={(event) => chooseAvatar(event.target.files?.[0] ?? null)} />
+            <input
+              id={avatarId}
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              disabled={busy}
+              onChange={(event) =>
+                chooseAvatar(event.target.files?.[0] ?? null)
+              }
+            />
           </label>
         </div>
         <label className={styles.field} htmlFor={descriptionId}>
           <span>Descrição (opcional)</span>
-          <textarea id={descriptionId} value={description} rows={2} maxLength={500} disabled={busy} onChange={(event) => { setDescription(event.target.value); setError(null); }} />
+          <textarea
+            id={descriptionId}
+            value={description}
+            rows={2}
+            maxLength={500}
+            disabled={busy}
+            onChange={(event) => {
+              setDescription(event.target.value);
+              setError(null);
+            }}
+          />
         </label>
 
-        <section className={styles.people} aria-labelledby="group-members-heading">
+        <section
+          className={styles.people}
+          aria-labelledby="group-members-heading"
+        >
           <div className={styles.peopleHeader}>
-            <div><strong id="group-members-heading">Participantes</strong><span>{memberIds.size} selecionado(s)</span></div>
-            <button type="button" disabled={busy || status === "refreshing"} onClick={() => void refresh()}>Atualizar</button>
+            <div>
+              <strong id="group-members-heading">Participantes</strong>
+              <span>{memberIds.size} selecionado(s)</span>
+            </div>
+            <button
+              type="button"
+              disabled={busy || status === "refreshing"}
+              onClick={() => void refresh()}
+            >
+              Atualizar
+            </button>
           </div>
           <label className={styles.field} htmlFor={searchId}>
             <span>Buscar por nome ou e-mail</span>
-            <input id={searchId} type="search" value={search} disabled={busy} onChange={(event) => setSearch(event.target.value)} />
+            <input
+              id={searchId}
+              type="search"
+              value={search}
+              disabled={busy}
+              onChange={(event) => setSearch(event.target.value)}
+            />
           </label>
-          {errorMessage ? <div className={styles.error} role="alert">{errorMessage}</div> : null}
-          <div className={styles.userList} aria-busy={status === "loading" || status === "refreshing"}>
-            {status === "loading" ? <p role="status">Carregando usuários…</p> : null}
-            {status === "error" ? <p role="alert">Não foi possível carregar usuários.</p> : null}
-            {(status === "ready" || status === "refreshing") && filteredUsers.length === 0 ? <p>Nenhum usuário encontrado.</p> : null}
+          {errorMessage ? (
+            <div className={styles.error} role="alert">
+              {errorMessage}
+            </div>
+          ) : null}
+          <div
+            className={styles.userList}
+            aria-busy={status === "loading" || status === "refreshing"}
+          >
+            {status === "loading" ? (
+              <p role="status">Carregando usuários…</p>
+            ) : null}
+            {status === "error" ? (
+              <p role="alert">Não foi possível carregar usuários.</p>
+            ) : null}
+            {(status === "ready" || status === "refreshing") &&
+            filteredUsers.length === 0 ? (
+              <p>Nenhum usuário encontrado.</p>
+            ) : null}
             {filteredUsers.map((user) => (
               <label className={styles.user} key={user.id}>
-                <input type="checkbox" checked={memberIds.has(user.id)} disabled={busy || (!memberIds.has(user.id) && memberIds.size >= 100)} onChange={() => toggleMember(user.id)} />
-                <span aria-hidden="true">{user.avatarUrl ? <img src={user.avatarUrl} alt="" /> : user.nome.charAt(0).toUpperCase()}</span>
-                <span><strong>{user.nome}</strong><small>{user.email}</small></span>
+                <input
+                  type="checkbox"
+                  checked={memberIds.has(user.id)}
+                  disabled={
+                    busy || (!memberIds.has(user.id) && memberIds.size >= 100)
+                  }
+                  onChange={() => toggleMember(user.id)}
+                />
+                <span aria-hidden="true">
+                  {user.avatarUrl ? (
+                    <img src={user.avatarUrl} alt="" />
+                  ) : (
+                    user.nome.charAt(0).toUpperCase()
+                  )}
+                </span>
+                <span>
+                  <strong>{user.nome}</strong>
+                  <small>{user.email}</small>
+                </span>
               </label>
             ))}
           </div>
         </section>
-        {error ? <div className={styles.error} role="alert">{error}</div> : null}
+        {error ? (
+          <div className={styles.error} role="alert">
+            {error}
+          </div>
+        ) : null}
       </form>
     </Modal>
   );

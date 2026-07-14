@@ -1,5 +1,5 @@
 import { cleanupExpiredStatuses } from "./StatusService";
-import { logger } from "../utils/logger";
+import { logger, toSafeLogError } from "../utils/logger";
 
 const CLEANUP_INTERVAL_MS = 30 * 60 * 1000;
 
@@ -13,7 +13,10 @@ async function runStatusCleanup() {
       logger.info(result, "Limpeza automática de status concluída");
     }
   } catch (error) {
-    logger.error({ err: error }, "Erro ao limpar status expirados");
+    logger.error(
+      { error: toSafeLogError(error) },
+      "Erro ao limpar status expirados",
+    );
   }
 }
 

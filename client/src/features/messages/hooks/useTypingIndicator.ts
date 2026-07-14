@@ -178,7 +178,10 @@ export function useTypingIndicator({
 
       if (!parsed.success) {
         if (import.meta.env.DEV) {
-          console.error("[LG Chat] Evento typing_start inválido:", parsed.error);
+          console.error(
+            "[LG Chat] Evento typing_start inválido:",
+            parsed.error,
+          );
         }
 
         return;

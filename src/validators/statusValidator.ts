@@ -15,7 +15,10 @@ export const createTextStatusSchema = z.object({
     .string()
     .trim()
     .max(40, "Cor de fundo inválida.")
-    .regex(/^#[0-9a-fA-F]{6}$|^linear-gradient\(.+\)$/i, "Cor de fundo inválida.")
+    .regex(
+      /^#[0-9a-fA-F]{6}$|^linear-gradient\(.+\)$/i,
+      "Cor de fundo inválida.",
+    )
     .optional()
     .nullable(),
 });

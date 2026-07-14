@@ -20,6 +20,8 @@ import {
   toggleStarSchema,
   forwardMessageSchema,
   listStarredMessagesQuerySchema,
+  listAllStarredMessagesQuerySchema,
+  messageContextQuerySchema,
   updateGroupSchema,
   userIdParamsSchema,
 } from "../validators/chatValidator";
@@ -50,6 +52,8 @@ import {
   deleteChatForMe,
   toggleMessageStar,
   listStarredMessages,
+  listAllStarredMessages,
+  getMessageContext,
   forwardMessageToChats,
 } from "../services/ChatService";
 
@@ -177,7 +181,23 @@ export async function listChatMessagesController(req: Request, res: Response) {
   return ok(res, messages);
 }
 
-export async function searchChatMessagesController(req: Request, res: Response) {
+export async function getMessageContextController(req: Request, res: Response) {
+  const { chatId, messageId } = messageIdParamsSchema.parse(req.params);
+  const query = messageContextQuerySchema.parse(req.query);
+  const context = await getMessageContext({
+    currentUserId: req.user!.id,
+    chatId,
+    messageId,
+    radius: query.radius,
+  });
+
+  return ok(res, context);
+}
+
+export async function searchChatMessagesController(
+  req: Request,
+  res: Response,
+) {
   const { chatId } = chatIdParamsSchema.parse(req.params);
   const query = searchChatMessagesQuerySchema.parse(req.query);
 
@@ -202,12 +222,19 @@ export async function markChatAsReadController(req: Request, res: Response) {
     messageId: data.messageId,
   });
 
+  emitToChat(chatId, "chat_read", {
+    chatId,
+    userId: req.user!.id,
+    lastReadMessageId: result.lastReadMessageId,
+  });
+
   return ok(res, result, "Chat marcado como lido.");
 }
 
-
-
-export async function updateChatPreferencesController(req: Request, res: Response) {
+export async function updateChatPreferencesController(
+  req: Request,
+  res: Response,
+) {
   const { chatId } = chatIdParamsSchema.parse(req.params);
   const data = updateChatPreferencesSchema.parse(req.body);
 
@@ -223,9 +250,6 @@ export async function updateChatPreferencesController(req: Request, res: Respons
   return ok(res, preferences, "Preferências do chat atualizadas.");
 }
 
-
-
-
 export async function blockContactController(req: Request, res: Response) {
   const { chatId } = chatIdParamsSchema.parse(req.params);
   const data = blockContactSchema.parse(req.body);
@@ -239,7 +263,9 @@ export async function blockContactController(req: Request, res: Response) {
   return ok(
     res,
     result,
-    data.blocked ? "Contato bloqueado com sucesso." : "Contato desbloqueado com sucesso.",
+    data.blocked
+      ? "Contato bloqueado com sucesso."
+      : "Contato desbloqueado com sucesso.",
   );
 }
 
@@ -305,7 +331,10 @@ export async function deleteChatMessageController(req: Request, res: Response) {
   return ok(res, message, "Mensagem apagada com sucesso.");
 }
 
-export async function toggleMessageReactionController(req: Request, res: Response) {
+export async function toggleMessageReactionController(
+  req: Request,
+  res: Response,
+) {
   const { chatId, messageId } = messageIdParamsSchema.parse(req.params);
   const data = toggleReactionSchema.parse(req.body);
 
@@ -335,11 +364,16 @@ export async function toggleMessageStarController(req: Request, res: Response) {
   return ok(
     res,
     message,
-    message.isStarred ? "Mensagem favoritada." : "Mensagem removida das favoritas.",
+    message.isStarred
+      ? "Mensagem favoritada."
+      : "Mensagem removida das favoritas.",
   );
 }
 
-export async function listStarredMessagesController(req: Request, res: Response) {
+export async function listStarredMessagesController(
+  req: Request,
+  res: Response,
+) {
   const { chatId } = chatIdParamsSchema.parse(req.params);
   const query = listStarredMessagesQuerySchema.parse(req.query);
 
@@ -350,6 +384,20 @@ export async function listStarredMessagesController(req: Request, res: Response)
   });
 
   return ok(res, messages);
+}
+
+export async function listAllStarredMessagesController(
+  req: Request,
+  res: Response,
+) {
+  const query = listAllStarredMessagesQuerySchema.parse(req.query);
+  const result = await listAllStarredMessages({
+    currentUserId: req.user!.id,
+    limit: query.limit,
+    beforeId: query.beforeId,
+  });
+
+  return ok(res, result);
 }
 
 export async function forwardMessageController(req: Request, res: Response) {
@@ -398,7 +446,6 @@ export async function leaveGroupController(req: Request, res: Response) {
 
   return ok(res, result, "Você saiu do grupo com sucesso.");
 }
-
 
 export async function updateGroupAvatarController(req: Request, res: Response) {
   const { chatId } = chatIdParamsSchema.parse(req.params);

@@ -61,11 +61,14 @@ export function RegisterPage() {
     setIsSubmitting(true);
 
     try {
-      const response = await registerUser({
-        nome: form.nome,
-        email: form.email,
-        senha: form.senha,
-      }, { signal: controller.signal });
+      const response = await registerUser(
+        {
+          nome: form.nome,
+          email: form.email,
+          senha: form.senha,
+        },
+        { signal: controller.signal },
+      );
 
       if (!mountedRef.current || controller.signal.aborted) return;
 
@@ -98,7 +101,11 @@ export function RegisterPage() {
   return (
     <main className={styles.page}>
       <section className={styles.card}>
-        <Link className={styles.badge} to="/" aria-label="Página inicial do LG Chat">
+        <Link
+          className={styles.badge}
+          to="/"
+          aria-label="Página inicial do LG Chat"
+        >
           LG
         </Link>
 

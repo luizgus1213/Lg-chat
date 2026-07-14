@@ -227,10 +227,10 @@
       body: JSON.stringify({ email, codigo }),
     });
 
-    state.token = data.data.token;
+    state.token = null;
     state.currentUser = data.data.user;
 
-    localStorage.setItem("token", state.token);
+    localStorage.removeItem("token");
     localStorage.removeItem(PENDING_EMAIL_KEY);
 
     ui.showToast("success", "Email verificado com sucesso.");
@@ -323,10 +323,10 @@
         body: JSON.stringify({ email, senha }),
       });
 
-      state.token = data.data.token;
+      state.token = null;
       state.currentUser = data.data.user;
 
-      localStorage.setItem("token", state.token);
+      localStorage.removeItem("token");
       localStorage.removeItem(PENDING_EMAIL_KEY);
 
       ui.showToast("success", "Login realizado com sucesso.");
@@ -394,6 +394,7 @@
   }
 
   function logout() {
+    api.request("/api/auth/logout", { method: "POST" }).catch(() => undefined);
     localStorage.removeItem("token");
     localStorage.removeItem(PENDING_EMAIL_KEY);
 

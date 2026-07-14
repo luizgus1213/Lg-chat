@@ -2,10 +2,7 @@ import { createContext } from "react";
 import type { Socket } from "socket.io-client";
 
 export type SocketStatus =
-  | "disconnected"
-  | "connecting"
-  | "connected"
-  | "error";
+  "disconnected" | "connecting" | "connected" | "error";
 
 export type SocketContextValue = {
   socket: Socket | null;

@@ -48,11 +48,14 @@ export async function updateConversationPreferences(
   },
   options: RequestOptions = {},
 ): Promise<ApiSuccess<ChatPreferences>> {
-  const response = await apiRequest<unknown>(`/api/chats/${chatId}/preferences`, {
-    method: "PATCH",
-    signal: options.signal,
-    body: JSON.stringify(input),
-  });
+  const response = await apiRequest<unknown>(
+    `/api/chats/${chatId}/preferences`,
+    {
+      method: "PATCH",
+      signal: options.signal,
+      body: JSON.stringify(input),
+    },
+  );
   return { ...response, data: preferencesSchema.parse(response.data) };
 }
 
@@ -69,7 +72,10 @@ export async function updateConversationBlock(
   return { ...response, data: blockResultSchema.parse(response.data) };
 }
 
-export async function clearConversationForMe(chatId: number, options: RequestOptions = {}) {
+export async function clearConversationForMe(
+  chatId: number,
+  options: RequestOptions = {},
+) {
   const response = await apiRequest<unknown>(`/api/chats/${chatId}/clear`, {
     method: "POST",
     signal: options.signal,
@@ -77,10 +83,16 @@ export async function clearConversationForMe(chatId: number, options: RequestOpt
   return { ...response, data: clearResultSchema.parse(response.data) };
 }
 
-export async function deleteConversationForMe(chatId: number, options: RequestOptions = {}) {
-  const response = await apiRequest<unknown>(`/api/chats/${chatId}/delete-for-me`, {
-    method: "POST",
-    signal: options.signal,
-  });
+export async function deleteConversationForMe(
+  chatId: number,
+  options: RequestOptions = {},
+) {
+  const response = await apiRequest<unknown>(
+    `/api/chats/${chatId}/delete-for-me`,
+    {
+      method: "POST",
+      signal: options.signal,
+    },
+  );
   return { ...response, data: deleteForMeResultSchema.parse(response.data) };
 }

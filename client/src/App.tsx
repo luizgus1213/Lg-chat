@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 
 import { HomePage } from "./app/HomePage";
@@ -10,7 +11,24 @@ import { LoginPage } from "./features/auth/pages/LoginPage";
 import { RegisterPage } from "./features/auth/pages/RegisterPage";
 import { VerifyEmailPage } from "./features/auth/pages/VerifyEmailPage";
 
-import { ChatHomePage } from "./features/conversations/pages/ChatHomePage";
+import { FullPageStatus } from "./components/FullPageStatus";
+
+const AuthenticatedChatApp = lazy(() => import("./app/AuthenticatedChatApp"));
+
+function ChatAppRoute() {
+  return (
+    <Suspense
+      fallback={
+        <FullPageStatus
+          title="Carregando o LG Chat"
+          message="Preparando suas conversas e recursos em tempo real."
+        />
+      }
+    >
+      <AuthenticatedChatApp />
+    </Suspense>
+  );
+}
 
 function App() {
   return (
@@ -24,11 +42,11 @@ function App() {
       </Route>
 
       <Route element={<RequireAuth />}>
-        <Route path="/app" element={<ChatHomePage />} />
-        <Route path="/app/chat/:chatId" element={<ChatHomePage />} />
-        <Route path="/app/status" element={<ChatHomePage />} />
-        <Route path="/app/starred" element={<ChatHomePage />} />
-        <Route path="/app/archived" element={<ChatHomePage />} />
+        <Route path="/app" element={<ChatAppRoute />} />
+        <Route path="/app/chat/:chatId" element={<ChatAppRoute />} />
+        <Route path="/app/status" element={<ChatAppRoute />} />
+        <Route path="/app/starred" element={<ChatAppRoute />} />
+        <Route path="/app/archived" element={<ChatAppRoute />} />
       </Route>
 
       <Route path="/entrar" element={<Navigate to="/login" replace />} />

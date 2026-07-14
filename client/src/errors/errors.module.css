@@ -1,0 +1,89 @@
+.fallback {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  color: #eff8f6;
+  background: radial-gradient(circle at top, #173a36, #080c14 55%);
+}
+
+.fallback > div {
+  width: min(100%, 520px);
+  padding: 32px;
+  border: 1px solid rgb(255 255 255 / 12%);
+  border-radius: 24px;
+  background: rgb(11 18 27 / 92%);
+  box-shadow: 0 24px 70px rgb(0 0 0 / 35%);
+}
+
+.fallback > div > span {
+  display: grid;
+  width: 54px;
+  height: 54px;
+  place-items: center;
+  border-radius: 16px;
+  color: #05201b;
+  background: #51e6be;
+  font-weight: 900;
+}
+
+.fallback h1 {
+  margin: 22px 0 10px;
+}
+.fallback p {
+  color: #aabbb8;
+  line-height: 1.6;
+}
+.fallback div div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 24px;
+}
+.fallback button,
+.fallback a {
+  padding: 11px 16px;
+  border: 0;
+  border-radius: 12px;
+  font: inherit;
+  text-decoration: none;
+  cursor: pointer;
+}
+.fallback button {
+  background: #35d3aa;
+  color: #05201b;
+  font-weight: 800;
+}
+.fallback a {
+  color: #d9e5e2;
+  background: #1c2933;
+}
+
+.toast {
+  position: fixed;
+  z-index: 10000;
+  right: max(16px, env(safe-area-inset-right));
+  bottom: max(16px, env(safe-area-inset-bottom));
+  display: flex;
+  max-width: min(420px, calc(100vw - 32px));
+  gap: 14px;
+  align-items: center;
+  padding: 14px 16px;
+  border: 1px solid rgb(255 255 255 / 14%);
+  border-radius: 14px;
+  color: #f6fbfa;
+  background: #18232c;
+  box-shadow: 0 18px 50px rgb(0 0 0 / 35%);
+}
+
+.toast span {
+  flex: 1;
+  line-height: 1.4;
+}
+.toast button {
+  border: 0;
+  color: inherit;
+  background: transparent;
+  font-size: 22px;
+  cursor: pointer;
+}

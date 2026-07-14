@@ -4,10 +4,7 @@ import { ZodError } from "zod";
 import { ApiError } from "../../api/apiClient";
 import { useSocket } from "../../socket/useSocket";
 import { getAuthErrorMessage } from "../auth/auth.errors";
-import {
-  chatMessageSchema,
-  type ServerChatMessage,
-} from "../messages/messages.schemas";
+import { chatMessageSchema } from "../messages/messages.schemas";
 import { listConversations } from "./conversations.api";
 import {
   chatUpdatedPayloadSchema,
@@ -15,12 +12,13 @@ import {
   type Conversation,
 } from "./conversations.schemas";
 import { sortConversations } from "./conversations.utils";
+import {
+  applyMessageToConversationList,
+  applyUpdatedMessageToList,
+  mergeServerSnapshot,
+} from "./conversations.store";
 
-export type ConversationsStatus =
-  | "loading"
-  | "ready"
-  | "refreshing"
-  | "error";
+export type ConversationsStatus = "loading" | "ready" | "refreshing" | "error";
 
 type UseConversationsOptions = {
   selectedChatId: number | null;
@@ -44,8 +42,6 @@ type LoadStore = {
   hasLoaded: boolean;
 };
 
-type ConversationLastMessage = NonNullable<Conversation["lastMessage"]>;
-
 function isCancellation(error: unknown): boolean {
   return error instanceof ApiError && error.code === "REQUEST_CANCELLED";
 }
@@ -58,132 +54,12 @@ function getConversationErrorMessage(error: unknown): string {
   return getAuthErrorMessage(error);
 }
 
-function toConversationLastMessage(
-  message: ServerChatMessage,
-): ConversationLastMessage {
-  return {
-    id: message.id,
-    chatId: message.chatId,
-    fromUserId: message.fromUserId,
-    text: message.text,
-    type: message.type,
-    mediaUrl: message.mediaUrl,
-    mediaMimeType: message.mediaMimeType,
-    mediaOriginalName: message.mediaOriginalName,
-    createdAt: message.createdAt,
-    updatedAt: message.updatedAt,
-    editedAt: message.editedAt,
-    deletedAt: message.deletedAt,
-  };
-}
-
-function applyMessageToConversationList(
-  conversations: Conversation[],
-  message: ServerChatMessage,
-  currentUserId: number,
-): Conversation[] {
-  let changed = false;
-
-  const updated = conversations.map((conversation) => {
-    if (conversation.id !== message.chatId) return conversation;
-
-    const previousMessageId = conversation.lastMessage?.id ?? 0;
-
-    // IDs são crescentes no backend. Broadcasts repetidos ou fora de ordem
-    // não podem rebaixar o preview nem somar o badge novamente.
-    if (message.id <= previousMessageId) return conversation;
-
-    changed = true;
-
-    const shouldIncrementUnread =
-      message.fromUserId !== currentUserId && message.type !== "system";
-
-    return {
-      ...conversation,
-      lastMessage: toConversationLastMessage(message),
-      updatedAt: message.createdAt,
-      unreadCount: shouldIncrementUnread
-        ? conversation.unreadCount + 1
-        : conversation.unreadCount,
-    };
-  });
-
-  return changed ? sortConversations(updated) : conversations;
-}
-
-function applyUpdatedMessageToList(
-  conversations: Conversation[],
-  message: ServerChatMessage,
-): Conversation[] {
-  let changed = false;
-
-  const updated = conversations.map((conversation) => {
-    if (
-      conversation.id !== message.chatId ||
-      conversation.lastMessage?.id !== message.id
-    ) {
-      return conversation;
-    }
-
-    changed = true;
-
-    return {
-      ...conversation,
-      lastMessage: toConversationLastMessage(message),
-      updatedAt:
-        message.updatedAt ||
-        message.editedAt ||
-        message.deletedAt ||
-        message.createdAt,
-    };
-  });
-
-  return changed ? sortConversations(updated) : conversations;
-}
-
-function mergeServerSnapshot(
-  serverItems: Conversation[],
-  currentItems: Conversation[],
-  mutationVersions: ReadonlyMap<number, number>,
-  requestMutationVersion: number,
-): Conversation[] {
-  const currentById = new Map(
-    currentItems.map((conversation) => [conversation.id, conversation]),
-  );
-  const serverIds = new Set(serverItems.map((conversation) => conversation.id));
-
-  const merged = serverItems.map((serverConversation) => {
-    const currentConversation = currentById.get(serverConversation.id);
-    const mutationVersion = mutationVersions.get(serverConversation.id) ?? 0;
-
-    return currentConversation && mutationVersion > requestMutationVersion
-      ? currentConversation
-      : serverConversation;
-  });
-
-  // Uma resposta iniciada antes de um evento não deve apagar uma conversa
-  // que acabou de mudar e ainda não fazia parte do snapshot HTTP.
-  for (const currentConversation of currentItems) {
-    const mutationVersion = mutationVersions.get(currentConversation.id) ?? 0;
-
-    if (
-      mutationVersion > requestMutationVersion &&
-      !serverIds.has(currentConversation.id)
-    ) {
-      merged.push(currentConversation);
-    }
-  }
-
-  return sortConversations(merged);
-}
-
-export function useConversations({
-  currentUserId,
-}: UseConversationsOptions) {
+export function useConversations({ currentUserId }: UseConversationsOptions) {
   const { socket } = useSocket();
 
-  const [conversationStore, setConversationStore] =
-    useState<ConversationStore>({ ownerUserId: null, items: [] });
+  const [conversationStore, setConversationStore] = useState<ConversationStore>(
+    { ownerUserId: null, items: [] },
+  );
   const [loadStore, setLoadStore] = useState<LoadStore>({
     ownerUserId: null,
     status: "loading",
@@ -350,8 +226,8 @@ export function useConversations({
               : null;
           const hasNewerMessage = Boolean(
             validConfirmedId &&
-              conversation.lastMessage &&
-              conversation.lastMessage.id > validConfirmedId,
+            conversation.lastMessage &&
+            conversation.lastMessage.id > validConfirmedId,
           );
           const nextUnreadCount = hasNewerMessage
             ? conversation.unreadCount

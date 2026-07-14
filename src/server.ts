@@ -6,9 +6,9 @@ import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import compression from "compression";
 import { Server } from "socket.io";
-
+import { ensureUploadDirectories, uploadPaths } from "./config/uploadPaths";
 import { env } from "./config/env";
-import { logger } from "./utils/logger";
+import { logger, toSafeLogError } from "./utils/logger";
 import { testarConexaoBanco } from "./db/connection";
 import { initModels } from "./models";
 
@@ -21,6 +21,7 @@ import { messagesRoutes } from "./routes/messages.routes";
 import { chatRoutes } from "./routes/chat.routes";
 import { statusRoutes } from "./routes/status.routes";
 import { diagnosticsRoutes } from "./routes/diagnostics.routes";
+import { callsRoutes } from "./routes/calls.routes";
 
 import { setupSocket } from "./sockets";
 import { startStatusCleanupJob } from "./services/StatusCleanupService";
@@ -65,7 +66,7 @@ const io = new Server(server, {
     origin: [...allowedOrigins],
     credentials: true,
     methods: ["GET", "POST"],
-    allowedHeaders: ["Content-Type", "Authorization"],
+    allowedHeaders: ["Content-Type"],
   },
 });
 
@@ -73,7 +74,30 @@ app.set("trust proxy", 1);
 
 app.use(
   helmet({
-    contentSecurityPolicy: false,
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        baseUri: ["'self'"],
+        connectSrc: ["'self'", "ws:", "wss:"],
+        fontSrc: ["'self'", "data:"],
+        formAction: ["'self'"],
+        frameAncestors: ["'none'"],
+        imgSrc: ["'self'", "data:", "blob:"],
+        manifestSrc: ["'self'"],
+        mediaSrc: ["'self'", "blob:"],
+        objectSrc: ["'none'"],
+        scriptSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        workerSrc: ["'self'", "blob:"],
+        upgradeInsecureRequests: env.IS_PRODUCTION ? [] : null,
+      },
+    },
+    crossOriginEmbedderPolicy: false,
+    crossOriginResourcePolicy: { policy: "same-origin" },
+    referrerPolicy: { policy: "strict-origin-when-cross-origin" },
+    strictTransportSecurity: env.IS_PRODUCTION
+      ? { maxAge: 31_536_000, includeSubDomains: true }
+      : false,
   }),
 );
 
@@ -119,7 +143,7 @@ app.use(
 
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
 
-    allowedHeaders: ["Content-Type", "Authorization"],
+    allowedHeaders: ["Content-Type", "X-CSRF-Token"],
 
     exposedHeaders: [
       "RateLimit-Limit",
@@ -141,7 +165,7 @@ app.use((req, res, next) => {
 
     const payload = {
       method: req.method,
-      path: req.originalUrl,
+      path: req.path,
       statusCode: res.statusCode,
       ms,
     };
@@ -184,40 +208,6 @@ app.use(
     setHeaders: (res) => {
       res.setHeader("X-Content-Type-Options", "nosniff");
       res.setHeader("Cache-Control", "public, max-age=2592000, immutable");
-    },
-  }),
-);
-
-app.use(
-  express.static(path.resolve("public"), {
-    dotfiles: "deny",
-    index: "index.html",
-    etag: true,
-    maxAge: "5m",
-
-    setHeaders: (res, filePath) => {
-      const normalizedPath = filePath.replace(/\\/g, "/");
-
-      if (
-        normalizedPath.endsWith("/index.html") ||
-        normalizedPath.endsWith("/sw.js") ||
-        normalizedPath.endsWith("/manifest.webmanifest")
-      ) {
-        res.setHeader("Cache-Control", "no-store");
-        return;
-      }
-
-      if (/\.(js|css)$/i.test(normalizedPath)) {
-        res.setHeader("Cache-Control", "public, max-age=300, must-revalidate");
-
-        return;
-      }
-
-      if (
-        /\.(png|jpg|jpeg|webp|gif|svg|ico|woff|woff2)$/i.test(normalizedPath)
-      ) {
-        res.setHeader("Cache-Control", "public, max-age=604800");
-      }
     },
   }),
 );
@@ -266,14 +256,58 @@ app.use("/api/users", usersRoutes);
 app.use("/api/messages", messagesRoutes);
 app.use("/api/chats", chatRoutes);
 app.use("/api/status", statusRoutes);
+app.use("/api/calls", callsRoutes);
+
+const clientDistPath = path.resolve("client", "dist");
+const clientIndexPath = path.join(clientDistPath, "index.html");
+
+if (env.IS_PRODUCTION) {
+  app.use(
+    express.static(clientDistPath, {
+      dotfiles: "deny",
+      index: false,
+      etag: true,
+      maxAge: 0,
+      setHeaders: (res, filePath) => {
+        const normalizedPath = filePath.replace(/\\/g, "/");
+
+        if (normalizedPath.includes("/assets/")) {
+          res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+        } else if (
+          normalizedPath.endsWith("/index.html") ||
+          normalizedPath.endsWith("/sw.js") ||
+          normalizedPath.endsWith("/manifest.webmanifest")
+        ) {
+          res.setHeader("Cache-Control", "no-store");
+        } else {
+          res.setHeader("Cache-Control", "public, max-age=0, must-revalidate");
+        }
+      },
+    }),
+  );
+
+  app.use((req, res, next) => {
+    if (req.method !== "GET" || !req.accepts("html")) return next();
+
+    const excludedPrefixes = ["/api", "/socket.io", "/uploads", "/health"];
+    const isExcluded = excludedPrefixes.some(
+      (prefix) => req.path === prefix || req.path.startsWith(`${prefix}/`),
+    );
+    const hasFileExtension = path.posix.extname(req.path) !== "";
+
+    if (isExcluded || hasFileExtension) return next();
+
+    return res.sendFile(clientIndexPath, {
+      headers: {
+        "Cache-Control": "no-store",
+      },
+    });
+  });
+}
 
 app.use((req, _res, next) => {
   return next(
-    new AppError(
-      404,
-      `Rota ${req.originalUrl} não encontrada.`,
-      "ROUTE_NOT_FOUND",
-    ),
+    new AppError(404, `Rota ${req.path} não encontrada.`, "ROUTE_NOT_FOUND"),
   );
 });
 
@@ -281,6 +315,14 @@ app.use(errorHandler);
 
 async function bootstrap() {
   try {
+    await ensureUploadDirectories();
+
+    logger.info(
+      {
+        uploadRoot: uploadPaths.root,
+      },
+      "Diretórios de upload preparados",
+    );
     initModels();
 
     await testarConexaoBanco();
@@ -301,7 +343,7 @@ async function bootstrap() {
   } catch (error) {
     logger.fatal(
       {
-        err: error,
+        error: toSafeLogError(error),
       },
       "Erro fatal ao iniciar servidor",
     );
@@ -313,7 +355,7 @@ async function bootstrap() {
 process.on("unhandledRejection", (error) => {
   logger.fatal(
     {
-      err: error,
+      error: toSafeLogError(error),
     },
     "Unhandled Rejection",
   );
@@ -324,7 +366,7 @@ process.on("unhandledRejection", (error) => {
 process.on("uncaughtException", (error) => {
   logger.fatal(
     {
-      err: error,
+      error: toSafeLogError(error),
     },
     "Uncaught Exception",
   );

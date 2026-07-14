@@ -1,14 +1,8 @@
 import crypto from "crypto";
-import fs from "fs";
 import multer from "multer";
-import path from "path";
 import { AppError } from "../errors/AppError";
-
-const UPLOAD_DIR = path.resolve("public", "uploads", "status");
-
-fs.mkdirSync(UPLOAD_DIR, {
-  recursive: true,
-});
+import { uploadPaths } from "../config/uploadPaths";
+const UPLOAD_DIR = uploadPaths.status;
 
 const ALLOWED_STATUS_MIME_TYPES = new Map<string, string>([
   ["image/jpeg", "jpg"],

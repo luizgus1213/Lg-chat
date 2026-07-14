@@ -1,0 +1,53 @@
+.viewer {
+  min-height: min(68vh, 680px);
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 14px;
+  background: #05080d;
+}
+.viewer > p {
+  color: #b7c4c2;
+}
+.viewer video {
+  width: 100%;
+  max-height: 68vh;
+}
+.imageStage {
+  width: 100%;
+  height: min(68vh, 680px);
+  display: grid;
+  place-items: center;
+  overflow: auto;
+}
+.imageStage img {
+  max-width: 100%;
+  max-height: 100%;
+  transform-origin: center;
+  transition: transform 160ms ease;
+}
+.footer {
+  width: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+}
+.footer label {
+  display: flex;
+  flex: 1;
+  min-width: 220px;
+  gap: 10px;
+  align-items: center;
+}
+.footer input {
+  flex: 1;
+}
+.footer a {
+  padding: 9px 13px;
+  border-radius: 10px;
+  color: #061c17;
+  background: #42d7b0;
+  text-decoration: none;
+  font-weight: 800;
+}

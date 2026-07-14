@@ -15,7 +15,8 @@ const API_ERROR_MESSAGES: Readonly<Record<string, string>> = {
   INVALID_LOGIN: "E-mail ou senha incorretos.",
   EMAIL_NOT_VERIFIED: "Confirme seu e-mail antes de entrar.",
   EMAIL_EXISTS: "Este e-mail já está cadastrado.",
-  INVALID_EMAIL_CODE: "O código informado é inválido. Confira e tente novamente.",
+  INVALID_EMAIL_CODE:
+    "O código informado é inválido. Confira e tente novamente.",
   EMAIL_CODE_MISSING: "Solicite um novo código para verificar seu e-mail.",
   EMAIL_CODE_EXPIRED: "O código expirou. Solicite um novo código.",
   EMAIL_CODE_TOO_MANY_ATTEMPTS:

@@ -19,7 +19,6 @@ export const statusTextColorSchema = z.enum(STATUS_TEXT_COLORS);
 export const statusUserSchema = z.object({
   id: z.number().int().positive(),
   nome: z.string().trim().min(1).max(120),
-  email: z.string().trim().email().max(255),
   avatarUrl: nullableText(500),
   about: z.string().max(140).optional().default("Disponível"),
   isOnline: z.boolean().optional().default(false),
@@ -78,7 +77,10 @@ const STATUS_VIDEO_TYPES = [
   "video/quicktime",
 ] as const;
 
-export const STATUS_MEDIA_ACCEPT = [...STATUS_IMAGE_TYPES, ...STATUS_VIDEO_TYPES].join(",");
+export const STATUS_MEDIA_ACCEPT = [
+  ...STATUS_IMAGE_TYPES,
+  ...STATUS_VIDEO_TYPES,
+].join(",");
 
 export const statusMediaInputSchema = z
   .object({

@@ -2,7 +2,7 @@
   window.LGChat = window.LGChat || {};
 
   window.LGChat.state = {
-    token: localStorage.getItem("token"),
+    token: null,
     currentUser: null,
     socket: null,
     allChats: [],

@@ -47,10 +47,7 @@ export const loginInputSchema = z.object({
     .max(150, "Email muito grande.")
     .transform((email) => email.toLowerCase()),
 
-  senha: z
-    .string()
-    .min(1, "Digite sua senha.")
-    .max(72, "Senha muito grande."),
+  senha: z.string().min(1, "Digite sua senha.").max(72, "Senha muito grande."),
 });
 
 export const verifyEmailInputSchema = z.object({
@@ -77,7 +74,6 @@ export const resendEmailInputSchema = z.object({
 });
 
 export const authSessionSchema = z.object({
-  token: z.string().trim().min(1).max(8_192),
   user: authUserSchema,
 });
 

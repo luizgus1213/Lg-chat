@@ -1,7 +1,11 @@
 import type { Request, Response } from "express";
-import { updateMyProfileSchema } from "../validators/userValidator";
+import {
+  listUsersQuerySchema,
+  updateMyProfileSchema,
+} from "../validators/userValidator";
 import {
   listUsers,
+  listUserDirectory,
   updateMyAvatar,
   updateMyProfile,
 } from "../services/UserService";
@@ -16,6 +20,18 @@ export async function getUsers(req: Request, res: Response) {
   const users = await listUsers(req.user!.id);
 
   return ok(res, users);
+}
+
+export async function getUserDirectory(req: Request, res: Response) {
+  const query = listUsersQuerySchema.parse(req.query);
+  const result = await listUserDirectory({
+    currentUserId: req.user!.id,
+    query: query.q,
+    page: query.page,
+    limit: query.limit,
+  });
+
+  return ok(res, result);
 }
 
 export async function updateMyProfileController(req: Request, res: Response) {

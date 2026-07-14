@@ -128,3 +128,9 @@ export async function getMySession(
     data: parseResponseData(meResultSchema, response.data),
   };
 }
+
+export async function logoutUser(): Promise<void> {
+  await apiRequest<unknown>("/api/auth/logout", {
+    method: "POST",
+  });
+}

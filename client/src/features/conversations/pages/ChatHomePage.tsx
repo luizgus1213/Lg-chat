@@ -1,18 +1,16 @@
-import { useCallback, useMemo, useState } from "react";
+import { lazy, Suspense, useCallback, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 
 import { Modal } from "../../../components/Modal";
-import { useCalls } from "../../calls";
+import { useCalls } from "../../calls/useCalls";
 import { useAuth } from "../../auth/useAuth";
 import { GroupInfoDialog } from "../../groups/GroupInfoDialog";
 import { NewGroupDialog } from "../../groups/NewGroupDialog";
 import { MessagesPanel } from "../../messages/components/MessagesPanel";
-import { StarredMessagesPage } from "../../messages/components/StarredMessagesPage";
 import type { ServerChatMessage } from "../../messages/messages.schemas";
 import { NotificationSettingsDialog } from "../../notifications/NotificationSettingsDialog";
 import { useNotifications } from "../../notifications/useNotifications";
 import { ProfileDialog } from "../../profile/ProfileDialog";
-import { StatusPage } from "../../status";
 import { NewConversationDialog } from "../../users/components/NewConversationDialog";
 import { ArchivedConversationsPage } from "../components/ArchivedConversationsPage";
 import { ConversationAvatar } from "../components/ConversationAvatar";
@@ -27,6 +25,17 @@ import { getConversationTitle } from "../conversations.utils";
 import { useConversations } from "../useConversations";
 
 import styles from "./ChatHomePage.module.css";
+
+const StatusPage = lazy(() =>
+  import("../../status/StatusPage").then((module) => ({
+    default: module.StatusPage,
+  })),
+);
+const StarredMessagesPage = lazy(() =>
+  import("../../messages/components/StarredMessagesPage").then((module) => ({
+    default: module.StarredMessagesPage,
+  })),
+);
 
 type Section = "conversations" | "status" | "starred" | "archived";
 
@@ -46,7 +55,9 @@ export function ChatHomePage() {
   const params = useParams();
   const currentUserId = auth.user?.id ?? null;
   const section = getSection(location.pathname);
-  const navigationState = location.state as { focusedMessage?: ServerChatMessage } | null;
+  const navigationState = location.state as {
+    focusedMessage?: ServerChatMessage;
+  } | null;
 
   const selectedChatId = useMemo(() => {
     if (!params.chatId) return null;
@@ -68,7 +79,9 @@ export function ChatHomePage() {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [isMoreOpen, setIsMoreOpen] = useState(false);
-  const [messageSearchChatId, setMessageSearchChatId] = useState<number | null>(null);
+  const [messageSearchChatId, setMessageSearchChatId] = useState<number | null>(
+    null,
+  );
   const [optionsChatId, setOptionsChatId] = useState<number | null>(null);
   const [groupInfoChatId, setGroupInfoChatId] = useState<number | null>(null);
   const [messagePanelVersion, setMessagePanelVersion] = useState(0);
@@ -76,16 +89,25 @@ export function ChatHomePage() {
 
   const selectedConversation = useMemo(() => {
     if (!selectedChatId) return null;
-    return conversations.find((conversation) => conversation.id === selectedChatId) ?? null;
+    return (
+      conversations.find(
+        (conversation) => conversation.id === selectedChatId,
+      ) ?? null
+    );
   }, [conversations, selectedChatId]);
 
   const filteredConversations = useMemo(() => {
     const normalizedSearch = search.trim().toLocaleLowerCase("pt-BR");
     if (!normalizedSearch) return conversations;
     return conversations.filter((conversation) => {
-      const title = getConversationTitle(conversation).toLocaleLowerCase("pt-BR");
-      const lastMessage = conversation.lastMessage?.text?.toLocaleLowerCase("pt-BR") ?? "";
-      return title.includes(normalizedSearch) || lastMessage.includes(normalizedSearch);
+      const title =
+        getConversationTitle(conversation).toLocaleLowerCase("pt-BR");
+      const lastMessage =
+        conversation.lastMessage?.text?.toLocaleLowerCase("pt-BR") ?? "";
+      return (
+        title.includes(normalizedSearch) ||
+        lastMessage.includes(normalizedSearch)
+      );
     });
   }, [conversations, search]);
 
@@ -97,7 +119,8 @@ export function ChatHomePage() {
   });
 
   const handleReadConfirmed = useCallback(
-    (chatId: number, messageId: number) => confirmConversationRead(chatId, messageId),
+    (chatId: number, messageId: number) =>
+      confirmConversationRead(chatId, messageId),
     [confirmConversationRead],
   );
 
@@ -146,7 +169,8 @@ export function ChatHomePage() {
   const isInitialLoading = status === "loading" && !hasConversations;
   const isInitialError = status === "error" && !hasConversations;
   const isSearching = Boolean(search.trim());
-  const showMainOnMobile = Boolean(selectedConversation) || section !== "conversations";
+  const showMainOnMobile =
+    Boolean(selectedConversation) || section !== "conversations";
 
   function closeMoreAnd(action: () => void) {
     setIsMoreOpen(false);
@@ -154,43 +178,118 @@ export function ChatHomePage() {
   }
 
   return (
-    <main className={`${styles.shell} ${showMainOnMobile ? styles.selected : ""}`}>
+    <main
+      className={`${styles.shell} ${showMainOnMobile ? styles.selected : ""}`}
+    >
       <nav className={styles.navigation} aria-label="Navegação principal">
-        <Link className={section === "conversations" ? styles.navActive : ""} to="/app" aria-label="Conversas" title="Conversas" onClick={closeConversationPanels}>
-          <span aria-hidden="true">◫</span><small>Conversas</small>
+        <Link
+          className={section === "conversations" ? styles.navActive : ""}
+          to="/app"
+          aria-label="Conversas"
+          title="Conversas"
+          onClick={closeConversationPanels}
+        >
+          <span aria-hidden="true">◫</span>
+          <small>Conversas</small>
         </Link>
-        <Link className={section === "status" ? styles.navActive : ""} to="/app/status" aria-label="Status" title="Status" onClick={closeConversationPanels}>
-          <span aria-hidden="true">◉</span><small>Status</small>
+        <Link
+          className={section === "status" ? styles.navActive : ""}
+          to="/app/status"
+          aria-label="Status"
+          title="Status"
+          onClick={closeConversationPanels}
+        >
+          <span aria-hidden="true">◉</span>
+          <small>Status</small>
         </Link>
-        <button type="button" aria-label="Nova conversa" title="Nova conversa" onClick={() => setIsNewConversationOpen(true)}>
-          <span aria-hidden="true">＋</span><small>Conversa</small>
+        <button
+          type="button"
+          aria-label="Nova conversa"
+          title="Nova conversa"
+          onClick={() => setIsNewConversationOpen(true)}
+        >
+          <span aria-hidden="true">＋</span>
+          <small>Conversa</small>
         </button>
-        <button type="button" aria-label="Novo grupo" title="Novo grupo" onClick={() => setIsNewGroupOpen(true)}>
-          <span aria-hidden="true">♟</span><small>Grupo</small>
+        <button
+          type="button"
+          aria-label="Novo grupo"
+          title="Novo grupo"
+          onClick={() => setIsNewGroupOpen(true)}
+        >
+          <span aria-hidden="true">♟</span>
+          <small>Grupo</small>
         </button>
-        <Link className={`${styles.desktopOnly} ${section === "starred" ? styles.navActive : ""}`} to="/app/starred" aria-label="Mensagens favoritas" title="Mensagens favoritas" onClick={closeConversationPanels}>
-          <span aria-hidden="true">★</span><small>Favoritas</small>
+        <Link
+          className={`${styles.desktopOnly} ${section === "starred" ? styles.navActive : ""}`}
+          to="/app/starred"
+          aria-label="Mensagens favoritas"
+          title="Mensagens favoritas"
+          onClick={closeConversationPanels}
+        >
+          <span aria-hidden="true">★</span>
+          <small>Favoritas</small>
         </Link>
-        <Link className={`${styles.desktopOnly} ${section === "archived" ? styles.navActive : ""}`} to="/app/archived" aria-label="Conversas arquivadas" title="Conversas arquivadas" onClick={closeConversationPanels}>
-          <span aria-hidden="true">▣</span><small>Arquivadas</small>
+        <Link
+          className={`${styles.desktopOnly} ${section === "archived" ? styles.navActive : ""}`}
+          to="/app/archived"
+          aria-label="Conversas arquivadas"
+          title="Conversas arquivadas"
+          onClick={closeConversationPanels}
+        >
+          <span aria-hidden="true">▣</span>
+          <small>Arquivadas</small>
         </Link>
-        <button className={styles.desktopOnly} type="button" aria-label="Meu perfil" title="Meu perfil" onClick={() => setIsProfileOpen(true)}>
-          <span aria-hidden="true">●</span><small>Perfil</small>
+        <button
+          className={styles.desktopOnly}
+          type="button"
+          aria-label="Meu perfil"
+          title="Meu perfil"
+          onClick={() => setIsProfileOpen(true)}
+        >
+          <span aria-hidden="true">●</span>
+          <small>Perfil</small>
         </button>
-        <button className={styles.desktopOnly} type="button" aria-label="Notificações" title="Notificações" onClick={() => setIsNotificationsOpen(true)}>
-          <span aria-hidden="true">♬</span><small>Alertas</small>
+        <button
+          className={styles.desktopOnly}
+          type="button"
+          aria-label="Notificações"
+          title="Notificações"
+          onClick={() => setIsNotificationsOpen(true)}
+        >
+          <span aria-hidden="true">♬</span>
+          <small>Alertas</small>
         </button>
-        <button className={styles.desktopOnly} type="button" aria-label="Sair" title="Sair" onClick={auth.signOut}>
-          <span aria-hidden="true">↪</span><small>Sair</small>
+        <button
+          className={styles.desktopOnly}
+          type="button"
+          aria-label="Sair"
+          title="Sair"
+          onClick={auth.signOut}
+        >
+          <span aria-hidden="true">↪</span>
+          <small>Sair</small>
         </button>
-        <button className={styles.mobileMore} type="button" aria-label="Mais opções" title="Mais opções" onClick={() => setIsMoreOpen(true)}>
-          <span aria-hidden="true">•••</span><small>Mais</small>
+        <button
+          className={styles.mobileMore}
+          type="button"
+          aria-label="Mais opções"
+          title="Mais opções"
+          onClick={() => setIsMoreOpen(true)}
+        >
+          <span aria-hidden="true">•••</span>
+          <small>Mais</small>
         </button>
       </nav>
 
       <aside className={styles.sidebar}>
         <header className={styles.sidebarHeader}>
-          <button className={styles.avatarButton} type="button" aria-label="Abrir meu perfil" onClick={() => setIsProfileOpen(true)}>
+          <button
+            className={styles.avatarButton}
+            type="button"
+            aria-label="Abrir meu perfil"
+            onClick={() => setIsProfileOpen(true)}
+          >
             <ConversationAvatar name={userName} src={auth.user?.avatarUrl} />
           </button>
           <div className={styles.currentUser}>
@@ -211,27 +310,57 @@ export function ChatHomePage() {
 
         <div className={styles.search}>
           <label htmlFor="conversation-search">Buscar conversa</label>
-          <input id="conversation-search" type="search" value={search} placeholder="Pesquisar conversas" autoComplete="off" onChange={(event) => setSearch(event.target.value)} />
+          <input
+            id="conversation-search"
+            type="search"
+            value={search}
+            placeholder="Pesquisar conversas"
+            autoComplete="off"
+            onChange={(event) => setSearch(event.target.value)}
+          />
         </div>
 
         <section className={styles.sidebarContent} aria-label="Conversas">
-          {isInitialLoading ? <div className={styles.state}><strong>Carregando conversas</strong><span>Aguarde um momento.</span></div> : null}
+          {isInitialLoading ? (
+            <div className={styles.state}>
+              <strong>Carregando conversas</strong>
+              <span>Aguarde um momento.</span>
+            </div>
+          ) : null}
           {isInitialError ? (
             <div className={styles.state}>
               <strong>Não foi possível carregar</strong>
-              <span>{errorMessage ?? "Ocorreu um erro ao buscar as conversas."}</span>
-              <button className={styles.retryButton} type="button" onClick={() => void refresh()}>Tentar novamente</button>
+              <span>
+                {errorMessage ?? "Ocorreu um erro ao buscar as conversas."}
+              </span>
+              <button
+                className={styles.retryButton}
+                type="button"
+                onClick={() => void refresh()}
+              >
+                Tentar novamente
+              </button>
             </div>
           ) : null}
           {!isInitialLoading && !isInitialError ? (
             <>
-              {errorMessage ? <div className={styles.refreshNotice} role="status">{errorMessage} As conversas já carregadas foram mantidas.</div> : null}
+              {errorMessage ? (
+                <div className={styles.refreshNotice} role="status">
+                  {errorMessage} As conversas já carregadas foram mantidas.
+                </div>
+              ) : null}
               <ConversationList
                 conversations={filteredConversations}
                 selectedChatId={selectedChatId}
                 onSelect={selectConversation}
-                emptyTitle={isSearching ? "Nenhum resultado" : "Nenhuma conversa"}
-                emptyMessage={isSearching ? "Tente pesquisar outro nome ou trecho de mensagem." : "Use Nova conversa ou Novo grupo para começar."}
+                emptyTitle={
+                  isSearching ? "Nenhum resultado" : "Nenhuma conversa"
+                }
+                emptyMessage={
+                  isSearching
+                    ? "Tente pesquisar outro nome ou trecho de mensagem."
+                    : "Use Nova conversa ou Novo grupo para começar."
+                }
               />
             </>
           ) : null}
@@ -239,48 +368,152 @@ export function ChatHomePage() {
       </aside>
 
       <section className={styles.main}>
-        {section === "status" && auth.user ? <StatusPage currentUser={auth.user} onBack={() => { closeConversationPanels(); navigate("/app"); }} /> : null}
+        {section === "status" && auth.user ? (
+          <Suspense
+            fallback={
+              <div className={styles.placeholder}>Carregando status…</div>
+            }
+          >
+            <StatusPage
+              currentUser={auth.user}
+              onBack={() => {
+                closeConversationPanels();
+                navigate("/app");
+              }}
+            />
+          </Suspense>
+        ) : null}
 
         {section === "starred" && currentUserId ? (
-          <StarredMessagesPage
-            conversations={conversations}
-            currentUserId={currentUserId}
-            onOpen={({ conversation, message }) =>
-              navigate(`/app/chat/${conversation.id}`, {
-                state: { focusedMessage: message },
-              })
+          <Suspense
+            fallback={
+              <div className={styles.placeholder}>Carregando favoritas…</div>
+            }
+          >
+            <StarredMessagesPage
+              currentUserId={currentUserId}
+              onOpen={({ conversation, message }) =>
+                navigate(`/app/chat/${conversation.id}`, {
+                  state: { focusedMessage: message },
+                })
+              }
+            />
+          </Suspense>
+        ) : null}
+
+        {section === "archived" ? (
+          <ArchivedConversationsPage
+            onOpen={(conversation) =>
+              void restoreArchivedConversation(conversation)
             }
           />
         ) : null}
 
-        {section === "archived" ? <ArchivedConversationsPage onOpen={(conversation) => void restoreArchivedConversation(conversation)} /> : null}
-
-        {section === "conversations" && selectedConversation && currentUserId ? (
+        {section === "conversations" &&
+        selectedConversation &&
+        currentUserId ? (
           <>
             <header className={styles.mainHeader}>
-              <button className={styles.backButton} type="button" aria-label="Voltar para conversas" onClick={() => { closeConversationPanels(); navigate("/app"); }}>←</button>
+              <button
+                className={styles.backButton}
+                type="button"
+                aria-label="Voltar para conversas"
+                onClick={() => {
+                  closeConversationPanels();
+                  navigate("/app");
+                }}
+              >
+                ←
+              </button>
               <button
                 className={styles.contactButton}
                 type="button"
                 disabled={selectedConversation.type !== "group"}
-                aria-label={selectedConversation.type === "group" ? "Abrir informações do grupo" : undefined}
-                onClick={() => selectedConversation.type === "group" && setGroupInfoChatId(selectedConversation.id)}
+                aria-label={
+                  selectedConversation.type === "group"
+                    ? "Abrir informações do grupo"
+                    : undefined
+                }
+                onClick={() =>
+                  selectedConversation.type === "group" &&
+                  setGroupInfoChatId(selectedConversation.id)
+                }
               >
-                <ConversationAvatar name={getConversationTitle(selectedConversation)} src={selectedConversation.avatarUrl} />
+                <ConversationAvatar
+                  name={getConversationTitle(selectedConversation)}
+                  src={selectedConversation.avatarUrl}
+                />
                 <span className={styles.contact}>
                   <strong>{getConversationTitle(selectedConversation)}</strong>
-                  <span>{selectedConversation.type === "group" ? "Grupo" : selectedConversation.privateUser?.isOnline ? "Online" : (selectedConversation.privateUser?.about ?? "Offline")}</span>
+                  <span>
+                    {selectedConversation.type === "group"
+                      ? "Grupo"
+                      : selectedConversation.privateUser?.isOnline
+                        ? "Online"
+                        : (selectedConversation.privateUser?.about ??
+                          "Offline")}
+                  </span>
                 </span>
               </button>
               <div className={styles.headerActions}>
                 {selectedConversation.type === "private" ? (
                   <>
-                    <button type="button" aria-label="Iniciar chamada de voz" title="Chamada de voz" disabled={calls.isBusy || Boolean(selectedConversation.block?.isBlocked)} onClick={() => void calls.startCall({ chatId: selectedConversation.id, type: "voice", contact: selectedConversation.privateUser })}>☎</button>
-                    <button type="button" aria-label="Iniciar chamada de vídeo" title="Chamada de vídeo" disabled={calls.isBusy || Boolean(selectedConversation.block?.isBlocked)} onClick={() => void calls.startCall({ chatId: selectedConversation.id, type: "video", contact: selectedConversation.privateUser })}>▣</button>
+                    <button
+                      type="button"
+                      aria-label="Iniciar chamada de voz"
+                      title="Chamada de voz"
+                      disabled={
+                        calls.isBusy ||
+                        Boolean(selectedConversation.block?.isBlocked)
+                      }
+                      onClick={() =>
+                        void calls.startCall({
+                          chatId: selectedConversation.id,
+                          type: "voice",
+                          contact: selectedConversation.privateUser,
+                        })
+                      }
+                    >
+                      ☎
+                    </button>
+                    <button
+                      type="button"
+                      aria-label="Iniciar chamada de vídeo"
+                      title="Chamada de vídeo"
+                      disabled={
+                        calls.isBusy ||
+                        Boolean(selectedConversation.block?.isBlocked)
+                      }
+                      onClick={() =>
+                        void calls.startCall({
+                          chatId: selectedConversation.id,
+                          type: "video",
+                          contact: selectedConversation.privateUser,
+                        })
+                      }
+                    >
+                      ▣
+                    </button>
                   </>
                 ) : null}
-                <button type="button" aria-label="Buscar mensagens" title="Buscar mensagens" onClick={() => setMessageSearchChatId(selectedConversation.id)}>⌕</button>
-                <button type="button" aria-label="Opções da conversa" title="Opções da conversa" onClick={() => setOptionsChatId(selectedConversation.id)}>⋮</button>
+                <button
+                  type="button"
+                  aria-label="Buscar mensagens"
+                  title="Buscar mensagens"
+                  onClick={() =>
+                    setMessageSearchChatId(selectedConversation.id)
+                  }
+                >
+                  ⌕
+                </button>
+                <button
+                  type="button"
+                  aria-label="Opções da conversa"
+                  title="Opções da conversa"
+                  onClick={() => setOptionsChatId(selectedConversation.id)}
+                >
+                  ⋮
+                </button>
               </div>
             </header>
 
@@ -298,7 +531,8 @@ export function ChatHomePage() {
                 navigate("/app");
               }}
               initialLocatedMessage={
-                navigationState?.focusedMessage?.chatId === selectedConversation.id
+                navigationState?.focusedMessage?.chatId ===
+                selectedConversation.id
                   ? navigationState.focusedMessage
                   : null
               }
@@ -316,16 +550,34 @@ export function ChatHomePage() {
 
         {section === "conversations" && !selectedConversation ? (
           <div className={styles.placeholder}>
-            <span className={styles.badge} aria-hidden="true">LG</span>
+            <span className={styles.badge} aria-hidden="true">
+              LG
+            </span>
             <h1>LG Chat</h1>
-            <p>{selectedChatId && status === "ready" ? "Essa conversa não foi encontrada ou você não possui mais acesso." : "Selecione uma conversa para visualizar e enviar mensagens."}</p>
+            <p>
+              {selectedChatId && status === "ready"
+                ? "Essa conversa não foi encontrada ou você não possui mais acesso."
+                : "Selecione uma conversa para visualizar e enviar mensagens."}
+            </p>
           </div>
         ) : null}
       </section>
 
-      {isNewConversationOpen ? <NewConversationDialog onClose={() => setIsNewConversationOpen(false)} onConversationCreated={handleConversationCreated} /> : null}
-      {isNewGroupOpen ? <NewGroupDialog onClose={() => setIsNewGroupOpen(false)} onCreated={handleConversationCreated} /> : null}
-      {isProfileOpen ? <ProfileDialog onClose={() => setIsProfileOpen(false)} /> : null}
+      {isNewConversationOpen ? (
+        <NewConversationDialog
+          onClose={() => setIsNewConversationOpen(false)}
+          onConversationCreated={handleConversationCreated}
+        />
+      ) : null}
+      {isNewGroupOpen ? (
+        <NewGroupDialog
+          onClose={() => setIsNewGroupOpen(false)}
+          onCreated={handleConversationCreated}
+        />
+      ) : null}
+      {isProfileOpen ? (
+        <ProfileDialog onClose={() => setIsProfileOpen(false)} />
+      ) : null}
       {isNotificationsOpen ? (
         <NotificationSettingsDialog
           soundEnabled={notifications.soundEnabled}
@@ -337,25 +589,72 @@ export function ChatHomePage() {
           onClose={() => setIsNotificationsOpen(false)}
         />
       ) : null}
-      {optionsChatId === selectedConversation?.id && selectedConversation ? <ConversationOptionsDialog conversation={selectedConversation} onClose={() => setOptionsChatId(null)} onChanged={handleConversationAction} /> : null}
-      {groupInfoChatId === selectedConversation?.id && selectedConversation?.type === "group" && currentUserId ? (
+      {optionsChatId === selectedConversation?.id && selectedConversation ? (
+        <ConversationOptionsDialog
+          conversation={selectedConversation}
+          onClose={() => setOptionsChatId(null)}
+          onChanged={handleConversationAction}
+        />
+      ) : null}
+      {groupInfoChatId === selectedConversation?.id &&
+      selectedConversation?.type === "group" &&
+      currentUserId ? (
         <GroupInfoDialog
           chatId={selectedConversation.id}
           currentUserId={currentUserId}
           onClose={() => setGroupInfoChatId(null)}
           onChanged={refresh}
-          onRemoved={async () => { await refresh(); navigate("/app"); }}
+          onRemoved={async () => {
+            await refresh();
+            navigate("/app");
+          }}
         />
       ) : null}
 
       {isMoreOpen ? (
-        <Modal title="Mais opções" onClose={() => setIsMoreOpen(false)} size="small">
+        <Modal
+          title="Mais opções"
+          onClose={() => setIsMoreOpen(false)}
+          size="small"
+        >
           <div className={styles.moreMenu}>
-            <Link to="/app/starred" onClick={() => { closeConversationPanels(); setIsMoreOpen(false); }}>★ Mensagens favoritas</Link>
-            <Link to="/app/archived" onClick={() => { closeConversationPanels(); setIsMoreOpen(false); }}>▣ Conversas arquivadas</Link>
-            <button type="button" onClick={() => closeMoreAnd(() => setIsProfileOpen(true))}>● Meu perfil</button>
-            <button type="button" onClick={() => closeMoreAnd(() => setIsNotificationsOpen(true))}>♬ Notificações</button>
-            <button className={styles.moreDanger} type="button" onClick={() => closeMoreAnd(auth.signOut)}>↪ Sair</button>
+            <Link
+              to="/app/starred"
+              onClick={() => {
+                closeConversationPanels();
+                setIsMoreOpen(false);
+              }}
+            >
+              ★ Mensagens favoritas
+            </Link>
+            <Link
+              to="/app/archived"
+              onClick={() => {
+                closeConversationPanels();
+                setIsMoreOpen(false);
+              }}
+            >
+              ▣ Conversas arquivadas
+            </Link>
+            <button
+              type="button"
+              onClick={() => closeMoreAnd(() => setIsProfileOpen(true))}
+            >
+              ● Meu perfil
+            </button>
+            <button
+              type="button"
+              onClick={() => closeMoreAnd(() => setIsNotificationsOpen(true))}
+            >
+              ♬ Notificações
+            </button>
+            <button
+              className={styles.moreDanger}
+              type="button"
+              onClick={() => closeMoreAnd(auth.signOut)}
+            >
+              ↪ Sair
+            </button>
           </div>
         </Modal>
       ) : null}
@@ -363,7 +662,13 @@ export function ChatHomePage() {
       {notifications.toast ? (
         <div className={styles.toast} role="status" aria-live="polite">
           <span>{notifications.toast}</span>
-          <button type="button" aria-label="Fechar aviso" onClick={notifications.dismissToast}>×</button>
+          <button
+            type="button"
+            aria-label="Fechar aviso"
+            onClick={notifications.dismissToast}
+          >
+            ×
+          </button>
         </div>
       ) : null}
     </main>

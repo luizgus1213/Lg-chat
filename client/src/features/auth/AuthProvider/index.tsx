@@ -8,14 +8,14 @@ import {
 } from "react";
 
 import { ApiError } from "../../../api/apiClient";
-import { getMySession } from "../auth.api";
+import { getMySession, logoutUser } from "../auth.api";
 import { getAuthErrorMessage, isRequestCancellation } from "../auth.errors";
 import {
   clearAuthStorage,
-  getAuthToken,
+  removeLegacyAuthTokens,
   removePendingVerificationEmail,
-  saveAuthToken,
 } from "../auth.storage";
+import { SESSION_INVALID_EVENT } from "../../../api/apiEvents";
 import {
   AuthContext,
   type AuthContextValue,
@@ -39,16 +39,14 @@ function isInvalidSessionError(error: unknown): boolean {
 }
 
 export function AuthProvider({ children }: AuthProviderProps) {
-  const [status, setStatus] = useState<AuthStatus>(() =>
-    getAuthToken() ? "loading" : "unauthenticated",
-  );
+  const [status, setStatus] = useState<AuthStatus>("loading");
   const [user, setUser] = useState<AuthUser | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const sessionGenerationRef = useRef(0);
   const sessionRequestRef = useRef<AbortController | null>(null);
 
-  const signOut = useCallback(() => {
+  const clearLocalSession = useCallback(() => {
     sessionRequestRef.current?.abort();
     sessionRequestRef.current = null;
     sessionGenerationRef.current += 1;
@@ -58,19 +56,18 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setStatus("unauthenticated");
   }, []);
 
+  const signOut = useCallback(() => {
+    void logoutUser()
+      .catch(() => undefined)
+      .finally(clearLocalSession);
+  }, [clearLocalSession]);
+
   const completeAuthentication = useCallback((session: AuthSession) => {
     sessionRequestRef.current?.abort();
     sessionRequestRef.current = null;
     sessionGenerationRef.current += 1;
 
-    if (!saveAuthToken(session.token)) {
-      clearAuthStorage();
-      setUser(null);
-      setErrorMessage(null);
-      setStatus("unauthenticated");
-      return false;
-    }
-
+    removeLegacyAuthTokens();
     removePendingVerificationEmail();
     setUser(session.user);
     setErrorMessage(null);
@@ -87,20 +84,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const refreshSession = useCallback(async () => {
     if (sessionRequestRef.current) return;
 
-    const token = getAuthToken();
     const generation = ++sessionGenerationRef.current;
-
-    if (!token) {
-      setUser(null);
-      setErrorMessage(null);
-      setStatus("unauthenticated");
-      return;
-    }
 
     const controller = new AbortController();
     sessionRequestRef.current = controller;
 
-    setStatus("loading");
+    setStatus((current) => (current === "authenticated" ? current : "loading"));
     setErrorMessage(null);
 
     try {
@@ -133,9 +122,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
         return;
       }
 
-      setUser(null);
-      setErrorMessage(getAuthErrorMessage(error));
-      setStatus("error");
+      const message = getAuthErrorMessage(error);
+      setErrorMessage(message);
+      setStatus((current) =>
+        current === "authenticated" ? "authenticated" : "error",
+      );
     } finally {
       if (sessionRequestRef.current === controller) {
         sessionRequestRef.current = null;
@@ -146,11 +137,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
   useEffect(() => {
     let active = true;
 
-    if (getAuthToken()) {
-      queueMicrotask(() => {
-        if (active) void refreshSession();
-      });
-    }
+    removeLegacyAuthTokens();
+    queueMicrotask(() => {
+      if (active) void refreshSession();
+    });
 
     return () => {
       active = false;
@@ -158,6 +148,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
       sessionRequestRef.current = null;
     };
   }, [refreshSession]);
+
+  useEffect(() => {
+    window.addEventListener(SESSION_INVALID_EVENT, clearLocalSession);
+    return () =>
+      window.removeEventListener(SESSION_INVALID_EVENT, clearLocalSession);
+  }, [clearLocalSession]);
 
   const value = useMemo<AuthContextValue>(
     () => ({

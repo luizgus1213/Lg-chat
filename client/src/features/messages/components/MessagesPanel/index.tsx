@@ -47,7 +47,8 @@ export function MessagesPanel({
   });
   const typing = useTypingIndicator({ chatId, currentUserId });
   const [replyToMessageId, setReplyToMessageId] = useState<number | null>(null);
-  const [forwardingMessage, setForwardingMessage] = useState<ChatMessage | null>(null);
+  const [forwardingMessage, setForwardingMessage] =
+    useState<ChatMessage | null>(null);
 
   const socketDisabledReason =
     messages.socketStatus === "connected"
@@ -61,10 +62,9 @@ export function MessagesPanel({
   const replyTo = useMemo(
     () =>
       replyToMessageId
-        ? messages.messages.find(
-            (message) =>
-              message.id === replyToMessageId && !message.deletedAt,
-          ) ?? null
+        ? (messages.messages.find(
+            (message) => message.id === replyToMessageId && !message.deletedAt,
+          ) ?? null)
         : null,
     [messages.messages, replyToMessageId],
   );
@@ -157,6 +157,7 @@ export function MessagesPanel({
           onEdit={messages.editMessage}
           onDelete={messages.deleteMessage}
           onForward={setForwardingMessage}
+          onRetry={(messageId) => messages.retryMessage(messageId)}
         />
       )}
 
@@ -188,7 +189,9 @@ export function MessagesPanel({
           conversations={conversations}
           busy={messages.pendingMessageIds.has(forwardingMessage.id)}
           onClose={() => setForwardingMessage(null)}
-          onForward={(targetChatIds) => messages.forwardToChats(forwardingMessage.id, targetChatIds)}
+          onForward={(targetChatIds) =>
+            messages.forwardToChats(forwardingMessage.id, targetChatIds)
+          }
         />
       ) : null}
     </section>

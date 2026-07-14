@@ -1,10 +1,4 @@
-import {
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type FormEvent,
-} from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import {
   Link,
   useLocation,
@@ -66,7 +60,8 @@ export function VerifyEmailPage() {
       return 0;
     }
 
-    const remainingMs = codeSentAt + RESEND_COOLDOWN_SECONDS * 1_000 - Date.now();
+    const remainingMs =
+      codeSentAt + RESEND_COOLDOWN_SECONDS * 1_000 - Date.now();
     return Math.min(
       RESEND_COOLDOWN_SECONDS,
       Math.max(0, Math.ceil(remainingMs / 1_000)),
@@ -220,7 +215,11 @@ export function VerifyEmailPage() {
   return (
     <main className={styles.page}>
       <section className={styles.card}>
-        <Link className={styles.badge} to="/" aria-label="Página inicial do LG Chat">
+        <Link
+          className={styles.badge}
+          to="/"
+          aria-label="Página inicial do LG Chat"
+        >
           LG
         </Link>
 
@@ -288,7 +287,10 @@ export function VerifyEmailPage() {
           ) : null}
 
           {successMessage ? (
-            <div className={`${styles.message} ${styles.success}`} role="status">
+            <div
+              className={`${styles.message} ${styles.success}`}
+              role="status"
+            >
               {successMessage}
             </div>
           ) : null}

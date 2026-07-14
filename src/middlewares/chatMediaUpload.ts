@@ -1,14 +1,8 @@
 import crypto from "crypto";
-import fs from "fs";
 import multer from "multer";
-import path from "path";
 import { AppError } from "../errors/AppError";
-
-const UPLOAD_DIR = path.resolve("public", "uploads", "chat-media");
-
-fs.mkdirSync(UPLOAD_DIR, {
-  recursive: true,
-});
+import { uploadPaths } from "../config/uploadPaths";
+const UPLOAD_DIR = uploadPaths.chatMedia;
 
 const MAX_FILE_SIZE_MB = 50; // limite bruto; limites por tipo ficam em uploadSecurity.ts
 
@@ -43,10 +37,7 @@ const ALLOWED_MIME_TYPES = new Map<string, string>([
   ],
 
   ["application/vnd.ms-excel", "xls"],
-  [
-    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    "xlsx",
-  ],
+  ["application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "xlsx"],
 
   ["application/vnd.ms-powerpoint", "ppt"],
   [

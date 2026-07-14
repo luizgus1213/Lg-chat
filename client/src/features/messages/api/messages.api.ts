@@ -2,6 +2,8 @@ import { apiRequest, type ApiSuccess } from "../../../api/apiClient";
 import {
   chatMessageSchema,
   chatMessagesSchema,
+  messageContextSchema,
+  allStarredMessagesSchema,
   markReadResultSchema,
   type MarkReadResult,
   type ServerChatMessage,
@@ -89,6 +91,38 @@ export async function listStarredMessages(
     { method: "GET", signal: requestOptions.signal },
   );
   return { ...response, data: chatMessagesSchema.parse(response.data) };
+}
+
+export async function listAllStarredMessages(
+  options: { limit?: number; beforeId?: number } = {},
+  requestOptions: RequestOptions = {},
+) {
+  const params = new URLSearchParams({ limit: String(options.limit ?? 30) });
+  if (options.beforeId) params.set("beforeId", String(options.beforeId));
+
+  const response = await apiRequest<unknown>(
+    `/api/chats/messages/starred?${params.toString()}`,
+    { method: "GET", signal: requestOptions.signal },
+  );
+
+  return {
+    ...response,
+    data: allStarredMessagesSchema.parse(response.data),
+  };
+}
+
+export async function loadMessageContext(
+  chatId: number,
+  messageId: number,
+  radius = 15,
+  requestOptions: RequestOptions = {},
+) {
+  const response = await apiRequest<unknown>(
+    `/api/chats/${chatId}/messages/${messageId}/context?radius=${radius}`,
+    { method: "GET", signal: requestOptions.signal },
+  );
+
+  return { ...response, data: messageContextSchema.parse(response.data) };
 }
 
 export async function listMessages(

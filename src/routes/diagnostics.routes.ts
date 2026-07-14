@@ -15,6 +15,10 @@ type ClientDiagnosticBody = {
 };
 
 const diagnosticsRoutes = Router();
+const SENSITIVE_KEY_PATTERN =
+  /(authorization|bearer|token|password|senha|codigo|código|secret|sdp|candidate|message.?content|file)/i;
+const SENSITIVE_TEXT_PATTERN =
+  /(Bearer\s+)[A-Za-z0-9._~+/=-]+|([?&](?:token|code|codigo|password|senha)=)[^&\s]+/gi;
 
 const diagnosticsRateLimit = rateLimit({
   windowMs: 60 * 1000,
@@ -36,7 +40,14 @@ function toSafeString(value: unknown, maxLength: number) {
     return "";
   }
 
-  return value.trim().slice(0, maxLength);
+  return value
+    .replace(
+      SENSITIVE_TEXT_PATTERN,
+      (_match, bearerPrefix, queryPrefix) =>
+        `${bearerPrefix || queryPrefix || ""}[REDACTED]`,
+    )
+    .trim()
+    .slice(0, maxLength);
 }
 
 function toSafeObject(value: unknown) {
@@ -47,8 +58,10 @@ function toSafeObject(value: unknown) {
   const safe: Record<string, unknown> = {};
 
   for (const [key, rawValue] of Object.entries(value)) {
+    if (SENSITIVE_KEY_PATTERN.test(key)) continue;
+
     if (typeof rawValue === "string") {
-      safe[key] = rawValue.slice(0, 500);
+      safe[key] = toSafeString(rawValue, 500);
       continue;
     }
 

@@ -10,6 +10,7 @@ import {
 } from "react";
 
 import type { ChatMessage } from "../../messages.schemas";
+import { useAudioRecorder } from "../../hooks/useAudioRecorder";
 
 import styles from "./styles.module.css";
 
@@ -88,13 +89,19 @@ export function MessageComposer({
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const submittingRef = useRef(false);
+  const audioRecorder = useAudioRecorder();
 
   useEffect(() => {
     if (replyTo && !disabled) textareaRef.current?.focus();
   }, [disabled, replyTo]);
 
   const previewUrl = useMemo(() => {
-    if (!selectedFile || (!selectedFile.type.startsWith("image/") && !selectedFile.type.startsWith("video/"))) return null;
+    if (
+      !selectedFile ||
+      (!selectedFile.type.startsWith("image/") &&
+        !selectedFile.type.startsWith("video/"))
+    )
+      return null;
     return URL.createObjectURL(selectedFile);
   }, [selectedFile]);
 
@@ -121,6 +128,7 @@ export function MessageComposer({
 
   function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0] ?? null;
+    if (file) audioRecorder.cancel();
     setSelectedFile(file);
     setErrorMessage(null);
     if (file && !disabled) textareaRef.current?.focus();
@@ -135,20 +143,22 @@ export function MessageComposer({
     if (disabled || isSending || submittingRef.current) return;
 
     const normalizedText = text.trim();
-    if (!normalizedText && !selectedFile) return;
+    const outgoingFile = selectedFile ?? audioRecorder.file;
+    if (!normalizedText && !outgoingFile) return;
 
     submittingRef.current = true;
     setErrorMessage(null);
 
     try {
-      if (selectedFile) {
-        await onSendMedia(selectedFile, normalizedText, replyTo);
+      if (outgoingFile) {
+        await onSendMedia(outgoingFile, normalizedText, replyTo);
       } else {
         await onSendText(normalizedText, replyTo);
       }
 
       setText("");
       removeSelectedFile();
+      audioRecorder.reset();
       onCancelReply();
       onStopTyping?.();
 
@@ -168,14 +178,19 @@ export function MessageComposer({
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
-    if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
+    if (
+      event.key === "Enter" &&
+      !event.shiftKey &&
+      !event.nativeEvent.isComposing
+    ) {
       event.preventDefault();
       void submit();
     }
   }
 
   const isDisabled = disabled || isSending;
-  const canSubmit = !isDisabled && Boolean(text.trim() || selectedFile);
+  const canSubmit =
+    !isDisabled && Boolean(text.trim() || selectedFile || audioRecorder.file);
 
   return (
     <form
@@ -192,6 +207,12 @@ export function MessageComposer({
       {errorMessage ? (
         <div className={styles.error} role="alert" aria-live="assertive">
           {errorMessage}
+        </div>
+      ) : null}
+
+      {audioRecorder.errorMessage ? (
+        <div className={styles.error} role="alert">
+          {audioRecorder.errorMessage}
         </div>
       ) : null}
 
@@ -215,16 +236,27 @@ export function MessageComposer({
       {selectedFile ? (
         <div className={styles.filePreview}>
           {previewUrl && selectedFile.type.startsWith("image/") ? (
-            <img className={styles.previewMedia} src={previewUrl} alt="Prévia do arquivo selecionado" />
+            <img
+              className={styles.previewMedia}
+              src={previewUrl}
+              alt="Prévia do arquivo selecionado"
+            />
           ) : null}
           {previewUrl && selectedFile.type.startsWith("video/") ? (
-            <video className={styles.previewMedia} src={previewUrl} controls preload="metadata" aria-label="Prévia do vídeo selecionado" />
+            <video
+              className={styles.previewMedia}
+              src={previewUrl}
+              controls
+              preload="metadata"
+              aria-label="Prévia do vídeo selecionado"
+            />
           ) : null}
           <span aria-hidden="true">📎</span>
           <span className={styles.fileDetails}>
             <strong>{selectedFile.name}</strong>
             <span>
-              {selectedFile.type || "Arquivo"} · {formatFileSize(selectedFile.size)}
+              {selectedFile.type || "Arquivo"} ·{" "}
+              {formatFileSize(selectedFile.size)}
             </span>
           </span>
           <button
@@ -234,6 +266,50 @@ export function MessageComposer({
             onClick={removeSelectedFile}
           >
             ×
+          </button>
+        </div>
+      ) : null}
+
+      {audioRecorder.state === "recording" ||
+      audioRecorder.state === "paused" ? (
+        <div className={styles.recorder} role="status">
+          <span className={styles.recordingDot} aria-hidden="true" />
+          <strong>
+            {audioRecorder.state === "paused"
+              ? "Gravação pausada"
+              : "Gravando áudio"}
+          </strong>
+          <time>
+            {new Date(audioRecorder.durationSeconds * 1_000)
+              .toISOString()
+              .slice(14, 19)}
+          </time>
+          {audioRecorder.canPause ? (
+            <button type="button" onClick={audioRecorder.pauseOrResume}>
+              {audioRecorder.state === "paused" ? "Continuar" : "Pausar"}
+            </button>
+          ) : null}
+          <button type="button" onClick={audioRecorder.stop}>
+            Concluir
+          </button>
+          <button type="button" onClick={audioRecorder.cancel}>
+            Cancelar
+          </button>
+        </div>
+      ) : null}
+
+      {audioRecorder.state === "ready" && audioRecorder.previewUrl ? (
+        <div className={styles.recorderPreview}>
+          <audio src={audioRecorder.previewUrl} controls preload="metadata">
+            Seu navegador não suporta a prévia do áudio.
+          </audio>
+          <span>
+            {new Date(audioRecorder.durationSeconds * 1_000)
+              .toISOString()
+              .slice(14, 19)}
+          </span>
+          <button type="button" onClick={audioRecorder.cancel}>
+            Descartar
           </button>
         </div>
       ) : null}
@@ -259,6 +335,21 @@ export function MessageComposer({
           <span className={styles.visuallyHidden}>Anexar arquivo</span>
         </label>
 
+        <button
+          className={styles.recordButton}
+          type="button"
+          disabled={
+            isDisabled ||
+            Boolean(selectedFile) ||
+            audioRecorder.state !== "idle"
+          }
+          aria-label="Gravar mensagem de áudio"
+          title="Gravar áudio"
+          onClick={() => void audioRecorder.start()}
+        >
+          <span aria-hidden="true">●</span>
+        </button>
+
         <label className={styles.visuallyHidden} htmlFor={textareaId}>
           Mensagem ou legenda
         </label>
@@ -269,7 +360,9 @@ export function MessageComposer({
           onChange={handleChange}
           onKeyDown={handleKeyDown}
           onBlur={onStopTyping}
-          placeholder={selectedFile ? "Adicione uma legenda" : "Digite uma mensagem"}
+          placeholder={
+            selectedFile ? "Adicione uma legenda" : "Digite uma mensagem"
+          }
           maxLength={1_000}
           rows={1}
           disabled={isDisabled}

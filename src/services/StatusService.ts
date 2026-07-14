@@ -1,6 +1,6 @@
 import fs from "fs/promises";
-import path from "path";
 import { Op } from "sequelize";
+import { resolveUploadUrlToPath } from "../config/uploadPaths";
 import { AppError } from "../errors/AppError";
 import { ChatMember } from "../models/ChatMember";
 import { StatusPost, type StatusPostType } from "../models/StatusPost";
@@ -16,7 +16,6 @@ function publicUserDTO(user: User) {
   return {
     id: user.id,
     nome: user.nome,
-    email: user.email,
     avatarUrl: user.avatarUrl ?? null,
     about: user.about ?? "Disponível",
     isOnline: Boolean(user.isOnline),
@@ -46,12 +45,23 @@ function getStatusPostType(mimeType: string): Exclude<StatusPostType, "text"> {
 function isLocalStatusMedia(mediaUrl?: string | null) {
   return Boolean(mediaUrl && mediaUrl.startsWith("/uploads/status/"));
 }
-
 async function removeStatusMedia(mediaUrl?: string | null) {
-  if (!isLocalStatusMedia(mediaUrl)) return;
+  if (!isLocalStatusMedia(mediaUrl)) {
+    return;
+  }
 
-  const relativePath = mediaUrl!.replace(/^\//, "");
-  const filePath = path.resolve("public", relativePath.replace(/^public[\\/]/, ""));
+  const filePath = resolveUploadUrlToPath(mediaUrl!, "status");
+
+  if (!filePath) {
+    logger.warn(
+      {
+        mediaUrl,
+      },
+      "Caminho inválido ao tentar remover mídia de status",
+    );
+
+    return;
+  }
 
   await fs.unlink(filePath).catch(() => undefined);
 }
@@ -160,7 +170,10 @@ function statusDTO(params: {
   };
 }
 
-function groupStatusDTOs(statuses: ReturnType<typeof statusDTO>[], currentUserId: number) {
+function groupStatusDTOs(
+  statuses: ReturnType<typeof statusDTO>[],
+  currentUserId: number,
+) {
   const map = new Map<
     number,
     {
@@ -189,7 +202,10 @@ function groupStatusDTOs(statuses: ReturnType<typeof statusDTO>[], currentUserId
       current.hasUnseen = true;
     }
 
-    if (new Date(status.createdAt).getTime() > new Date(current.lastCreatedAt).getTime()) {
+    if (
+      new Date(status.createdAt).getTime() >
+      new Date(current.lastCreatedAt).getTime()
+    ) {
       current.lastCreatedAt = status.createdAt;
     }
 
@@ -202,7 +218,9 @@ function groupStatusDTOs(statuses: ReturnType<typeof statusDTO>[], currentUserId
     if (a.hasUnseen && !b.hasUnseen) return -1;
     if (!a.hasUnseen && b.hasUnseen) return 1;
 
-    return new Date(b.lastCreatedAt).getTime() - new Date(a.lastCreatedAt).getTime();
+    return (
+      new Date(b.lastCreatedAt).getTime() - new Date(a.lastCreatedAt).getTime()
+    );
   });
 }
 
@@ -239,7 +257,10 @@ async function getStatusExtras(statusIds: number[], currentUserId: number) {
   const viewCountMap = new Map<number, number>();
 
   for (const view of allViews) {
-    viewCountMap.set(view.statusPostId, (viewCountMap.get(view.statusPostId) ?? 0) + 1);
+    viewCountMap.set(
+      view.statusPostId,
+      (viewCountMap.get(view.statusPostId) ?? 0) + 1,
+    );
   }
 
   return {
@@ -401,9 +422,16 @@ export async function createMediaStatus(params: {
   });
 }
 
-async function assertCanAccessStatus(status: StatusPost, currentUserId: number) {
+async function assertCanAccessStatus(
+  status: StatusPost,
+  currentUserId: number,
+) {
   if (status.expiresAt.getTime() <= Date.now()) {
-    throw new AppError(404, "Status expirado ou não encontrado.", "STATUS_EXPIRED");
+    throw new AppError(
+      404,
+      "Status expirado ou não encontrado.",
+      "STATUS_EXPIRED",
+    );
   }
 
   if (status.userId === currentUserId) {
@@ -544,7 +572,6 @@ export async function deleteStatus(params: {
     deleted: true,
   };
 }
-
 
 export async function cleanupExpiredStatuses() {
   const expiredStatuses = await StatusPost.findAll({

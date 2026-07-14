@@ -1,24 +1,105 @@
-.form { display: grid; gap: 18px; }
-.avatarRow { display: flex; min-width: 0; align-items: center; gap: 16px; }
-.avatarRow > div { display: grid; min-width: 0; gap: 7px; }
-.avatarRow small, .field small { color: var(--text-muted); font-size: 0.75rem; }
-.field { display: grid; gap: 7px; font-size: 0.84rem; font-weight: 800; }
-.field input, .field textarea {
-  width: 100%; min-width: 0; padding: 11px 12px; border: 1px solid var(--border);
-  border-radius: 10px; outline: none; background: var(--surface-light); color: var(--text);
+.form {
+  display: grid;
+  gap: 18px;
 }
-.field textarea { resize: vertical; line-height: 1.45; }
-.field input:focus, .field textarea:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgb(36 211 102 / 12%); }
-.field small { justify-self: end; }
-.hiddenInput { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
-.fileButton, .primary, .secondary {
-  display: inline-flex; min-height: 40px; align-items: center; justify-content: center; padding: 0 14px;
-  border: 1px solid var(--border); border-radius: 10px; cursor: pointer; font-weight: 800;
+.avatarRow {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 16px;
 }
-.fileButton { width: fit-content; background: var(--surface-light); }
-.fileButton:hover, .secondary:hover:not(:disabled) { border-color: var(--primary); background: var(--surface-hover); }
-.primary { border-color: transparent; background: var(--primary); color: var(--primary-text); }
-.secondary { background: var(--surface-light); color: var(--text); }
-.primary:disabled, .secondary:disabled { cursor: wait; opacity: 0.6; }
-.error { padding: 10px 12px; border-radius: 9px; background: rgb(255 91 104 / 10%); color: #ffadb4; font-size: 0.82rem; }
-@media (max-width: 360px) { .avatarRow { align-items: flex-start; gap: 12px; } }
+.avatarRow > div {
+  display: grid;
+  min-width: 0;
+  gap: 7px;
+}
+.avatarRow small,
+.field small {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+.field {
+  display: grid;
+  gap: 7px;
+  font-size: 0.84rem;
+  font-weight: 800;
+}
+.field input,
+.field textarea {
+  width: 100%;
+  min-width: 0;
+  padding: 11px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  outline: none;
+  background: var(--surface-light);
+  color: var(--text);
+}
+.field textarea {
+  resize: vertical;
+  line-height: 1.45;
+}
+.field input:focus,
+.field textarea:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgb(36 211 102 / 12%);
+}
+.field small {
+  justify-self: end;
+}
+.hiddenInput {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+.fileButton,
+.primary,
+.secondary {
+  display: inline-flex;
+  min-height: 40px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  cursor: pointer;
+  font-weight: 800;
+}
+.fileButton {
+  width: fit-content;
+  background: var(--surface-light);
+}
+.fileButton:hover,
+.secondary:hover:not(:disabled) {
+  border-color: var(--primary);
+  background: var(--surface-hover);
+}
+.primary {
+  border-color: transparent;
+  background: var(--primary);
+  color: var(--primary-text);
+}
+.secondary {
+  background: var(--surface-light);
+  color: var(--text);
+}
+.primary:disabled,
+.secondary:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+.error {
+  padding: 10px 12px;
+  border-radius: 9px;
+  background: rgb(255 91 104 / 10%);
+  color: #ffadb4;
+  font-size: 0.82rem;
+}
+@media (max-width: 360px) {
+  .avatarRow {
+    align-items: flex-start;
+    gap: 12px;
+  }
+}

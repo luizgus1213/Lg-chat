@@ -1,10 +1,6 @@
 import { createContext } from "react";
 
-import type {
-  CallDetails,
-  CallParticipant,
-  CallType,
-} from "./calls.schemas";
+import type { CallDetails, CallParticipant, CallType } from "./calls.schemas";
 
 export type CallPhase =
   | "idle"

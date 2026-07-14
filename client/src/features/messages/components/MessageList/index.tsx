@@ -21,6 +21,7 @@ type MessageListProps = {
   onEdit: (messageId: number, text: string) => Promise<boolean>;
   onDelete: (messageId: number) => Promise<boolean>;
   onForward: (message: ChatMessage) => void;
+  onRetry: (messageId: number) => Promise<void>;
 };
 
 const BOTTOM_THRESHOLD_PX = 80;
@@ -41,6 +42,7 @@ export function MessageList({
   onEdit,
   onDelete,
   onForward,
+  onRetry,
 }: MessageListProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const initializedRef = useRef(false);
@@ -117,13 +119,7 @@ export function MessageList({
       previousLastIdRef.current = lastId;
       updateBottomState();
     }
-  }, [
-    messages,
-    currentUserId,
-    isLoading,
-    isLoadingOlder,
-    updateBottomState,
-  ]);
+  }, [messages, currentUserId, isLoading, isLoadingOlder, updateBottomState]);
 
   useLayoutEffect(() => {
     if (!highlightedMessageId) return;
@@ -180,6 +176,7 @@ export function MessageList({
             onEdit={onEdit}
             onDelete={onDelete}
             onForward={onForward}
+            onRetry={onRetry}
           />
         ))
       )}
@@ -189,7 +186,11 @@ export function MessageList({
           type="button"
           onClick={() => {
             const container = containerRef.current;
-            if (container) container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
+            if (container)
+              container.scrollTo({
+                top: container.scrollHeight,
+                behavior: "smooth",
+              });
             setHasNewMessages(false);
           }}
         >

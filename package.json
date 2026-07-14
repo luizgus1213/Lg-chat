@@ -2,9 +2,32 @@
   "name": "lgchat",
   "version": "1.0.0",
   "main": "dist/server.js",
+  "engines": {
+    "node": ">=22.12.0 <23"
+  },
   "scripts": {
-    "dev": "tsx watch src/server.ts",
-    "build": "tsc",
+    "install:all": "npm ci && npm --prefix client ci",
+    "dev": "concurrently -k -n backend,client -c blue,green \"npm:dev:server\" \"npm:dev:client\"",
+    "dev:server": "tsx watch src/server.ts",
+    "dev:client": "npm --prefix client run dev",
+    "lint": "npm --prefix client run lint",
+    "typecheck": "npm run typecheck:server && npm --prefix client run typecheck",
+    "typecheck:server": "tsc --noEmit",
+    "test": "npm run test:server && npm --prefix client run test",
+    "test:server": "tsx --test src/**/*.test.ts",
+    "test:coverage": "npm run test:server:coverage && npm --prefix client run test:coverage",
+    "test:server:coverage": "tsx --test --experimental-test-coverage src/**/*.test.ts",
+    "build": "npm run build:server && npm run build:client",
+    "build:server": "tsc",
+    "build:server:analysis": "tsc --sourceMap",
+    "build:client": "npm run pwa:icons && npm --prefix client run build",
+    "build:analysis": "npm run build:server:analysis && npm --prefix client run build:analysis",
+    "format:client": "prettier --write \"client/src/**/*.{ts,tsx,css}\" \"client/*.{ts,js,json,html,md}\" \"client/public/*.{js,json,webmanifest}\"",
+    "format": "prettier --write \"src/**/*.ts\" \"src/migrations/20260713010000-adicionar-client-id-idempotente-messages.cjs\" \"*.{json,ts,cjs,md}\" \".github/**/*.yml\" && npm run format:client",
+    "format:check": "prettier --check \"src/**/*.ts\" \"src/migrations/20260713010000-adicionar-client-id-idempotente-messages.cjs\" \"client/src/**/*.{ts,tsx,css}\" \"client/*.{ts,js,json,html,md}\" \"client/public/*.{js,json,webmanifest}\" \"*.{json,ts,cjs,md}\" \".github/**/*.yml\"",
+    "validate": "npm run format:check && npm run lint && npm run typecheck && npm run test && npm run build",
+    "pwa:icons": "node scripts/generate-pwa-icons.mjs",
+    "start:production": "npm run db:migrate && node dist/server.js",
     "start": "node dist/server.js",
     "db:migrate": "sequelize-cli db:migrate",
     "db:undo": "sequelize-cli db:migrate:undo",
@@ -29,7 +52,8 @@
     "sequelize": "latest",
     "sharp": "latest",
     "socket.io": "latest",
-    "zod": "latest"
+    "zod": "latest",
+    "sequelize-cli": "latest"
   },
   "devDependencies": {
     "@types/compression": "latest",
@@ -38,8 +62,9 @@
     "@types/jsonwebtoken": "latest",
     "@types/multer": "^2.1.0",
     "@types/node": "latest",
-    "sequelize-cli": "latest",
     "tsx": "latest",
-    "typescript": "latest"
+    "typescript": "latest",
+    "concurrently": "^9.2.1",
+    "prettier": "^3.6.2"
   }
 }

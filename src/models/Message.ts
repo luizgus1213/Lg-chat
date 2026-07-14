@@ -1,7 +1,8 @@
 import { DataTypes, Model, Optional } from "sequelize";
 import { sequelize } from "../db/connection";
 
-export type MessageType = "text" | "system" | "image" | "video" | "audio" | "file";
+export type MessageType =
+  "text" | "system" | "image" | "video" | "audio" | "file";
 
 export interface MessageAttributes {
   id: number;
@@ -16,6 +17,7 @@ export interface MessageAttributes {
   mediaOriginalName?: string | null;
   replyToMessageId?: number | null;
   forwardedFromMessageId?: number | null;
+  clientId?: string | null;
   editedAt?: Date | null;
   deletedAt?: Date | null;
   createdAt?: Date;
@@ -35,6 +37,7 @@ type MessageCreationAttributes = Optional<
   | "mediaOriginalName"
   | "replyToMessageId"
   | "forwardedFromMessageId"
+  | "clientId"
   | "editedAt"
   | "deletedAt"
   | "createdAt"
@@ -57,6 +60,7 @@ export class Message
   declare mediaOriginalName: string | null;
   declare replyToMessageId: number | null;
   declare forwardedFromMessageId: number | null;
+  declare clientId: string | null;
   declare editedAt: Date | null;
   declare deletedAt: Date | null;
   declare createdAt: Date;
@@ -138,6 +142,12 @@ export function initMessageModel() {
         type: DataTypes.INTEGER,
         allowNull: true,
         field: "forwarded_from_message_id",
+      },
+
+      clientId: {
+        type: DataTypes.STRING(100),
+        allowNull: true,
+        field: "client_id",
       },
 
       editedAt: {

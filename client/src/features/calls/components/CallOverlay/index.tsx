@@ -28,7 +28,8 @@ const ICON_PATHS: Record<IconName, string> = {
     "M3 5h11a3 3 0 0 1 3 3v8a3 3 0 0 1-3 3H3a3 3 0 0 1-3-3V8a3 3 0 0 1 3-3Zm16 4.3 3.1-2.1A1.2 1.2 0 0 1 24 8.3v7.4a1.2 1.2 0 0 1-1.9 1L19 14.6V9.3Z",
   cameraOff:
     "m2.1.7 21.2 21.2-1.4 1.4-4.5-4.5-2.1 1.4A1.2 1.2 0 0 1 19 16.6v-2l-2-2V16a3 3 0 0 1-3 3H5.4l-4.7 4.7-1.4-1.4L21.9.7l1.4 1.4-5.1 5.1.8.8v1.3l3.1-2.1A1.2 1.2 0 0 1 24 8.3v7.4a1.2 1.2 0 0 1-1.9 1L19 14.6v2l-1.7-1.7L2.1 30.1.7 28.7 3 26.4 0 23.4V8a3 3 0 0 1 3-3h8.4L.7 2.1 2.1.7Z",
-  close: "M5.6 4.2 12 10.6l6.4-6.4 1.4 1.4-6.4 6.4 6.4 6.4-1.4 1.4-6.4-6.4-6.4 6.4-1.4-1.4 6.4-6.4-6.4-6.4 1.4-1.4Z",
+  close:
+    "M5.6 4.2 12 10.6l6.4-6.4 1.4 1.4-6.4 6.4 6.4 6.4-1.4 1.4-6.4-6.4-6.4 6.4-1.4-1.4 6.4-6.4-6.4-6.4 1.4-1.4Z",
   end: "M2.3 15.2a2 2 0 0 1-.7-2.8C4.2 9.1 7.8 7.5 12 7.5s7.8 1.6 10.4 4.9a2 2 0 0 1-.7 2.8l-2.4 1.4a2 2 0 0 1-2.7-.7l-.8-1.4a10.2 10.2 0 0 0-7.6 0l-.8 1.4a2 2 0 0 1-2.7.7l-2.4-1.4Z",
   microphone:
     "M12 0a4 4 0 0 1 4 4v7a4 4 0 0 1-8 0V4a4 4 0 0 1 4-4Zm7 10v1a7 7 0 0 1-6 6.9V22h4v2H7v-2h4v-4.1A7 7 0 0 1 5 11v-1h2v1a5 5 0 0 0 10 0v-1h2Z",
@@ -57,8 +58,12 @@ function formatDuration(totalSeconds: number) {
   const seconds = totalSeconds % 60;
 
   return hours > 0
-    ? [hours, minutes, seconds].map((value) => String(value).padStart(2, "0")).join(":")
-    : [minutes, seconds].map((value) => String(value).padStart(2, "0")).join(":");
+    ? [hours, minutes, seconds]
+        .map((value) => String(value).padStart(2, "0"))
+        .join(":")
+    : [minutes, seconds]
+        .map((value) => String(value).padStart(2, "0"))
+        .join(":");
 }
 
 function useMediaElement(
@@ -188,7 +193,8 @@ export function CallOverlay() {
   if (!isVisible) return null;
 
   const participantName = calls.call?.participant.nome ?? "LG Chat";
-  const participantInitial = participantName.trim().charAt(0).toUpperCase() || "?";
+  const participantInitial =
+    participantName.trim().charAt(0).toUpperCase() || "?";
   const playbackBlocked = isVideoCall
     ? remoteVideoPlayback.playbackBlocked
     : remoteAudioPlayback.playbackBlocked;
@@ -265,7 +271,9 @@ export function CallOverlay() {
             <audio ref={remoteAudioRef} autoPlay />
           )}
 
-          <div className={`${styles.identity} ${isVideoCall ? styles.identityOnVideo : ""}`}>
+          <div
+            className={`${styles.identity} ${isVideoCall ? styles.identityOnVideo : ""}`}
+          >
             {calls.call?.participant.avatarUrl ? (
               <img
                 className={styles.avatar}
@@ -359,7 +367,9 @@ export function CallOverlay() {
                 }`}
                 onClick={calls.toggleMicrophone}
                 aria-label={
-                  calls.isMicEnabled ? "Desativar microfone" : "Ativar microfone"
+                  calls.isMicEnabled
+                    ? "Desativar microfone"
+                    : "Ativar microfone"
                 }
                 aria-pressed={!calls.isMicEnabled}
               >

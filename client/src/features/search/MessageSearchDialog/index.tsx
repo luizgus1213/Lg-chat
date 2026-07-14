@@ -13,7 +13,7 @@ type Props = {
   currentUserId: number;
   otherUserName?: string | null;
   onClose: () => void;
-  onSelect: (message: ChatMessage) => void;
+  onSelect: (message: ChatMessage) => Promise<boolean>;
 };
 
 const FILTERS: Array<{ value: MessageSearchType; label: string }> = [
@@ -28,16 +28,29 @@ const FILTERS: Array<{ value: MessageSearchType; label: string }> = [
 
 function typeLabel(message: ChatMessage) {
   const labels: Record<ChatMessage["type"], string> = {
-    text: "Texto", system: "Sistema", image: "Imagem", video: "Vídeo", audio: "Áudio", file: "Arquivo",
+    text: "Texto",
+    system: "Sistema",
+    image: "Imagem",
+    video: "Vídeo",
+    audio: "Áudio",
+    file: "Arquivo",
   };
   return labels[message.type];
 }
 
 function resultPreview(message: ChatMessage) {
-  return message.text?.trim() || message.mediaOriginalName || typeLabel(message);
+  return (
+    message.text?.trim() || message.mediaOriginalName || typeLabel(message)
+  );
 }
 
-export function MessageSearchDialog({ chatId, currentUserId, otherUserName, onClose, onSelect }: Props) {
+export function MessageSearchDialog({
+  chatId,
+  currentUserId,
+  otherUserName,
+  onClose,
+  onSelect,
+}: Props) {
   const queryId = useId();
   const queryRef = useRef<HTMLInputElement | null>(null);
   const requestRef = useRef<AbortController | null>(null);
@@ -47,6 +60,7 @@ export function MessageSearchDialog({ chatId, currentUserId, otherUserName, onCl
   const [hasSearched, setHasSearched] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [openingMessageId, setOpeningMessageId] = useState<number | null>(null);
 
   useEffect(() => () => requestRef.current?.abort(), []);
 
@@ -63,12 +77,17 @@ export function MessageSearchDialog({ chatId, currentUserId, otherUserName, onCl
     setLoading(true);
     setError(null);
     try {
-      const response = await searchMessages(chatId, { q: cleanQuery, type: filter }, controller.signal);
+      const response = await searchMessages(
+        chatId,
+        { q: cleanQuery, type: filter },
+        controller.signal,
+      );
       if (controller.signal.aborted) return;
       setResults(response.data.results);
       setHasSearched(true);
     } catch (requestError: unknown) {
-      if (!controller.signal.aborted) setError(getAuthErrorMessage(requestError));
+      if (!controller.signal.aborted)
+        setError(getAuthErrorMessage(requestError));
     } finally {
       if (requestRef.current === controller) requestRef.current = null;
       if (!controller.signal.aborted) setLoading(false);
@@ -86,39 +105,106 @@ export function MessageSearchDialog({ chatId, currentUserId, otherUserName, onCl
   }
 
   return (
-    <Modal title="Buscar mensagens" description="A busca é limitada à conversa aberta." onClose={onClose} initialFocusRef={queryRef} busy={loading} size="large">
+    <Modal
+      title="Buscar mensagens"
+      description="A busca é limitada à conversa aberta."
+      onClose={onClose}
+      initialFocusRef={queryRef}
+      busy={loading}
+      size="large"
+    >
       <form className={styles.form} onSubmit={submit}>
         <label className={styles.field} htmlFor={queryId}>
           <span>Texto, legenda ou nome do arquivo</span>
-          <input ref={queryRef} id={queryId} type="search" value={query} maxLength={100} disabled={loading} placeholder="Digite o que deseja encontrar" onChange={(event) => { setQuery(event.target.value); setError(null); }} />
+          <input
+            ref={queryRef}
+            id={queryId}
+            type="search"
+            value={query}
+            maxLength={100}
+            disabled={loading}
+            placeholder="Digite o que deseja encontrar"
+            onChange={(event) => {
+              setQuery(event.target.value);
+              setError(null);
+            }}
+          />
         </label>
         <fieldset className={styles.filters} disabled={loading}>
           <legend>Tipo de mensagem</legend>
           {FILTERS.map((item) => (
             <label key={item.value}>
-              <input type="radio" name="search-type" value={item.value} checked={filter === item.value} onChange={() => setFilter(item.value)} />
+              <input
+                type="radio"
+                name="search-type"
+                value={item.value}
+                checked={filter === item.value}
+                onChange={() => setFilter(item.value)}
+              />
               <span>{item.label}</span>
             </label>
           ))}
         </fieldset>
         <div className={styles.actions}>
-          <button type="button" disabled={loading} onClick={clear}>Limpar</button>
-          <button className={styles.primary} type="submit" disabled={loading || (!query.trim() && filter === "all")}>{loading ? "Buscando…" : "Buscar"}</button>
+          <button type="button" disabled={loading} onClick={clear}>
+            Limpar
+          </button>
+          <button
+            className={styles.primary}
+            type="submit"
+            disabled={loading || (!query.trim() && filter === "all")}
+          >
+            {loading ? "Buscando…" : "Buscar"}
+          </button>
         </div>
       </form>
 
-      {error ? <div className={styles.error} role="alert">{error}</div> : null}
-      <section className={styles.results} aria-label="Resultados da busca" aria-busy={loading}>
+      {error ? (
+        <div className={styles.error} role="alert">
+          {error}
+        </div>
+      ) : null}
+      <section
+        className={styles.results}
+        aria-label="Resultados da busca"
+        aria-busy={loading}
+      >
         {loading ? <p role="status">Buscando mensagens…</p> : null}
-        {!loading && hasSearched && results.length === 0 ? <p role="status">Nenhuma mensagem encontrada.</p> : null}
+        {!loading && hasSearched && results.length === 0 ? (
+          <p role="status">Nenhuma mensagem encontrada.</p>
+        ) : null}
         {results.map((message) => (
-          <button key={message.id} type="button" onClick={() => { onSelect(message); onClose(); }}>
+          <button
+            key={message.id}
+            type="button"
+            disabled={openingMessageId !== null}
+            onClick={() => {
+              setOpeningMessageId(message.id);
+              void onSelect(message).then((opened) => {
+                if (opened) onClose();
+                else setOpeningMessageId(null);
+              });
+            }}
+          >
             <span className={styles.resultTop}>
-              <strong>{message.fromUserId === currentUserId ? "Você" : otherUserName || `Participante ${message.fromUserId}`}</strong>
-              <time dateTime={message.createdAt}>{new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date(message.createdAt))}</time>
+              <strong>
+                {message.fromUserId === currentUserId
+                  ? "Você"
+                  : otherUserName || `Participante ${message.fromUserId}`}
+              </strong>
+              <time dateTime={message.createdAt}>
+                {new Intl.DateTimeFormat("pt-BR", {
+                  dateStyle: "short",
+                  timeStyle: "short",
+                }).format(new Date(message.createdAt))}
+              </time>
             </span>
             <span className={styles.preview}>{resultPreview(message)}</span>
-            <small>{typeLabel(message)}</small>
+            <small>
+              {openingMessageId === message.id
+                ? "Abrindo com contexto…"
+                : typeLabel(message)}
+            </small>
           </button>
         ))}
       </section>

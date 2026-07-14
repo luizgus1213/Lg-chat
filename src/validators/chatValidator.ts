@@ -70,14 +70,16 @@ export const blockContactSchema = z.object({
 export const toggleStarSchema = z.object({
   starred: z
     .preprocess((value) => {
-      if (value === undefined || value === null || value === "") return undefined;
+      if (value === undefined || value === null || value === "")
+        return undefined;
       if (typeof value === "boolean") return value;
 
       if (typeof value === "string") {
         const normalized = value.trim().toLowerCase();
 
         if (["true", "1", "yes", "sim"].includes(normalized)) return true;
-        if (["false", "0", "no", "nao", "não"].includes(normalized)) return false;
+        if (["false", "0", "no", "nao", "não"].includes(normalized))
+          return false;
       }
 
       return value;
@@ -94,6 +96,15 @@ export const forwardMessageSchema = z.object({
 
 export const listStarredMessagesQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(50),
+});
+
+export const listAllStarredMessagesQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(100).default(30),
+  beforeId: z.coerce.number().int().positive().optional(),
+});
+
+export const messageContextQuerySchema = z.object({
+  radius: z.coerce.number().int().min(5).max(40).default(15),
 });
 
 export const createPrivateChatSchema = z.object({
@@ -138,8 +149,10 @@ export const updateGroupSchema = z.object({
   avatarUrl: z
     .string()
     .trim()
-    .url("URL da imagem inválida")
     .max(500, "URL da imagem muito grande")
+    .refine((value) => value.startsWith("/uploads/groups/"), {
+      message: "A imagem do grupo deve ser um upload válido do LG Chat",
+    })
     .optional()
     .nullable(),
 });
@@ -155,7 +168,12 @@ export const sendChatMessageSchema = z.object({
     .min(1, "Mensagem vazia")
     .max(1000, "Mensagem muito grande"),
 
-  clientId: z.string().trim().max(100, "clientId muito grande").optional(),
+  clientId: z
+    .string()
+    .trim()
+    .min(1, "clientId vazio")
+    .max(100, "clientId muito grande")
+    .optional(),
 
   replyToMessageId: z.coerce
     .number()

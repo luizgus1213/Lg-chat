@@ -8,8 +8,10 @@ import {
   meController,
   verifyEmailController,
   resendEmailCodeController,
+  logoutController,
 } from "../controllers/AuthControllers";
 import { asyncHandler } from "../utils/asyncHandler";
+import { csrfProtection } from "../middlewares/csrfProtection";
 
 export const authRoutes = Router();
 
@@ -64,3 +66,9 @@ authRoutes.post(
 );
 
 authRoutes.get("/me", authMiddleware, asyncHandler(meController));
+authRoutes.post(
+  "/logout",
+  authMiddleware,
+  csrfProtection,
+  asyncHandler(logoutController),
+);

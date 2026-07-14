@@ -32,15 +32,21 @@ type Options = {
   conversations: Conversation[];
 };
 
-export function useNotifications({ currentUserId, activeChatId, activeChatAtBottom, conversations }: Options) {
+export function useNotifications({
+  currentUserId,
+  activeChatId,
+  activeChatAtBottom,
+  conversations,
+}: Options) {
   const { socket } = useSocket();
   // O som começa desligado em cada sessão para respeitar autoplay; a ativação
   // acontece somente a partir do gesto explícito no painel de notificações.
   const [soundEnabled, setSoundEnabled] = useState(false);
-  const [systemEnabled, setSystemEnabled] = useState(() =>
-    readSetting(SYSTEM_KEY, false) &&
-    "Notification" in window &&
-    Notification.permission === "granted",
+  const [systemEnabled, setSystemEnabled] = useState(
+    () =>
+      readSetting(SYSTEM_KEY, false) &&
+      "Notification" in window &&
+      Notification.permission === "granted",
   );
   const [toast, setToast] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -48,21 +54,38 @@ export function useNotifications({ currentUserId, activeChatId, activeChatAtBott
   const playingRef = useRef(false);
   const toastTimerRef = useRef<number | null>(null);
   const conversationsRef = useRef(conversations);
-  const stateRef = useRef({ activeChatId, activeChatAtBottom, soundEnabled, systemEnabled });
+  const stateRef = useRef({
+    activeChatId,
+    activeChatAtBottom,
+    soundEnabled,
+    systemEnabled,
+  });
 
-  useEffect(() => { conversationsRef.current = conversations; }, [conversations]);
-  useEffect(() => { stateRef.current = { activeChatId, activeChatAtBottom, soundEnabled, systemEnabled }; }, [activeChatAtBottom, activeChatId, soundEnabled, systemEnabled]);
+  useEffect(() => {
+    conversationsRef.current = conversations;
+  }, [conversations]);
+  useEffect(() => {
+    stateRef.current = {
+      activeChatId,
+      activeChatAtBottom,
+      soundEnabled,
+      systemEnabled,
+    };
+  }, [activeChatAtBottom, activeChatId, soundEnabled, systemEnabled]);
 
   const enableSound = useCallback(async (enabled: boolean) => {
     setErrorMessage(null);
     if (enabled) {
       try {
         const AudioContextConstructor = window.AudioContext;
-        const context = audioContextRef.current ?? new AudioContextConstructor();
+        const context =
+          audioContextRef.current ?? new AudioContextConstructor();
         audioContextRef.current = context;
         if (context.state === "suspended") await context.resume();
       } catch {
-        setErrorMessage("O navegador bloqueou o áudio. Interaja com a página e tente novamente.");
+        setErrorMessage(
+          "O navegador bloqueou o áudio. Interaja com a página e tente novamente.",
+        );
         return;
       }
     }
@@ -73,14 +96,17 @@ export function useNotifications({ currentUserId, activeChatId, activeChatAtBott
   const requestSystemNotifications = useCallback(async () => {
     setErrorMessage(null);
     if (!("Notification" in window)) {
-      setErrorMessage("Notificações do sistema não são suportadas neste navegador.");
+      setErrorMessage(
+        "Notificações do sistema não são suportadas neste navegador.",
+      );
       return;
     }
     const permission = await Notification.requestPermission();
     const enabled = permission === "granted";
     setSystemEnabled(enabled);
     saveSetting(SYSTEM_KEY, enabled);
-    if (!enabled) setErrorMessage("A permissão para notificações não foi concedida.");
+    if (!enabled)
+      setErrorMessage("A permissão para notificações não foi concedida.");
   }, []);
 
   const disableSystemNotifications = useCallback(() => {
@@ -101,15 +127,25 @@ export function useNotifications({ currentUserId, activeChatId, activeChatAtBott
         oscillator.type = "sine";
         oscillator.frequency.value = 660;
         gain.gain.setValueAtTime(0.0001, context.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.08, context.currentTime + 0.015);
-        gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.16);
+        gain.gain.exponentialRampToValueAtTime(
+          0.08,
+          context.currentTime + 0.015,
+        );
+        gain.gain.exponentialRampToValueAtTime(
+          0.0001,
+          context.currentTime + 0.16,
+        );
         oscillator.connect(gain);
         gain.connect(context.destination);
-        oscillator.addEventListener("ended", () => {
-          playingRef.current = false;
-          oscillator.disconnect();
-          gain.disconnect();
-        }, { once: true });
+        oscillator.addEventListener(
+          "ended",
+          () => {
+            playingRef.current = false;
+            oscillator.disconnect();
+            gain.disconnect();
+          },
+          { once: true },
+        );
         oscillator.start();
         oscillator.stop(context.currentTime + 0.17);
       } catch {
@@ -121,7 +157,9 @@ export function useNotifications({ currentUserId, activeChatId, activeChatAtBott
     function handleMessage(payload: unknown) {
       const parsed = chatMessageSchema.safeParse(payload);
       if (!parsed.success || parsed.data.fromUserId === currentUserId) return;
-      const conversation = conversationsRef.current.find((item) => item.id === parsed.data.chatId);
+      const conversation = conversationsRef.current.find(
+        (item) => item.id === parsed.data.chatId,
+      );
       const current = stateRef.current;
       const isVisibleAtBottom =
         current.activeChatId === parsed.data.chatId &&
@@ -130,12 +168,19 @@ export function useNotifications({ currentUserId, activeChatId, activeChatAtBott
         document.hasFocus();
       if (isVisibleAtBottom) return;
 
-      const title = conversation ? getConversationTitle(conversation) : "LG Chat";
+      const title = conversation
+        ? getConversationTitle(conversation)
+        : "LG Chat";
       setToast(`Nova mensagem em ${title}`);
-      if (toastTimerRef.current !== null) window.clearTimeout(toastTimerRef.current);
-      toastTimerRef.current = window.setTimeout(() => { toastTimerRef.current = null; setToast(null); }, 4_500);
+      if (toastTimerRef.current !== null)
+        window.clearTimeout(toastTimerRef.current);
+      toastTimerRef.current = window.setTimeout(() => {
+        toastTimerRef.current = null;
+        setToast(null);
+      }, 4_500);
 
-      if (conversation && current.soundEnabled && !conversation.isMuted) playSound();
+      if (conversation && current.soundEnabled && !conversation.isMuted)
+        playSound();
       if (
         current.systemEnabled &&
         "Notification" in window &&
@@ -158,13 +203,16 @@ export function useNotifications({ currentUserId, activeChatId, activeChatAtBott
 
   useEffect(() => {
     return () => {
-      if (toastTimerRef.current !== null) window.clearTimeout(toastTimerRef.current);
+      if (toastTimerRef.current !== null)
+        window.clearTimeout(toastTimerRef.current);
       const context = audioContextRef.current;
       audioContextRef.current = null;
       if (context && context.state !== "closed") {
         void context.close().catch(() => {
           if (import.meta.env.DEV) {
-            console.warn("[LG Chat] Não foi possível liberar o dispositivo de áudio.");
+            console.warn(
+              "[LG Chat] Não foi possível liberar o dispositivo de áudio.",
+            );
           }
         });
       }

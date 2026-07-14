@@ -4,10 +4,7 @@ import { conversationSchema } from "../conversations/conversations.schemas";
 import { chatUserSchema } from "../users/users.schemas";
 
 const groupUserSchema = chatUserSchema.extend({
-  about: z.preprocess(
-    (value) => value ?? "Disponível",
-    z.string().max(140),
-  ),
+  about: z.preprocess((value) => value ?? "Disponível", z.string().max(140)),
 });
 
 export const groupChatSchema = conversationSchema

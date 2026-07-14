@@ -28,6 +28,8 @@ import {
   deleteChatForMeController,
   toggleMessageStarController,
   listStarredMessagesController,
+  listAllStarredMessagesController,
+  getMessageContextController,
   forwardMessageController,
 } from "../controllers/ChatControllers";
 import { groupAvatarUpload } from "../middlewares/groupAvatarUpload";
@@ -35,19 +37,31 @@ import {
   chatWriteRateLimit,
   uploadRateLimit,
 } from "../middlewares/securityRateLimits";
+import { csrfProtection } from "../middlewares/csrfProtection";
 export const chatRoutes = Router();
 
 chatRoutes.use(authMiddleware);
+chatRoutes.use(csrfProtection);
 
 chatRoutes.get("/", asyncHandler(listMyChatsController));
+chatRoutes.get(
+  "/messages/starred",
+  asyncHandler(listAllStarredMessagesController),
+);
 chatRoutes.post("/private", asyncHandler(createPrivateChatController));
 chatRoutes.post("/groups", asyncHandler(createGroupChatController));
 chatRoutes.post("/:chatId/leave", asyncHandler(leaveGroupController));
 chatRoutes.get("/:chatId", asyncHandler(getChatController));
-chatRoutes.patch("/:chatId/preferences", asyncHandler(updateChatPreferencesController));
+chatRoutes.patch(
+  "/:chatId/preferences",
+  asyncHandler(updateChatPreferencesController),
+);
 chatRoutes.patch("/:chatId/block", asyncHandler(blockContactController));
 chatRoutes.post("/:chatId/clear", asyncHandler(clearChatForMeController));
-chatRoutes.post("/:chatId/delete-for-me", asyncHandler(deleteChatForMeController));
+chatRoutes.post(
+  "/:chatId/delete-for-me",
+  asyncHandler(deleteChatForMeController),
+);
 chatRoutes.patch("/:chatId", asyncHandler(updateGroupController));
 chatRoutes.delete("/:chatId", asyncHandler(deleteGroupController));
 chatRoutes.get("/:chatId/members", asyncHandler(listChatMembersController));
@@ -63,10 +77,24 @@ chatRoutes.post(
   groupAvatarUpload,
   asyncHandler(updateGroupAvatarController),
 );
-chatRoutes.get("/:chatId/messages/search", asyncHandler(searchChatMessagesController));
-chatRoutes.get("/:chatId/messages/starred", asyncHandler(listStarredMessagesController));
+chatRoutes.get(
+  "/:chatId/messages/search",
+  asyncHandler(searchChatMessagesController),
+);
+chatRoutes.get(
+  "/:chatId/messages/starred",
+  asyncHandler(listStarredMessagesController),
+);
+chatRoutes.get(
+  "/:chatId/messages/:messageId/context",
+  asyncHandler(getMessageContextController),
+);
 chatRoutes.get("/:chatId/messages", asyncHandler(listChatMessagesController));
-chatRoutes.post("/:chatId/messages", chatWriteRateLimit, asyncHandler(sendChatMessageController));
+chatRoutes.post(
+  "/:chatId/messages",
+  chatWriteRateLimit,
+  asyncHandler(sendChatMessageController),
+);
 chatRoutes.patch(
   "/:chatId/messages/:messageId",
   asyncHandler(editChatMessageController),

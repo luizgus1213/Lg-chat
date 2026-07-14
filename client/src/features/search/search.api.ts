@@ -1,5 +1,8 @@
 import { apiRequest } from "../../api/apiClient";
-import { messageSearchResultSchema, type MessageSearchType } from "./search.schemas";
+import {
+  messageSearchResultSchema,
+  type MessageSearchType,
+} from "./search.schemas";
 
 export async function searchMessages(
   chatId: number,
@@ -11,9 +14,12 @@ export async function searchMessages(
     type: input.type,
     limit: String(input.limit ?? 40),
   });
-  const response = await apiRequest<unknown>(`/api/chats/${chatId}/messages/search?${params}`, {
-    method: "GET",
-    signal,
-  });
+  const response = await apiRequest<unknown>(
+    `/api/chats/${chatId}/messages/search?${params}`,
+    {
+      method: "GET",
+      signal,
+    },
+  );
   return { ...response, data: messageSearchResultSchema.parse(response.data) };
 }

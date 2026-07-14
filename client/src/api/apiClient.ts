@@ -1,4 +1,7 @@
-import { getAuthToken } from "../features/auth/auth.storage";
+import { dispatchRecoverableError, dispatchSessionInvalid } from "./apiEvents";
+import { SESSION_INVALID_ERROR_CODES } from "@shared/publicContracts";
+
+const SESSION_INVALID_CODES = new Set<string>(SESSION_INVALID_ERROR_CODES);
 
 export type ApiSuccess<T> = {
   success: true;
@@ -48,6 +51,22 @@ function getApiErrorPayload(payload: unknown): ApiErrorPayload | null {
   return isObject(payload) ? (payload as ApiErrorPayload) : null;
 }
 
+function getCookie(name: string): string | null {
+  const prefix = `${name}=`;
+  const part = document.cookie
+    .split(";")
+    .map((item) => item.trim())
+    .find((item) => item.startsWith(prefix));
+
+  if (!part) return null;
+
+  try {
+    return decodeURIComponent(part.slice(prefix.length));
+  } catch {
+    return null;
+  }
+}
+
 async function parseResponseBody(response: Response): Promise<unknown> {
   const text = await response.text();
   if (!text) return null;
@@ -90,7 +109,6 @@ export async function apiRequest<T>(
   }, timeoutMs);
 
   const headers = new Headers(customHeaders);
-  const token = getAuthToken();
 
   headers.set("Accept", "application/json");
 
@@ -100,13 +118,18 @@ export async function apiRequest<T>(
     headers.set("Content-Type", "application/json");
   }
 
-  if (auth && token) {
-    headers.set("Authorization", `Bearer ${token}`);
+  const method = (requestOptions.method ?? "GET").toUpperCase();
+  if (auth && !["GET", "HEAD", "OPTIONS"].includes(method)) {
+    const csrfToken = getCookie(
+      import.meta.env.VITE_CSRF_COOKIE_NAME || "lgchat_csrf",
+    );
+    if (csrfToken) headers.set("X-CSRF-Token", csrfToken);
   }
 
   try {
     const response = await fetch(path, {
       ...requestOptions,
+      credentials: "include",
       headers,
       signal: controller.signal,
     });
@@ -139,6 +162,22 @@ export async function apiRequest<T>(
     return payload as ApiSuccess<T>;
   } catch (error: unknown) {
     if (error instanceof ApiError) {
+      if (
+        auth &&
+        error.statusCode === 401 &&
+        SESSION_INVALID_CODES.has(error.code)
+      ) {
+        dispatchSessionInvalid();
+      } else if (
+        error.statusCode === 0 ||
+        error.statusCode === 408 ||
+        error.statusCode >= 500
+      ) {
+        dispatchRecoverableError({
+          code: error.code,
+          message: error.message,
+        });
+      }
       throw error;
     }
 
@@ -158,12 +197,17 @@ export async function apiRequest<T>(
       });
     }
 
-    throw new ApiError({
+    const apiError = new ApiError({
       statusCode: 0,
       code: "API_UNAVAILABLE",
       message: "Não foi possível conectar ao servidor. Verifique sua conexão.",
       details: error,
     });
+    dispatchRecoverableError({
+      code: apiError.code,
+      message: apiError.message,
+    });
+    throw apiError;
   } finally {
     window.clearTimeout(timeout);
     externalSignal?.removeEventListener("abort", abortFromExternalSignal);

@@ -5,8 +5,11 @@ import { BrowserRouter } from "react-router-dom";
 import App from "./App";
 
 import { AuthProvider } from "./features/auth/AuthProvider";
-import { CallProvider } from "./features/calls";
 import { SocketProvider } from "./socket/SocketProvider";
+import { AppErrorBoundary } from "./errors/AppErrorBoundary";
+import { GlobalErrorPresenter } from "./errors/GlobalErrorPresenter";
+import { installGlobalErrorHandlers } from "./errors/clientDiagnostics";
+import { registerServiceWorker } from "./pwa/registerServiceWorker";
 
 import "./styles/global.css";
 
@@ -16,16 +19,20 @@ if (!rootElement) {
   throw new Error('Elemento com id "root" não encontrado no index.html.');
 }
 
+installGlobalErrorHandlers();
+registerServiceWorker();
+
 createRoot(rootElement).render(
   <StrictMode>
-    <BrowserRouter>
-      <AuthProvider>
-        <SocketProvider>
-          <CallProvider>
+    <AppErrorBoundary>
+      <BrowserRouter>
+        <AuthProvider>
+          <SocketProvider>
+            <GlobalErrorPresenter />
             <App />
-          </CallProvider>
-        </SocketProvider>
-      </AuthProvider>
-    </BrowserRouter>
+          </SocketProvider>
+        </AuthProvider>
+      </BrowserRouter>
+    </AppErrorBoundary>
   </StrictMode>,
 );

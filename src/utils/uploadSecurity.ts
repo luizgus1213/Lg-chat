@@ -3,18 +3,18 @@ import fs from "fs/promises";
 import path from "path";
 import sharp = require("sharp");
 import { AppError } from "../errors/AppError";
-import { logger } from "./logger";
-
-const PUBLIC_ROOT = path.resolve("public");
+import { logger, toSafeLogError } from "./logger";
+import { CHAT_UPLOAD_LIMIT_BYTES } from "../shared/publicContracts";
+import { toUploadUrl } from "../config/uploadPaths";
 
 const MB = 1024 * 1024;
 
 const LIMITS = {
   avatar: 5 * MB,
-  chatImage: 8 * MB,
-  chatVideo: 50 * MB,
-  chatAudio: 15 * MB,
-  chatDocument: 25 * MB,
+  chatImage: CHAT_UPLOAD_LIMIT_BYTES.image,
+  chatVideo: CHAT_UPLOAD_LIMIT_BYTES.video,
+  chatAudio: CHAT_UPLOAD_LIMIT_BYTES.audio,
+  chatDocument: CHAT_UPLOAD_LIMIT_BYTES.document,
   statusImage: 8 * MB,
   statusVideo: 30 * MB,
 };
@@ -41,18 +41,7 @@ function sanitizeOriginalName(originalName?: string | null) {
 }
 
 function getPublicUrl(filePath: string) {
-  const resolved = path.resolve(filePath);
-  const relative = path.relative(PUBLIC_ROOT, resolved).replace(/\\/g, "/");
-
-  if (!relative || relative.startsWith("..") || path.isAbsolute(relative)) {
-    throw new AppError(
-      500,
-      "Arquivo processado fora da pasta pública.",
-      "INVALID_UPLOAD_PUBLIC_PATH",
-    );
-  }
-
-  return `/${relative}`;
+  return toUploadUrl(filePath);
 }
 
 export async function removeUploadedFile(filePath?: string | null) {
@@ -61,7 +50,12 @@ export async function removeUploadedFile(filePath?: string | null) {
   await fs.unlink(filePath).catch(() => undefined);
 }
 
-function assertMaxSize(file: Express.Multer.File, maxBytes: number, message: string, code: string) {
+function assertMaxSize(
+  file: Express.Multer.File,
+  maxBytes: number,
+  message: string,
+  code: string,
+) {
   if (file.size > maxBytes) {
     throw new AppError(413, message, code);
   }
@@ -80,7 +74,79 @@ function isAudio(mimetype: string) {
 }
 
 function isAnimatedOrGif(file: Express.Multer.File) {
-  return file.mimetype === "image/gif" || file.originalname.toLowerCase().endsWith(".gif");
+  return (
+    file.mimetype === "image/gif" ||
+    file.originalname.toLowerCase().endsWith(".gif")
+  );
+}
+
+function startsWithBytes(buffer: Buffer, bytes: number[]) {
+  return bytes.every((byte, index) => buffer[index] === byte);
+}
+
+async function assertFileSignature(file: Express.Multer.File) {
+  const handle = await fs.open(file.path, "r");
+  const header = Buffer.alloc(32);
+
+  try {
+    await handle.read(header, 0, header.length, 0);
+  } finally {
+    await handle.close();
+  }
+
+  const ascii = header.toString("ascii");
+  const mime = file.mimetype;
+  const valid =
+    (["text/plain", "text/csv"].includes(mime) && !header.includes(0)) ||
+    (["image/jpeg", "image/jpg"].includes(mime) &&
+      startsWithBytes(header, [0xff, 0xd8, 0xff])) ||
+    (mime === "image/png" &&
+      startsWithBytes(header, [0x89, 0x50, 0x4e, 0x47])) ||
+    (mime === "image/gif" && ascii.startsWith("GIF8")) ||
+    (mime === "image/webp" &&
+      ascii.startsWith("RIFF") &&
+      ascii.slice(8, 12) === "WEBP") ||
+    (["video/mp4", "video/quicktime", "audio/mp4"].includes(mime) &&
+      ascii.slice(4, 8) === "ftyp") ||
+    (["video/webm", "audio/webm"].includes(mime) &&
+      startsWithBytes(header, [0x1a, 0x45, 0xdf, 0xa3])) ||
+    (mime === "audio/ogg" && ascii.startsWith("OggS")) ||
+    (["audio/wav", "audio/x-wav"].includes(mime) &&
+      ascii.startsWith("RIFF") &&
+      ascii.slice(8, 12) === "WAVE") ||
+    (["audio/mpeg", "audio/mp3"].includes(mime) &&
+      (ascii.startsWith("ID3") ||
+        (header[0] === 0xff && (header[1] & 0xe0) === 0xe0))) ||
+    (mime === "audio/aac" &&
+      header[0] === 0xff &&
+      (header[1] & 0xf6) === 0xf0) ||
+    (mime === "application/pdf" && ascii.startsWith("%PDF")) ||
+    ([
+      "application/zip",
+      "application/x-zip-compressed",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    ].includes(mime) &&
+      ascii.startsWith("PK")) ||
+    ([
+      "application/msword",
+      "application/vnd.ms-excel",
+      "application/vnd.ms-powerpoint",
+    ].includes(mime) &&
+      startsWithBytes(header, [0xd0, 0xcf, 0x11, 0xe0])) ||
+    (["application/x-rar-compressed", "application/vnd.rar"].includes(mime) &&
+      ascii.startsWith("Rar!")) ||
+    (mime === "application/x-7z-compressed" &&
+      startsWithBytes(header, [0x37, 0x7a, 0xbc, 0xaf, 0x27, 0x1c]));
+
+  if (!valid) {
+    throw new AppError(
+      400,
+      "O conteúdo do arquivo não corresponde ao formato informado.",
+      "UPLOAD_CONTENT_TYPE_MISMATCH",
+    );
+  }
 }
 
 function asOriginalUpload(file: Express.Multer.File): ProcessedUpload {
@@ -139,7 +205,6 @@ async function optimizeImageUpload(
         originalSize: file.size,
         optimizedSize: outputStat.size,
         originalMime: file.mimetype,
-        outputPath,
       },
       "Imagem otimizada com sucesso",
     );
@@ -156,8 +221,7 @@ async function optimizeImageUpload(
 
     logger.warn(
       {
-        err: error,
-        originalName: sanitizeOriginalName(file.originalname),
+        error: toSafeLogError(error),
         mimeType: file.mimetype,
       },
       "Falha ao otimizar imagem. Usando arquivo original para não quebrar o envio.",
@@ -167,7 +231,10 @@ async function optimizeImageUpload(
   }
 }
 
-export async function processAvatarImageUpload(file: Express.Multer.File): Promise<ProcessedUpload> {
+export async function processAvatarImageUpload(
+  file: Express.Multer.File,
+): Promise<ProcessedUpload> {
+  await assertFileSignature(file);
   assertMaxSize(
     file,
     LIMITS.avatar,
@@ -183,7 +250,10 @@ export async function processAvatarImageUpload(file: Express.Multer.File): Promi
   });
 }
 
-export async function processChatMediaUpload(file: Express.Multer.File): Promise<ProcessedUpload> {
+export async function processChatMediaUpload(
+  file: Express.Multer.File,
+): Promise<ProcessedUpload> {
+  await assertFileSignature(file);
   if (isImage(file.mimetype)) {
     assertMaxSize(
       file,
@@ -232,7 +302,10 @@ export async function processChatMediaUpload(file: Express.Multer.File): Promise
   return asOriginalUpload(file);
 }
 
-export async function processStatusMediaUpload(file: Express.Multer.File): Promise<ProcessedUpload> {
+export async function processStatusMediaUpload(
+  file: Express.Multer.File,
+): Promise<ProcessedUpload> {
+  await assertFileSignature(file);
   if (isImage(file.mimetype)) {
     assertMaxSize(
       file,

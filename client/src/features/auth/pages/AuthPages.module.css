@@ -4,10 +4,8 @@
   min-height: 100vh;
   min-height: 100dvh;
   place-items: center;
-  padding:
-    max(24px, env(safe-area-inset-top))
-    max(24px, env(safe-area-inset-right))
-    max(24px, env(safe-area-inset-bottom))
+  padding: max(24px, env(safe-area-inset-top))
+    max(24px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom))
     max(24px, env(safe-area-inset-left));
 }
 
@@ -187,8 +185,7 @@
 @media (max-width: 520px) {
   .page {
     align-items: start;
-    padding:
-      max(16px, env(safe-area-inset-top))
+    padding: max(16px, env(safe-area-inset-top))
       max(16px, env(safe-area-inset-right))
       max(16px, env(safe-area-inset-bottom))
       max(16px, env(safe-area-inset-left));
@@ -202,8 +199,7 @@
 
 @media (max-width: 340px) {
   .page {
-    padding-inline:
-      max(10px, env(safe-area-inset-left))
+    padding-inline: max(10px, env(safe-area-inset-left))
       max(10px, env(safe-area-inset-right));
   }
 
@@ -219,8 +215,7 @@
 @media (max-height: 520px) and (orientation: landscape) {
   .page {
     align-items: start;
-    padding-block:
-      max(10px, env(safe-area-inset-top))
+    padding-block: max(10px, env(safe-area-inset-top))
       max(10px, env(safe-area-inset-bottom));
   }
 

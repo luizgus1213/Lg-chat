@@ -8,6 +8,7 @@ import {
   editMessage,
   forwardMessage,
   listMessages,
+  loadMessageContext,
   markChatAsRead,
   sendMediaMessage,
   setMessageStarred,
@@ -18,43 +19,24 @@ import {
   type ChatMessage,
   type ServerChatMessage,
 } from "../messages.schemas";
+import {
+  asSentMessage,
+  createMessageClientId,
+  createReplyPreview,
+  canConfirmMessageRead,
+  hasServerConfirmation,
+  mergeManyMessages,
+  mergeOneMessage,
+} from "../messages.store";
+import { validateMediaFile } from "../messages.validation";
+import {
+  useMessageSocketEvents,
+  type PendingMessageConfirmation,
+} from "./useMessageSocketEvents";
 
 const PAGE_SIZE = 30;
 const SOCKET_ACK_TIMEOUT_MS = 15_000;
 const READ_DEBOUNCE_MS = 350;
-
-const ALLOWED_MEDIA_TYPES = new Set([
-  "image/jpeg",
-  "image/jpg",
-  "image/png",
-  "image/webp",
-  "image/gif",
-  "video/mp4",
-  "video/webm",
-  "video/quicktime",
-  "audio/webm",
-  "audio/ogg",
-  "audio/mpeg",
-  "audio/mp3",
-  "audio/wav",
-  "audio/x-wav",
-  "audio/mp4",
-  "audio/aac",
-  "application/pdf",
-  "text/plain",
-  "text/csv",
-  "application/msword",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  "application/vnd.ms-excel",
-  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-  "application/vnd.ms-powerpoint",
-  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-  "application/zip",
-  "application/x-zip-compressed",
-  "application/x-rar-compressed",
-  "application/vnd.rar",
-  "application/x-7z-compressed",
-]);
 
 type SocketAck = {
   success: boolean;
@@ -73,131 +55,12 @@ type UseMessagesOptions = {
   initialMessage?: ServerChatMessage | null;
 };
 
-type PendingConfirmation = {
-  confirm: () => void;
-  cancel: () => void;
-};
-
-function compareMessages(first: ChatMessage, second: ChatMessage) {
-  const firstTime = new Date(first.createdAt).getTime();
-  const secondTime = new Date(second.createdAt).getTime();
-  const safeFirstTime = Number.isNaN(firstTime) ? 0 : firstTime;
-  const safeSecondTime = Number.isNaN(secondTime) ? 0 : secondTime;
-
-  if (safeFirstTime !== safeSecondTime) return safeFirstTime - safeSecondTime;
-  return first.id - second.id;
-}
-
-function mergeOneMessage(
-  current: ChatMessage[],
-  incoming: ChatMessage,
-): ChatMessage[] {
-  const next = [...current];
-  const idIndex =
-    incoming.id > 0
-      ? next.findIndex(
-          (message) => message.id > 0 && message.id === incoming.id,
-        )
-      : -1;
-  const clientIndex = incoming.clientId
-    ? next.findIndex((message) => message.clientId === incoming.clientId)
-    : -1;
-  const targetIndex = idIndex >= 0 ? idIndex : clientIndex;
-
-  if (targetIndex >= 0) {
-    next[targetIndex] = { ...next[targetIndex], ...incoming };
-  } else {
-    next.push(incoming);
-  }
-
-  return next.sort(compareMessages);
-}
-
-function mergeManyMessages(current: ChatMessage[], incoming: ChatMessage[]) {
-  return incoming.reduce(
-    (messages, message) => mergeOneMessage(messages, message),
-    current,
-  );
-}
-
-function mergeRealtimeUpdate(
-  current: ChatMessage[],
-  incoming: ServerChatMessage,
-) {
-  const existing = current.find((message) => message.id === incoming.id);
-  const reactions = incoming.reactions.map((reaction) => ({
-    ...reaction,
-    reactedByMe:
-      existing?.reactions.find((item) => item.emoji === reaction.emoji)
-        ?.reactedByMe ?? false,
-  }));
-
-  return mergeOneMessage(current, {
-    ...incoming,
-    reactions,
-    isStarred: existing?.isStarred ?? false,
-    clientStatus: "sent",
-    localError: null,
-  });
-}
-
-function createClientId() {
-  if (typeof crypto.randomUUID === "function") return crypto.randomUUID();
-  return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-}
-
 function getAckErrorMessage(ack: SocketAck) {
   return ack.error?.message || "Não foi possível enviar a mensagem.";
 }
 
 function isCancellation(error: unknown) {
   return error instanceof ApiError && error.code === "REQUEST_CANCELLED";
-}
-
-function asSentMessage(message: ServerChatMessage): ChatMessage {
-  return {
-    ...message,
-    clientStatus: "sent",
-    localError: null,
-  };
-}
-
-function createReplyPreview(message: ChatMessage) {
-  return {
-    id: message.id,
-    chatId: message.chatId,
-    fromUserId: message.fromUserId,
-    text: message.text,
-    type: message.type,
-    mediaOriginalName: message.mediaOriginalName,
-    deletedAt: message.deletedAt,
-  };
-}
-
-function validateMediaFile(file: File) {
-  if (!file.name || file.size <= 0) {
-    throw new Error("Escolha um arquivo válido para enviar.");
-  }
-
-  if (!ALLOWED_MEDIA_TYPES.has(file.type)) {
-    throw new Error(
-      "Formato não permitido. Envie uma foto, vídeo, áudio ou documento compatível.",
-    );
-  }
-
-  const megabyte = 1024 * 1024;
-  const maxBytes = file.type.startsWith("image/")
-    ? 8 * megabyte
-    : file.type.startsWith("video/")
-      ? 50 * megabyte
-      : file.type.startsWith("audio/")
-        ? 15 * megabyte
-        : 25 * megabyte;
-
-  if (file.size > maxBytes) {
-    const maxMegabytes = Math.round(maxBytes / megabyte);
-    throw new Error(`Esse arquivo deve ter no máximo ${maxMegabytes} MB.`);
-  }
 }
 
 export function useMessages({
@@ -224,7 +87,9 @@ export function useMessages({
   const [pendingMessageIds, setPendingMessageIds] = useState<Set<number>>(
     () => new Set(),
   );
-  const [highlightedMessageId, setHighlightedMessageId] = useState<number | null>(initialMessage?.id ?? null);
+  const [highlightedMessageId, setHighlightedMessageId] = useState<
+    number | null
+  >(initialMessage?.id ?? null);
 
   const mountedRef = useRef(false);
   const messagesRef = useRef<ChatMessage[]>(
@@ -238,7 +103,7 @@ export function useMessages({
   const lastConfirmedReadIdRef = useRef(0);
   const confirmedClientIdsRef = useRef(new Set<string>());
   const pendingConfirmationsRef = useRef(
-    new Map<string, PendingConfirmation>(),
+    new Map<string, PendingMessageConfirmation>(),
   );
   const latestRequestControllerRef = useRef<AbortController | null>(null);
   const olderRequestControllerRef = useRef<AbortController | null>(null);
@@ -303,11 +168,11 @@ export function useMessages({
   }, [initialMessage]);
 
   const canConfirmRead = useCallback(() => {
-    return (
-      viewportAtBottomRef.current &&
-      document.visibilityState === "visible" &&
-      document.hasFocus()
-    );
+    return canConfirmMessageRead({
+      isAtBottom: viewportAtBottomRef.current,
+      isDocumentVisible: document.visibilityState === "visible",
+      hasDocumentFocus: document.hasFocus(),
+    });
   }, []);
 
   const flushPendingRead = useCallback(async () => {
@@ -335,10 +200,7 @@ export function useMessages({
       onReadConfirmed?.(chatId, confirmedId);
     } catch (error: unknown) {
       if (controller.signal.aborted || !mountedRef.current) return;
-      pendingReadIdRef.current = Math.max(
-        pendingReadIdRef.current,
-        messageId,
-      );
+      pendingReadIdRef.current = Math.max(pendingReadIdRef.current, messageId);
       setReadErrorMessage(getAuthErrorMessage(error));
     } finally {
       if (readControllerRef.current === controller) {
@@ -350,10 +212,7 @@ export function useMessages({
   const scheduleMarkRead = useCallback(
     (messageId: number) => {
       if (messageId <= 0) return;
-      pendingReadIdRef.current = Math.max(
-        pendingReadIdRef.current,
-        messageId,
-      );
+      pendingReadIdRef.current = Math.max(pendingReadIdRef.current, messageId);
 
       if (readTimerRef.current !== null) {
         window.clearTimeout(readTimerRef.current);
@@ -371,8 +230,7 @@ export function useMessages({
     const latestReceivedMessage = [...messagesRef.current]
       .reverse()
       .find(
-        (message) =>
-          message.id > 0 && message.fromUserId !== currentUserId,
+        (message) => message.id > 0 && message.fromUserId !== currentUserId,
       );
 
     if (latestReceivedMessage) scheduleMarkRead(latestReceivedMessage.id);
@@ -411,7 +269,8 @@ export function useMessages({
       }
 
       const loadedMessages = response.data.map(asSentMessage);
-      oldestLoadedMessageIdRef.current = loadedMessages.find((message) => message.id > 0)?.id ?? null;
+      oldestLoadedMessageIdRef.current =
+        loadedMessages.find((message) => message.id > 0)?.id ?? null;
       commitMessages((current) => mergeManyMessages(current, loadedMessages));
       setHasMore(loadedMessages.length === PAGE_SIZE);
       setErrorMessage(null);
@@ -428,7 +287,9 @@ export function useMessages({
       if (
         !accessLostRef.current &&
         error instanceof ApiError &&
-        ["CHAT_ACCESS_DENIED", "CHAT_NOT_FOUND", "GROUP_NOT_FOUND"].includes(error.code)
+        ["CHAT_ACCESS_DENIED", "CHAT_NOT_FOUND", "GROUP_NOT_FOUND"].includes(
+          error.code,
+        )
       ) {
         accessLostRef.current = true;
         onAccessLost?.();
@@ -459,65 +320,16 @@ export function useMessages({
     };
   }, [loadLatest]);
 
-  useEffect(() => {
-    if (!socket) return;
-
-    function joinCurrentChat() {
-      if (socket?.connected) socket.emit("join_chat", { chatId });
-    }
-
-    function handleMessage(payload: unknown) {
-      const parsed = chatMessageSchema.safeParse(payload);
-      if (!parsed.success) {
-        if (import.meta.env.DEV) {
-          console.error("[LG Chat] Mensagem inválida recebida:", parsed.error);
-        }
-        return;
-      }
-
-      const message = parsed.data;
-      if (message.chatId !== chatId) return;
-
-      if (message.clientId) {
-        confirmedClientIdsRef.current.add(message.clientId);
-      }
-
-      commitMessages((current) =>
-        mergeOneMessage(current, asSentMessage(message)),
-      );
-      if (message.clientId) {
-        pendingConfirmationsRef.current.get(message.clientId)?.confirm();
-      }
-
-      if (message.fromUserId !== currentUserId && canConfirmRead()) {
-        scheduleMarkRead(message.id);
-      }
-    }
-
-    function handleUpdatedMessage(payload: unknown) {
-      const parsed = chatMessageSchema.safeParse(payload);
-      if (!parsed.success || parsed.data.chatId !== chatId) return;
-      commitMessages((current) => mergeRealtimeUpdate(current, parsed.data));
-    }
-
-    joinCurrentChat();
-    socket.on("connect", joinCurrentChat);
-    socket.on("chat_message", handleMessage);
-    socket.on("chat_message_updated", handleUpdatedMessage);
-
-    return () => {
-      socket.off("connect", joinCurrentChat);
-      socket.off("chat_message", handleMessage);
-      socket.off("chat_message_updated", handleUpdatedMessage);
-    };
-  }, [
+  useMessageSocketEvents({
     socket,
     chatId,
     currentUserId,
-    canConfirmRead,
+    confirmedClientIdsRef,
+    pendingConfirmationsRef,
     commitMessages,
+    canConfirmRead,
     scheduleMarkRead,
-  ]);
+  });
 
   useEffect(() => {
     function tryConfirmVisibleMessages() {
@@ -582,8 +394,16 @@ export function useMessages({
     }
   }, [chatId, commitMessages, hasMore]);
 
-  const sendText = useCallback(
-    async (rawText: string, replyTo: ChatMessage | null = null) => {
+  const transmitText = useCallback(
+    async (options: {
+      rawText: string;
+      clientId: string;
+      replyToMessageId: number | null;
+      replyPreview: ChatMessage["replyTo"];
+      retrying: boolean;
+    }) => {
+      const { clientId, replyToMessageId, replyPreview, retrying } = options;
+      const rawText = options.rawText;
       const text = rawText.trim();
       if (!text) throw new Error("Digite uma mensagem.");
       if (text.length > 1_000) {
@@ -596,38 +416,45 @@ export function useMessages({
         throw new Error("Aguarde o envio atual terminar.");
       }
 
-      const validReply =
-        replyTo && replyTo.id > 0 && !replyTo.deletedAt ? replyTo : null;
-      const clientId = createClientId();
-      const now = new Date().toISOString();
-      const optimisticMessage: ChatMessage = {
-        id: localMessageIdRef.current--,
-        chatId,
-        fromUserId: currentUserId,
-        text,
-        type: "text",
-        mediaUrl: null,
-        mediaMimeType: null,
-        mediaSize: null,
-        mediaOriginalName: null,
-        replyToMessageId: validReply?.id ?? null,
-        forwardedFromMessageId: null,
-        isForwarded: false,
-        editedAt: null,
-        deletedAt: null,
-        createdAt: now,
-        updatedAt: null,
-        clientId,
-        replyTo: validReply ? createReplyPreview(validReply) : null,
-        reactions: [],
-        isStarred: false,
-        clientStatus: "sending",
-        localError: null,
-      };
+      if (retrying) {
+        commitMessages((current) =>
+          current.map((message) =>
+            message.clientId === clientId
+              ? { ...message, clientStatus: "sending", localError: null }
+              : message,
+          ),
+        );
+      } else {
+        const optimisticMessage: ChatMessage = {
+          id: localMessageIdRef.current--,
+          chatId,
+          fromUserId: currentUserId,
+          text,
+          type: "text",
+          mediaUrl: null,
+          mediaMimeType: null,
+          mediaSize: null,
+          mediaOriginalName: null,
+          replyToMessageId,
+          forwardedFromMessageId: null,
+          isForwarded: false,
+          editedAt: null,
+          deletedAt: null,
+          createdAt: new Date().toISOString(),
+          updatedAt: null,
+          clientId,
+          replyTo: replyPreview,
+          reactions: [],
+          isStarred: false,
+          deliveryStatus: "sent",
+          clientStatus: "sending",
+          localError: null,
+        };
 
-      commitMessages((current) =>
-        mergeOneMessage(current, optimisticMessage),
-      );
+        commitMessages((current) =>
+          mergeOneMessage(current, optimisticMessage),
+        );
+      }
       sendingRef.current = true;
       setIsSending(true);
 
@@ -643,9 +470,10 @@ export function useMessages({
           };
           const timeout = window.setTimeout(() => {
             if (
-              confirmedClientIdsRef.current.has(clientId) ||
-              messagesRef.current.some(
-                (message) => message.clientId === clientId && message.id > 0,
+              hasServerConfirmation(
+                messagesRef.current,
+                confirmedClientIdsRef.current,
+                clientId,
               )
             ) {
               finish(resolve);
@@ -669,7 +497,7 @@ export function useMessages({
               chatId,
               text,
               clientId,
-              ...(validReply ? { replyToMessageId: validReply.id } : {}),
+              ...(replyToMessageId ? { replyToMessageId } : {}),
             },
             (ack: SocketAck) => {
               if (settled) return;
@@ -703,11 +531,11 @@ export function useMessages({
           );
         });
       } catch (error: unknown) {
-        const alreadyConfirmed =
-          confirmedClientIdsRef.current.has(clientId) ||
-          messagesRef.current.some(
-            (message) => message.clientId === clientId && message.id > 0,
-          );
+        const alreadyConfirmed = hasServerConfirmation(
+          messagesRef.current,
+          confirmedClientIdsRef.current,
+          clientId,
+        );
         if (!alreadyConfirmed && mountedRef.current) {
           const message =
             error instanceof Error ? error.message : "Erro ao enviar mensagem.";
@@ -728,6 +556,47 @@ export function useMessages({
     [chatId, commitMessages, currentUserId, socket],
   );
 
+  const sendText = useCallback(
+    async (rawText: string, replyTo: ChatMessage | null = null) => {
+      const validReply =
+        replyTo && replyTo.id > 0 && !replyTo.deletedAt ? replyTo : null;
+
+      await transmitText({
+        rawText,
+        clientId: createMessageClientId(),
+        replyToMessageId: validReply?.id ?? null,
+        replyPreview: validReply ? createReplyPreview(validReply) : null,
+        retrying: false,
+      });
+    },
+    [transmitText],
+  );
+
+  const retryMessage = useCallback(
+    async (messageId: number) => {
+      const message = messagesRef.current.find((item) => item.id === messageId);
+
+      if (
+        !message ||
+        message.type !== "text" ||
+        message.clientStatus !== "error" ||
+        !message.clientId ||
+        !message.text
+      ) {
+        throw new Error("Esta mensagem não pode ser reenviada.");
+      }
+
+      await transmitText({
+        rawText: message.text,
+        clientId: message.clientId,
+        replyToMessageId: message.replyToMessageId,
+        replyPreview: message.replyTo,
+        retrying: true,
+      });
+    },
+    [transmitText],
+  );
+
   const sendMedia = useCallback(
     async (
       file: File,
@@ -739,7 +608,8 @@ export function useMessages({
       if (caption.length > 1_000) {
         throw new Error("A legenda pode ter no máximo 1.000 caracteres.");
       }
-      if (sendingRef.current) throw new Error("Aguarde o envio atual terminar.");
+      if (sendingRef.current)
+        throw new Error("Aguarde o envio atual terminar.");
 
       const validReply =
         replyTo && replyTo.id > 0 && !replyTo.deletedAt ? replyTo : null;
@@ -774,7 +644,8 @@ export function useMessages({
       messageId: number,
       request: (controller: AbortController) => Promise<ServerChatMessage>,
     ) => {
-      if (messageId <= 0 || pendingActionIdsRef.current.has(messageId)) return false;
+      if (messageId <= 0 || pendingActionIdsRef.current.has(messageId))
+        return false;
 
       const controller = new AbortController();
       actionControllersRef.current.add(controller);
@@ -816,12 +687,9 @@ export function useMessages({
   const reactToMessage = useCallback(
     async (messageId: number, emoji: string) => {
       return runMessageAction(messageId, async (controller) => {
-        const response = await toggleMessageReaction(
-          chatId,
-          messageId,
-          emoji,
-          { signal: controller.signal },
-        );
+        const response = await toggleMessageReaction(chatId, messageId, emoji, {
+          signal: controller.signal,
+        });
         return response.data;
       });
     },
@@ -831,12 +699,9 @@ export function useMessages({
   const toggleStar = useCallback(
     async (messageId: number, starred: boolean) => {
       return runMessageAction(messageId, async (controller) => {
-        const response = await setMessageStarred(
-          chatId,
-          messageId,
-          starred,
-          { signal: controller.signal },
-        );
+        const response = await setMessageStarred(chatId, messageId, starred, {
+          signal: controller.signal,
+        });
         return response.data;
       });
     },
@@ -847,9 +712,12 @@ export function useMessages({
     async (messageId: number, rawText: string) => {
       const text = rawText.trim();
       if (!text) throw new Error("Digite o novo texto da mensagem.");
-      if (text.length > 1_000) throw new Error("A mensagem pode ter no máximo 1.000 caracteres.");
+      if (text.length > 1_000)
+        throw new Error("A mensagem pode ter no máximo 1.000 caracteres.");
       return runMessageAction(messageId, async (controller) => {
-        const response = await editMessage(chatId, messageId, text, { signal: controller.signal });
+        const response = await editMessage(chatId, messageId, text, {
+          signal: controller.signal,
+        });
         return response.data;
       });
     },
@@ -859,7 +727,9 @@ export function useMessages({
   const remove = useCallback(
     async (messageId: number) => {
       return runMessageAction(messageId, async (controller) => {
-        const response = await deleteMessage(chatId, messageId, { signal: controller.signal });
+        const response = await deleteMessage(chatId, messageId, {
+          signal: controller.signal,
+        });
         return response.data;
       });
     },
@@ -868,14 +738,21 @@ export function useMessages({
 
   const forwardToChats = useCallback(
     async (messageId: number, targetChatIds: number[]) => {
-      if (messageId <= 0 || targetChatIds.length === 0 || pendingActionIdsRef.current.has(messageId)) return false;
+      if (
+        messageId <= 0 ||
+        targetChatIds.length === 0 ||
+        pendingActionIdsRef.current.has(messageId)
+      )
+        return false;
       const controller = new AbortController();
       actionControllersRef.current.add(controller);
       pendingActionIdsRef.current.add(messageId);
       setPendingMessageIds((current) => new Set(current).add(messageId));
       setActionErrorMessage(null);
       try {
-        await forwardMessage(chatId, messageId, targetChatIds, { signal: controller.signal });
+        await forwardMessage(chatId, messageId, targetChatIds, {
+          signal: controller.signal,
+        });
         return !controller.signal.aborted;
       } catch (error: unknown) {
         if (!controller.signal.aborted) {
@@ -899,15 +776,49 @@ export function useMessages({
     [chatId],
   );
 
-  const locateMessage = useCallback((message: ServerChatMessage) => {
-    commitMessages((current) => mergeOneMessage(current, asSentMessage(message)));
-    setHighlightedMessageId(message.id);
-    if (highlightTimerRef.current !== null) window.clearTimeout(highlightTimerRef.current);
-    highlightTimerRef.current = window.setTimeout(() => {
-      highlightTimerRef.current = null;
-      setHighlightedMessageId(null);
-    }, 3_000);
-  }, [commitMessages]);
+  const locateMessage = useCallback(
+    async (message: ServerChatMessage) => {
+      const controller = new AbortController();
+      actionControllersRef.current.add(controller);
+      setActionErrorMessage(null);
+
+      try {
+        const response = await loadMessageContext(chatId, message.id, 15, {
+          signal: controller.signal,
+        });
+        if (!mountedRef.current || controller.signal.aborted) return false;
+
+        commitMessages((current) =>
+          mergeManyMessages(current, response.data.messages.map(asSentMessage)),
+        );
+        setHighlightedMessageId(response.data.targetId);
+
+        if (highlightTimerRef.current !== null) {
+          window.clearTimeout(highlightTimerRef.current);
+        }
+        highlightTimerRef.current = window.setTimeout(() => {
+          highlightTimerRef.current = null;
+          setHighlightedMessageId(null);
+        }, 3_000);
+
+        return true;
+      } catch (error: unknown) {
+        if (!controller.signal.aborted && mountedRef.current) {
+          setActionErrorMessage(getAuthErrorMessage(error));
+        }
+        return false;
+      } finally {
+        actionControllersRef.current.delete(controller);
+      }
+    },
+    [chatId, commitMessages],
+  );
+
+  useEffect(() => {
+    if (!initialMessage) return;
+    const message = initialMessage;
+    queueMicrotask(() => void locateMessage(message));
+  }, [initialMessage, locateMessage]);
 
   return {
     messages,
@@ -924,6 +835,7 @@ export function useMessages({
     reload: loadLatest,
     loadOlder,
     sendText,
+    retryMessage,
     sendMedia,
     reactToMessage,
     toggleStar,

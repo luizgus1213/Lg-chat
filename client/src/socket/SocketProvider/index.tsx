@@ -2,9 +2,13 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 
 import { io, type Socket } from "socket.io-client";
 import { z } from "zod";
+import {
+  SESSION_INVALID_ERROR_CODES,
+  SOCKET_EVENTS,
+} from "@shared/publicContracts";
 
 import { useAuth } from "../../features/auth/useAuth";
-import { getAuthToken } from "../../features/auth/auth.storage";
+import { dispatchSessionInvalid } from "../../api/apiEvents";
 
 import {
   SocketContext,
@@ -18,7 +22,6 @@ type SocketProviderProps = {
 
 type ConnectedSocketProviderProps = {
   children: ReactNode;
-  token: string;
 };
 
 const disconnectedValue: SocketContextValue = {
@@ -26,9 +29,11 @@ const disconnectedValue: SocketContextValue = {
   status: "disconnected",
   errorMessage: null,
 };
+const SESSION_INVALID_CODES = new Set<string>(SESSION_INVALID_ERROR_CODES);
 
 const serverErrorSchema = z
   .object({
+    code: z.string().trim().min(1).max(120).optional(),
     message: z.string().trim().min(1).max(300),
   })
   .passthrough();
@@ -41,23 +46,17 @@ function getConnectionErrorMessage(error: Error): string {
   return "Não foi possível conectar às atualizações em tempo real.";
 }
 
-function ConnectedSocketProvider({
-  children,
-  token,
-}: ConnectedSocketProviderProps) {
+function ConnectedSocketProvider({ children }: ConnectedSocketProviderProps) {
   /*
-    A instância é criada uma única vez para essa
-    combinação de usuário e token.
+    A instância é criada uma única vez para cada sessão de usuário.
   */
   const [socket] = useState<Socket>(() => {
     return io({
       autoConnect: false,
 
-      auth: {
-        token,
-      },
+      withCredentials: true,
 
-      transports: ["websocket", "polling"],
+      transports: ["websocket"],
 
       reconnection: true,
       reconnectionAttempts: Infinity,
@@ -88,6 +87,15 @@ function ConnectedSocketProvider({
     function handleConnectError(error: Error) {
       setStatus("error");
       setErrorMessage(getConnectionErrorMessage(error));
+      const data = (error as Error & { data?: unknown }).data;
+      const parsed = serverErrorSchema.safeParse(data);
+      if (
+        parsed.success &&
+        parsed.data.code &&
+        SESSION_INVALID_CODES.has(parsed.data.code)
+      ) {
+        dispatchSessionInvalid();
+      }
     }
 
     function handleReconnectAttempt() {
@@ -127,7 +135,7 @@ function ConnectedSocketProvider({
 
     socket.on("connect_error", handleConnectError);
 
-    socket.on("server_error", handleServerError);
+    socket.on(SOCKET_EVENTS.serverError, handleServerError);
 
     socket.io.on("reconnect_attempt", handleReconnectAttempt);
     socket.io.on("reconnect_error", handleReconnectError);
@@ -148,7 +156,7 @@ function ConnectedSocketProvider({
 
       socket.off("connect_error", handleConnectError);
 
-      socket.off("server_error", handleServerError);
+      socket.off(SOCKET_EVENTS.serverError, handleServerError);
 
       socket.io.off("reconnect_attempt", handleReconnectAttempt);
       socket.io.off("reconnect_error", handleReconnectError);
@@ -175,11 +183,9 @@ function ConnectedSocketProvider({
 export function SocketProvider({ children }: SocketProviderProps) {
   const auth = useAuth();
 
-  const token = auth.status === "authenticated" ? getAuthToken() : null;
-
   const userId = auth.user?.id ?? null;
 
-  if (!token || !userId) {
+  if (auth.status !== "authenticated" || !userId) {
     return (
       <SocketContext.Provider value={disconnectedValue}>
         {children}
@@ -188,8 +194,6 @@ export function SocketProvider({ children }: SocketProviderProps) {
   }
 
   return (
-    <ConnectedSocketProvider key={`${userId}:${token}`} token={token}>
-      {children}
-    </ConnectedSocketProvider>
+    <ConnectedSocketProvider key={userId}>{children}</ConnectedSocketProvider>
   );
 }

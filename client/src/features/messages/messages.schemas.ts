@@ -55,9 +55,39 @@ export const chatMessageSchema = z.object({
   reactions: z.array(reactionSchema).optional().default([]),
 
   isStarred: z.boolean().optional().default(false),
+  deliveryStatus: z.enum(["sent", "read"]).optional().default("sent"),
+});
+
+export const chatReadEventSchema = z.object({
+  chatId: z.number().int().positive(),
+  userId: z.number().int().positive(),
+  lastReadMessageId: z.number().int().positive(),
 });
 
 export const chatMessagesSchema = z.array(chatMessageSchema);
+
+export const messageContextSchema = z.object({
+  targetId: z.number().int().positive(),
+  messages: chatMessagesSchema,
+});
+
+export const starredConversationSchema = z.object({
+  id: z.number().int().positive(),
+  type: z.enum(["private", "group"]),
+  name: z.string().nullable(),
+  avatarUrl: nullableStringSchema,
+  updatedAt: z.string().min(1),
+});
+
+export const allStarredMessagesSchema = z.object({
+  items: z.array(
+    z.object({
+      conversation: starredConversationSchema,
+      message: chatMessageSchema,
+    }),
+  ),
+  nextCursor: z.number().int().positive().nullable(),
+});
 
 export const markReadResultSchema = z.object({
   chatId: z.number().int().positive(),
@@ -72,3 +102,6 @@ export type ChatMessage = ServerChatMessage & {
 };
 
 export type MarkReadResult = z.infer<typeof markReadResultSchema>;
+export type StarredMessageEntry = z.infer<
+  typeof allStarredMessagesSchema
+>["items"][number];

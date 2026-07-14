@@ -2,7 +2,7 @@ import type { Server, Socket } from "socket.io";
 import { randomUUID } from "crypto";
 import { AppError, toClientError } from "../errors/AppError";
 import { verificarToken } from "../utils/jwt";
-import { logger } from "../utils/logger";
+import { logger, toSafeLogError } from "../utils/logger";
 import { User } from "../models/User";
 import { Chat } from "../models/Chat";
 import { ChatMember } from "../models/ChatMember";
@@ -11,10 +11,11 @@ import { sendChatMessageSchema } from "../validators/chatValidator";
 import { assertChatMember, sendMessageToChat } from "../services/ChatService";
 import { setSocketServer } from "./socketServer";
 import { setUserOnlineStatus } from "../services/UserService";
+import { env } from "../config/env";
+import { getCookieValue } from "../utils/sessionCookies";
 type AuthenticatedUser = {
   id: number;
   nome: string;
-  email: string;
 };
 
 type ClientAck = (response: {
@@ -24,16 +25,19 @@ type ClientAck = (response: {
 }) => void;
 
 async function authenticateSocket(socket: Socket): Promise<AuthenticatedUser> {
-  const token = socket.handshake.auth?.token;
+  const cookieToken = getCookieValue(
+    socket.handshake.headers.cookie,
+    env.SESSION_COOKIE_NAME,
+  );
 
-  if (!token || typeof token !== "string") {
-    throw new AppError(401, "Token não enviado.", "SOCKET_AUTH_REQUIRED");
+  if (!cookieToken) {
+    throw new AppError(401, "Sessão não encontrada.", "SOCKET_AUTH_REQUIRED");
   }
 
-  const payload = verificarToken(token);
+  const payload = verificarToken(cookieToken);
 
   const user = await User.findByPk(payload.id, {
-    attributes: ["id", "nome", "email"],
+    attributes: ["id", "nome"],
   });
 
   if (!user) {
@@ -43,7 +47,6 @@ async function authenticateSocket(socket: Socket): Promise<AuthenticatedUser> {
   return {
     id: user.id,
     nome: user.nome,
-    email: user.email,
   };
 }
 
@@ -74,7 +77,6 @@ function sendAckError(ack: ClientAck | undefined, error: unknown) {
   return clientError;
 }
 
-
 type CallType = "voice" | "video";
 
 type ActiveCall = {
@@ -91,10 +93,46 @@ const activeCalls = new Map<string, ActiveCall>();
 
 function getObjectPayload(payload: unknown) {
   if (!payload || typeof payload !== "object") {
-    throw new AppError(400, "Dados da chamada inválidos.", "INVALID_CALL_PAYLOAD");
+    throw new AppError(
+      400,
+      "Dados da chamada inválidos.",
+      "INVALID_CALL_PAYLOAD",
+    );
   }
 
   return payload as Record<string, unknown>;
+}
+
+function toSafeSocketContext(payload: unknown) {
+  if (!payload || typeof payload !== "object") {
+    return { payloadType: typeof payload };
+  }
+
+  const record = payload as Record<string, unknown>;
+  const context: Record<string, unknown> = {};
+
+  for (const key of ["chatId", "callId", "targetUserId"]) {
+    const value = record[key];
+    if (typeof value === "number" && Number.isFinite(value)) {
+      context[key] = value;
+    } else if (typeof value === "string" && value.length <= 120) {
+      context[key] = value;
+    }
+  }
+
+  const signal = record.signal;
+  if (signal && typeof signal === "object" && "type" in signal) {
+    const signalType = signal.type;
+    if (
+      signalType === "offer" ||
+      signalType === "answer" ||
+      signalType === "candidate"
+    ) {
+      context.signalType = signalType;
+    }
+  }
+
+  return context;
 }
 
 function getCallType(payload: Record<string, unknown>): CallType {
@@ -121,7 +159,11 @@ function getSignalPayload(payload: Record<string, unknown>) {
   const signal = payload.signal;
 
   if (!signal || typeof signal !== "object") {
-    throw new AppError(400, "Sinal da chamada inválido.", "INVALID_CALL_SIGNAL");
+    throw new AppError(
+      400,
+      "Sinal da chamada inválido.",
+      "INVALID_CALL_SIGNAL",
+    );
   }
 
   return signal;
@@ -196,11 +238,15 @@ async function getPrivateCallTarget(chatId: number, currentUserId: number) {
   }
 
   const targetUser = await User.findByPk(otherMember.userId, {
-    attributes: ["id", "nome", "email"],
+    attributes: ["id", "nome"],
   });
 
   if (!targetUser) {
-    throw new AppError(404, "Usuário da chamada não encontrado.", "CALL_USER_NOT_FOUND");
+    throw new AppError(
+      404,
+      "Usuário da chamada não encontrado.",
+      "CALL_USER_NOT_FOUND",
+    );
   }
 
   return {
@@ -208,14 +254,17 @@ async function getPrivateCallTarget(chatId: number, currentUserId: number) {
     targetUser: {
       id: targetUser.id,
       nome: targetUser.nome,
-      email: targetUser.email,
     },
   };
 }
 
 function assertCallParticipant(call: ActiveCall, userId: number) {
   if (call.callerId !== userId && call.receiverId !== userId) {
-    throw new AppError(403, "Você não participa dessa chamada.", "CALL_ACCESS_DENIED");
+    throw new AppError(
+      403,
+      "Você não participa dessa chamada.",
+      "CALL_ACCESS_DENIED",
+    );
   }
 }
 
@@ -237,10 +286,10 @@ function callPublicDTO(call: ActiveCall) {
   };
 }
 
-
-
 function getUserChatRooms(chatIds: Iterable<number>) {
-  return Array.from(new Set(Array.from(chatIds).map((chatId) => `chat:${chatId}`)));
+  return Array.from(
+    new Set(Array.from(chatIds).map((chatId) => `chat:${chatId}`)),
+  );
 }
 
 function emitUserStatusToRelatedRooms(
@@ -276,7 +325,6 @@ function canEmitTyping(
   return true;
 }
 
-
 export function setupSocket(io: Server) {
   setSocketServer(io);
   io.use(async (socket, next) => {
@@ -286,8 +334,16 @@ export function setupSocket(io: Server) {
 
       return next();
     } catch (error) {
-      logger.warn({ err: error }, "Falha ao autenticar socket");
-      return next(new Error("Não autenticado. Faça login novamente."));
+      logger.warn(
+        { error: toSafeLogError(error) },
+        "Falha ao autenticar socket",
+      );
+      const clientError = toClientError(error);
+      const socketError = new Error(clientError.message) as Error & {
+        data?: unknown;
+      };
+      socketError.data = clientError;
+      return next(socketError);
     }
   });
 
@@ -325,7 +381,6 @@ export function setupSocket(io: Server) {
         {
           socketId: socket.id,
           userId: user.id,
-          email: user.email,
         },
         "Cliente conectado no socket",
       );
@@ -343,7 +398,7 @@ export function setupSocket(io: Server) {
     } catch (error) {
       logger.error(
         {
-          err: error,
+          error: toSafeLogError(error),
           socketId: socket.id,
           userId: user.id,
         },
@@ -363,7 +418,8 @@ export function setupSocket(io: Server) {
 
         socket.join(`chat:${chatId}`);
 
-        const allowedChatIds = socket.data.allowedChatIds as Set<number> | undefined;
+        const allowedChatIds = socket.data.allowedChatIds as
+          Set<number> | undefined;
         allowedChatIds?.add(chatId);
 
         const userChatRooms = socket.data.userChatRooms as string[] | undefined;
@@ -385,9 +441,9 @@ export function setupSocket(io: Server) {
 
         logger.warn(
           {
-            err: error,
+            error: toSafeLogError(error),
             userId: user.id,
-            payload,
+            context: toSafeSocketContext(payload),
           },
           "Erro ao entrar no chat pelo socket",
         );
@@ -430,7 +486,7 @@ export function setupSocket(io: Server) {
 
         logger.error(
           {
-            err: error,
+            error: toSafeLogError(error),
             userId: user.id,
             payload: {
               chatId:
@@ -453,13 +509,15 @@ export function setupSocket(io: Server) {
       }
     });
 
-
     socket.on("call:start", async (payload: unknown, ack?: ClientAck) => {
       try {
         const rawPayload = getObjectPayload(payload);
         const chatId = getChatIdFromPayload(rawPayload);
         const type = getCallType(rawPayload);
-        const { targetUserId, targetUser } = await getPrivateCallTarget(chatId, user.id);
+        const { targetUserId, targetUser } = await getPrivateCallTarget(
+          chatId,
+          user.id,
+        );
 
         const call: ActiveCall = {
           id: randomUUID(),
@@ -477,7 +535,6 @@ export function setupSocket(io: Server) {
           fromUser: {
             id: user.id,
             nome: user.nome,
-            email: user.email,
           },
         });
 
@@ -506,9 +563,9 @@ export function setupSocket(io: Server) {
 
         logger.warn(
           {
-            err: error,
+            error: toSafeLogError(error),
             userId: user.id,
-            payload,
+            context: toSafeSocketContext(payload),
           },
           "Erro ao iniciar chamada",
         );
@@ -524,11 +581,19 @@ export function setupSocket(io: Server) {
         const call = activeCalls.get(callId);
 
         if (!call) {
-          throw new AppError(404, "Chamada não encontrada ou encerrada.", "CALL_NOT_FOUND");
+          throw new AppError(
+            404,
+            "Chamada não encontrada ou encerrada.",
+            "CALL_NOT_FOUND",
+          );
         }
 
         if (call.receiverId !== user.id) {
-          throw new AppError(403, "Apenas quem recebeu a chamada pode aceitar.", "CALL_ACCEPT_DENIED");
+          throw new AppError(
+            403,
+            "Apenas quem recebeu a chamada pode aceitar.",
+            "CALL_ACCEPT_DENIED",
+          );
         }
 
         call.acceptedAt = new Date().toISOString();
@@ -559,9 +624,9 @@ export function setupSocket(io: Server) {
 
         logger.warn(
           {
-            err: error,
+            error: toSafeLogError(error),
             userId: user.id,
-            payload,
+            context: toSafeSocketContext(payload),
           },
           "Erro ao aceitar chamada",
         );
@@ -577,7 +642,11 @@ export function setupSocket(io: Server) {
         const call = activeCalls.get(callId);
 
         if (!call) {
-          throw new AppError(404, "Chamada não encontrada ou encerrada.", "CALL_NOT_FOUND");
+          throw new AppError(
+            404,
+            "Chamada não encontrada ou encerrada.",
+            "CALL_NOT_FOUND",
+          );
         }
 
         assertCallParticipant(call, user.id);
@@ -613,9 +682,9 @@ export function setupSocket(io: Server) {
 
         logger.warn(
           {
-            err: error,
+            error: toSafeLogError(error),
             userId: user.id,
-            payload,
+            context: toSafeSocketContext(payload),
           },
           "Erro ao recusar/cancelar chamada",
         );
@@ -677,9 +746,9 @@ export function setupSocket(io: Server) {
 
         logger.warn(
           {
-            err: error,
+            error: toSafeLogError(error),
             userId: user.id,
-            payload,
+            context: toSafeSocketContext(payload),
           },
           "Erro ao encerrar chamada",
         );
@@ -696,7 +765,11 @@ export function setupSocket(io: Server) {
         const call = activeCalls.get(callId);
 
         if (!call) {
-          throw new AppError(404, "Chamada não encontrada ou encerrada.", "CALL_NOT_FOUND");
+          throw new AppError(
+            404,
+            "Chamada não encontrada ou encerrada.",
+            "CALL_NOT_FOUND",
+          );
         }
 
         assertCallParticipant(call, user.id);
@@ -724,9 +797,9 @@ export function setupSocket(io: Server) {
 
         logger.warn(
           {
-            err: error,
+            error: toSafeLogError(error),
             userId: user.id,
-            payload,
+            context: toSafeSocketContext(payload),
           },
           "Erro ao enviar sinal da chamada",
         );
@@ -742,7 +815,8 @@ export function setupSocket(io: Server) {
           isOnline: false,
         });
 
-        const userChatRooms = (socket.data.userChatRooms as string[] | undefined) || [];
+        const userChatRooms =
+          (socket.data.userChatRooms as string[] | undefined) || [];
 
         emitUserStatusToRelatedRooms(io, userChatRooms, {
           userId: user.id,
@@ -752,7 +826,7 @@ export function setupSocket(io: Server) {
       } catch (error) {
         logger.warn(
           {
-            err: error,
+            error: toSafeLogError(error),
             userId: user.id,
           },
           "Erro ao atualizar status offline do usuário",
@@ -763,13 +837,19 @@ export function setupSocket(io: Server) {
     socket.on("typing_start", async (payload: unknown) => {
       try {
         const chatId = getChatIdFromPayload(payload);
-        const allowedChatIds = socket.data.allowedChatIds as Set<number> | undefined;
+        const allowedChatIds = socket.data.allowedChatIds as
+          Set<number> | undefined;
 
         if (!allowedChatIds?.has(chatId)) {
-          throw new AppError(403, "Você não participa desse chat.", "CHAT_ACCESS_DENIED");
+          throw new AppError(
+            403,
+            "Você não participa desse chat.",
+            "CHAT_ACCESS_DENIED",
+          );
         }
 
-        const typingRate = socket.data.typingRate as Map<string, number> | undefined;
+        const typingRate = socket.data.typingRate as
+          Map<string, number> | undefined;
         const canEmit = typingRate
           ? canEmitTyping(typingRate, `start:${chatId}`, 900)
           : true;
@@ -789,13 +869,19 @@ export function setupSocket(io: Server) {
     socket.on("typing_stop", async (payload: unknown) => {
       try {
         const chatId = getChatIdFromPayload(payload);
-        const allowedChatIds = socket.data.allowedChatIds as Set<number> | undefined;
+        const allowedChatIds = socket.data.allowedChatIds as
+          Set<number> | undefined;
 
         if (!allowedChatIds?.has(chatId)) {
-          throw new AppError(403, "Você não participa desse chat.", "CHAT_ACCESS_DENIED");
+          throw new AppError(
+            403,
+            "Você não participa desse chat.",
+            "CHAT_ACCESS_DENIED",
+          );
         }
 
-        const typingRate = socket.data.typingRate as Map<string, number> | undefined;
+        const typingRate = socket.data.typingRate as
+          Map<string, number> | undefined;
         const canEmit = typingRate
           ? canEmitTyping(typingRate, `stop:${chatId}`, 350)
           : true;

@@ -1,5 +1,5 @@
 import type { ErrorRequestHandler } from "express";
-import { logger } from "../utils/logger";
+import { logger, toSafeLogError } from "../utils/logger";
 import { toClientError } from "../errors/AppError";
 import { env } from "../config/env";
 
@@ -12,6 +12,16 @@ const SENSITIVE_KEYS = [
   "secret",
   "DB_PASS",
   "JWT_SECRET",
+  "codigo",
+  "code",
+  "email",
+  "text",
+  "message",
+  "caption",
+  "content",
+  "sdp",
+  "candidate",
+  "file",
 ];
 
 function sanitize(value: unknown): unknown {
@@ -48,10 +58,10 @@ export const errorHandler: ErrorRequestHandler = (err, req, res, _next) => {
 
   logger.error(
     {
-      err,
+      error: toSafeLogError(err),
       request: {
         method: req.method,
-        path: req.originalUrl,
+        path: req.path,
         body: sanitize(req.body),
         query: sanitize(req.query),
         params: sanitize(req.params),

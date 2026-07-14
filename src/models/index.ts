@@ -112,5 +112,4 @@ export function initModels() {
     foreignKey: "viewerId",
     as: "viewer",
   });
-
 }

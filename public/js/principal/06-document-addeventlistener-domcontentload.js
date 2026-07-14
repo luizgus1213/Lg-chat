@@ -20,9 +20,10 @@ document.addEventListener("DOMContentLoaded", async () => {
         window.LGChat.pwa.register();
       }
 
-      if (state.token) {
+      try {
         await startApp();
-      } else {
+      } catch (sessionError) {
+        if (sessionError?.statusCode !== 401) throw sessionError;
         ui.showAuthArea();
       }
     } catch (error) {

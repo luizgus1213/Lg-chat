@@ -18,10 +18,7 @@ export function HomePage() {
         </p>
 
         <div className={styles.actions}>
-          <Link
-            className={`${styles.button} ${styles.primary}`}
-            to="/login"
-          >
+          <Link className={`${styles.button} ${styles.primary}`} to="/login">
             Entrar
           </Link>
 

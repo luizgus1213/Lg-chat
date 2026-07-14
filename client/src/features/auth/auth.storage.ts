@@ -1,76 +1,55 @@
-const AUTH_TOKEN_KEY = "lgchat.auth.token.v2";
+const LEGACY_AUTH_TOKEN_KEYS = ["lgchat.auth.token.v2", "token"];
 const PENDING_EMAIL_KEY = "lgchat.auth.pending-email.v2";
 
-function canUseLocalStorage(): boolean {
+function canUseSessionStorage(): boolean {
   return (
-    typeof window !== "undefined" && typeof window.localStorage !== "undefined"
+    typeof window !== "undefined" &&
+    typeof window.sessionStorage !== "undefined"
   );
 }
 
-export function getAuthToken(): string | null {
-  if (!canUseLocalStorage()) return null;
-
+export function removeLegacyAuthTokens(): void {
   try {
-    return window.localStorage.getItem(AUTH_TOKEN_KEY);
+    for (const key of LEGACY_AUTH_TOKEN_KEYS)
+      window.localStorage.removeItem(key);
   } catch {
-    return null;
-  }
-}
-
-export function saveAuthToken(token: string): boolean {
-  if (!canUseLocalStorage() || !token.trim()) return false;
-
-  try {
-    window.localStorage.setItem(AUTH_TOKEN_KEY, token);
-    return window.localStorage.getItem(AUTH_TOKEN_KEY) === token;
-  } catch {
-    return false;
-  }
-}
-
-export function removeAuthToken(): void {
-  if (!canUseLocalStorage()) return;
-
-  try {
-    window.localStorage.removeItem(AUTH_TOKEN_KEY);
-  } catch {
-    // Não interromper o logout.
+    // Migração defensiva: storage pode estar bloqueado pelo navegador.
   }
 }
 
 export function getPendingVerificationEmail(): string | null {
-  if (!canUseLocalStorage()) return null;
+  if (!canUseSessionStorage()) return null;
 
   try {
-    return window.localStorage.getItem(PENDING_EMAIL_KEY);
+    return window.sessionStorage.getItem(PENDING_EMAIL_KEY);
   } catch {
     return null;
   }
 }
 
 export function savePendingVerificationEmail(email: string): void {
-  if (!canUseLocalStorage()) return;
+  if (!canUseSessionStorage()) return;
 
   const normalizedEmail = email.trim().toLowerCase();
 
   try {
-    window.localStorage.setItem(PENDING_EMAIL_KEY, normalizedEmail);
+    window.sessionStorage.setItem(PENDING_EMAIL_KEY, normalizedEmail);
   } catch {
     // O fluxo poderá continuar sem persistência.
   }
 }
 
 export function removePendingVerificationEmail(): void {
-  if (!canUseLocalStorage()) return;
+  if (!canUseSessionStorage()) return;
 
   try {
-    window.localStorage.removeItem(PENDING_EMAIL_KEY);
+    window.sessionStorage.removeItem(PENDING_EMAIL_KEY);
   } catch {
     // Não interromper o fluxo.
   }
 }
 
 export function clearAuthStorage(): void {
-  removeAuthToken();
+  removeLegacyAuthTokens();
   removePendingVerificationEmail();
 }

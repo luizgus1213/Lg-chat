@@ -15,7 +15,7 @@ type UsersState = {
   errorMessage: string | null;
 };
 
-export function useUsers() {
+export function useUsers(query = "") {
   const { user } = useAuth();
   const currentUserId = user?.id ?? null;
 
@@ -31,66 +31,72 @@ export function useUsers() {
   const requestRef = useRef<AbortController | null>(null);
   const requestGenerationRef = useRef(0);
 
-  const loadUsers = useCallback(async (preserveUsers: boolean) => {
-    if (currentUserId === null) return;
+  const loadUsers = useCallback(
+    async (preserveUsers: boolean) => {
+      if (currentUserId === null) return;
 
-    const ownerId = currentUserId;
-    requestRef.current?.abort();
+      const ownerId = currentUserId;
+      requestRef.current?.abort();
 
-    const controller = new AbortController();
-    const generation = ++requestGenerationRef.current;
-    requestRef.current = controller;
+      const controller = new AbortController();
+      const generation = ++requestGenerationRef.current;
+      requestRef.current = controller;
 
-    setState({
-      ownerId,
-      users: preserveUsers ? usersRef.current : [],
-      status: preserveUsers ? "refreshing" : "loading",
-      errorMessage: null,
-    });
-
-    try {
-      const response = await listAvailableUsers({ signal: controller.signal });
-
-      if (
-        !mountedRef.current ||
-        controller.signal.aborted ||
-        generation !== requestGenerationRef.current ||
-        ownerId !== currentUserId
-      ) {
-        return;
-      }
-
-      usersRef.current = response.data;
       setState({
         ownerId,
-        users: response.data,
-        status: "ready",
+        users: preserveUsers ? usersRef.current : [],
+        status: preserveUsers ? "refreshing" : "loading",
         errorMessage: null,
       });
-    } catch (error: unknown) {
-      if (
-        !mountedRef.current ||
-        controller.signal.aborted ||
-        generation !== requestGenerationRef.current ||
-        ownerId !== currentUserId ||
-        isRequestCancellation(error)
-      ) {
-        return;
-      }
 
-      const retainedUsers = preserveUsers ? usersRef.current : [];
-      setState({
-        ownerId,
-        users: retainedUsers,
-        status: retainedUsers.length > 0 ? "ready" : "error",
-        errorMessage: getUsersErrorMessage(error),
-      });
-    } finally {
-      if (requestRef.current === controller) {
-        requestRef.current = null;
+      try {
+        const response = await listAvailableUsers({
+          signal: controller.signal,
+          query,
+        });
+
+        if (
+          !mountedRef.current ||
+          controller.signal.aborted ||
+          generation !== requestGenerationRef.current ||
+          ownerId !== currentUserId
+        ) {
+          return;
+        }
+
+        usersRef.current = response.data;
+        setState({
+          ownerId,
+          users: response.data,
+          status: "ready",
+          errorMessage: null,
+        });
+      } catch (error: unknown) {
+        if (
+          !mountedRef.current ||
+          controller.signal.aborted ||
+          generation !== requestGenerationRef.current ||
+          ownerId !== currentUserId ||
+          isRequestCancellation(error)
+        ) {
+          return;
+        }
+
+        const retainedUsers = preserveUsers ? usersRef.current : [];
+        setState({
+          ownerId,
+          users: retainedUsers,
+          status: retainedUsers.length > 0 ? "ready" : "error",
+          errorMessage: getUsersErrorMessage(error),
+        });
+      } finally {
+        if (requestRef.current === controller) {
+          requestRef.current = null;
+        }
       }
-    }
-  }, [currentUserId]);
+    },
+    [currentUserId, query],
+  );
 
   const refresh = useCallback(async () => {
     if (requestRef.current) return;

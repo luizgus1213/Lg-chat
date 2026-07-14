@@ -44,7 +44,10 @@ export async function listStatuses(
     signal: options.signal,
   });
 
-  return { ...response, data: parseResponse(statusGroupsSchema, response.data) };
+  return {
+    ...response,
+    data: parseResponse(statusGroupsSchema, response.data),
+  };
 }
 
 export async function listMyStatuses(
@@ -55,7 +58,10 @@ export async function listMyStatuses(
     signal: options.signal,
   });
 
-  return { ...response, data: parseResponse(myStatusGroupSchema, response.data) };
+  return {
+    ...response,
+    data: parseResponse(myStatusGroupSchema, response.data),
+  };
 }
 
 export async function createTextStatus(
@@ -117,7 +123,10 @@ export async function listStatusViewers(
     signal: options.signal,
   });
 
-  return { ...response, data: parseResponse(statusViewersSchema, response.data) };
+  return {
+    ...response,
+    data: parseResponse(statusViewersSchema, response.data),
+  };
 }
 
 export async function deleteStatus(

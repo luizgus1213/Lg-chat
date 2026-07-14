@@ -6,17 +6,12 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { SOCKET_EVENTS } from "@shared/publicContracts";
 
 import { useSocket } from "../../../socket/useSocket";
 import {
   acceptCallAckSchema,
-  acceptedCallSchema,
-  callSignalEventSchema,
   endCallAckSchema,
-  endedCallSchema,
-  iceServersSchema,
-  incomingCallSchema,
-  rejectedCallSchema,
   startCallAckSchema,
   type CallParticipant,
   type CallSignal,
@@ -25,106 +20,34 @@ import {
 import {
   CallContext,
   type CallContextValue,
-  type CallPhase,
   type CallSession,
   type StartCallOptions,
 } from "../callContext";
 import { CallOverlay } from "../components/CallOverlay";
+import { loadIceServerConfiguration } from "../calls.api";
+import {
+  CALL_TIMEOUTS,
+  DEFAULT_ICE_SERVERS,
+  INITIAL_CALL_STATE,
+  callStatusForType,
+  isBusyPhase,
+  mediaErrorMessage,
+  stopStream,
+  type ProviderState,
+} from "../callRuntime";
+import { useCallSocketEvents } from "./useCallSocketEvents";
 
 export type CallProviderProps = {
   children: ReactNode;
   renderOverlay?: boolean;
 };
 
-type ProviderState = {
-  phase: CallPhase;
-  call: CallSession | null;
-  statusMessage: string;
-  errorMessage: string | null;
-};
-
-const ACK_TIMEOUT_MS = 15_000;
-const RING_TIMEOUT_MS = 60_000;
-const CONNECT_TIMEOUT_MS = 30_000;
-const DISCONNECTED_MEDIA_TIMEOUT_MS = 12_000;
-
-// Sem configuração externa, o WebRTC usa candidatos host e continua
-// funcionando em redes locais. TURN/STUN pode ser fornecido por ambiente.
-const DEFAULT_ICE_SERVERS: RTCIceServer[] = [];
-
-const INITIAL_STATE: ProviderState = {
-  phase: "idle",
-  call: null,
-  statusMessage: "",
-  errorMessage: null,
-};
-
-function isBusyPhase(phase: CallPhase) {
-  return !["idle", "ended", "error"].includes(phase);
-}
-
-function getConfiguredIceServers(): RTCIceServer[] {
-  const raw = import.meta.env.VITE_ICE_SERVERS;
-
-  if (!raw || typeof raw !== "string" || !raw.trim()) {
-    return DEFAULT_ICE_SERVERS;
-  }
-
-  try {
-    const parsed = iceServersSchema.safeParse(JSON.parse(raw) as unknown);
-
-    if (parsed.success) {
-      return parsed.data;
-    }
-
-    if (import.meta.env.DEV) {
-      console.warn("[LG Chat] VITE_ICE_SERVERS inválido; seguindo sem ICE externo.");
-    }
-  } catch {
-    if (import.meta.env.DEV) {
-      console.warn("[LG Chat] VITE_ICE_SERVERS não contém JSON válido.");
-    }
-  }
-
-  return DEFAULT_ICE_SERVERS;
-}
-
-function stopStream(stream: MediaStream | null) {
-  stream?.getTracks().forEach((track) => track.stop());
-}
-
-function mediaErrorMessage(error: unknown, type: CallType) {
-  if (error instanceof DOMException) {
-    if (error.name === "NotAllowedError" || error.name === "SecurityError") {
-      return type === "video"
-        ? "Permita o uso do microfone e da câmera para continuar."
-        : "Permita o uso do microfone para continuar.";
-    }
-
-    if (error.name === "NotFoundError" || error.name === "DevicesNotFoundError") {
-      return type === "video"
-        ? "Não encontramos microfone e câmera disponíveis neste aparelho."
-        : "Não encontramos um microfone disponível neste aparelho.";
-    }
-
-    if (error.name === "NotReadableError" || error.name === "TrackStartError") {
-      return "O microfone ou a câmera já está em uso por outro aplicativo.";
-    }
-  }
-
-  return "Não foi possível acessar o microfone ou a câmera.";
-}
-
-function callStatusForType(type: CallType, videoText: string, voiceText: string) {
-  return type === "video" ? videoText : voiceText;
-}
-
 export function CallProvider({
   children,
   renderOverlay = true,
 }: CallProviderProps) {
   const { socket } = useSocket();
-  const [state, setState] = useState<ProviderState>(INITIAL_STATE);
+  const [state, setState] = useState<ProviderState>(INITIAL_CALL_STATE);
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
   const [durationSeconds, setDurationSeconds] = useState(0);
@@ -132,7 +55,9 @@ export function CallProvider({
   const [isCameraEnabled, setIsCameraEnabled] = useState(true);
   const [canSwitchCamera, setCanSwitchCamera] = useState(false);
   const [isSwitchingCamera, setIsSwitchingCamera] = useState(false);
-  const [cameraFacing, setCameraFacing] = useState<"user" | "environment">("user");
+  const [cameraFacing, setCameraFacing] = useState<"user" | "environment">(
+    "user",
+  );
 
   const stateRef = useRef(state);
   const mountedRef = useRef(true);
@@ -142,14 +67,16 @@ export function CallProvider({
   const pendingOfferRef = useRef<Extract<CallSignal, { type: "offer" }> | null>(
     null,
   );
-  const pendingAnswerRef = useRef<Extract<CallSignal, { type: "answer" }> | null>(
-    null,
-  );
+  const pendingAnswerRef = useRef<Extract<
+    CallSignal,
+    { type: "answer" }
+  > | null>(null);
   const pendingCandidatesRef = useRef<RTCIceCandidateInit[]>([]);
   const activeSinceRef = useRef<number | null>(null);
   const cameraFacingRef = useRef<"user" | "environment">("user");
   const mediaDisconnectTimerRef = useRef<number | null>(null);
   const sessionEpochRef = useRef(0);
+  const iceServersRef = useRef<RTCIceServer[]>(DEFAULT_ICE_SERVERS);
 
   const updateState = useCallback(
     (updater: ProviderState | ((current: ProviderState) => ProviderState)) => {
@@ -207,18 +134,15 @@ export function CallProvider({
     }
   }, [clearMediaDisconnectTimer]);
 
-  const isCurrentSession = useCallback(
-    (epoch: number, callId?: string) => {
-      if (sessionEpochRef.current !== epoch) return false;
-      if (!callId) return true;
+  const isCurrentSession = useCallback((epoch: number, callId?: string) => {
+    if (sessionEpochRef.current !== epoch) return false;
+    if (!callId) return true;
 
-      return (
-        stateRef.current.call?.callId === callId &&
-        isBusyPhase(stateRef.current.phase)
-      );
-    },
-    [],
-  );
+    return (
+      stateRef.current.call?.callId === callId &&
+      isBusyPhase(stateRef.current.phase)
+    );
+  }, []);
 
   const emitWithAck = useCallback(
     (event: string, payload: Record<string, unknown>) => {
@@ -233,7 +157,7 @@ export function CallProvider({
           if (settled) return;
           settled = true;
           reject(new Error("ACK_TIMEOUT"));
-        }, ACK_TIMEOUT_MS);
+        }, CALL_TIMEOUTS.ack);
 
         socket.emit(event, payload, (response: unknown) => {
           if (settled) return;
@@ -247,7 +171,10 @@ export function CallProvider({
   );
 
   const emitTerminal = useCallback(
-    (event: "call:reject" | "call:end", call: CallSession) => {
+    (
+      event: typeof SOCKET_EVENTS.callReject | typeof SOCKET_EVENTS.callEnd,
+      call: CallSession,
+    ) => {
       if (!socket?.connected) return;
 
       socket.emit(event, {
@@ -264,7 +191,7 @@ export function CallProvider({
 
       if (!socket?.connected || !call) return;
 
-      socket.emit("call:signal", {
+      socket.emit(SOCKET_EVENTS.callSignal, {
         callId: call.callId,
         chatId: call.chatId,
         signal,
@@ -274,7 +201,11 @@ export function CallProvider({
   );
 
   const finalizeCall = useCallback(
-    (phase: "ended" | "error", statusMessage: string, errorMessage?: string) => {
+    (
+      phase: "ended" | "error",
+      statusMessage: string,
+      errorMessage?: string,
+    ) => {
       cleanupResources();
       updateState((current) => ({
         ...current,
@@ -289,7 +220,7 @@ export function CallProvider({
   const failActiveCall = useCallback(
     (message: string) => {
       const call = stateRef.current.call;
-      if (call) emitTerminal("call:end", call);
+      if (call) emitTerminal(SOCKET_EVENTS.callEnd, call);
       finalizeCall("error", "A chamada foi interrompida.", message);
     },
     [emitTerminal, finalizeCall],
@@ -343,7 +274,8 @@ export function CallProvider({
       setLocalStream(stream);
       setIsMicEnabled(stream.getAudioTracks().every((track) => track.enabled));
       setIsCameraEnabled(
-        type === "video" && stream.getVideoTracks().every((track) => track.enabled),
+        type === "video" &&
+          stream.getVideoTracks().every((track) => track.enabled),
       );
 
       if (type === "video") {
@@ -511,7 +443,7 @@ export function CallProvider({
     if (oldPeer) oldPeer.close();
 
     const peer = new RTCPeerConnection({
-      iceServers: getConfiguredIceServers(),
+      iceServers: iceServersRef.current,
     });
     const remote = new MediaStream();
 
@@ -571,7 +503,7 @@ export function CallProvider({
           ) {
             failActiveCall("A conexão de mídia foi perdida.");
           }
-        }, DISCONNECTED_MEDIA_TIMEOUT_MS);
+        }, CALL_TIMEOUTS.disconnectedMedia);
         return;
       }
 
@@ -615,10 +547,19 @@ export function CallProvider({
       });
 
       try {
-        await requestLocalMedia(type, operationEpoch);
+        const [, iceConfiguration] = await Promise.all([
+          requestLocalMedia(type, operationEpoch),
+          loadIceServerConfiguration().catch(() => null),
+        ]);
+        if (iceConfiguration) {
+          iceServersRef.current = iceConfiguration.iceServers;
+        }
         if (!isCurrentSession(operationEpoch)) return;
 
-        const response = await emitWithAck("call:start", { chatId, type });
+        const response = await emitWithAck(SOCKET_EVENTS.callStart, {
+          chatId,
+          type,
+        });
         const ack = startCallAckSchema.safeParse(response);
 
         if (!ack.success) {
@@ -631,7 +572,7 @@ export function CallProvider({
 
         if (!mountedRef.current || !isCurrentSession(operationEpoch)) {
           if (socket.connected) {
-            socket.emit("call:reject", {
+            socket.emit(SOCKET_EVENTS.callReject, {
               callId: ack.data.data.callId,
               chatId: ack.data.data.chatId,
             });
@@ -702,7 +643,11 @@ export function CallProvider({
 
   const acceptCall = useCallback(async () => {
     const call = stateRef.current.call;
-    if (!call || call.direction !== "incoming" || stateRef.current.phase !== "incoming") {
+    if (
+      !call ||
+      call.direction !== "incoming" ||
+      stateRef.current.phase !== "incoming"
+    ) {
       return;
     }
     const operationEpoch = sessionEpochRef.current;
@@ -715,7 +660,13 @@ export function CallProvider({
     }));
 
     try {
-      await requestLocalMedia(call.type, operationEpoch);
+      const [, iceConfiguration] = await Promise.all([
+        requestLocalMedia(call.type, operationEpoch),
+        loadIceServerConfiguration().catch(() => null),
+      ]);
+      if (iceConfiguration) {
+        iceServersRef.current = iceConfiguration.iceServers;
+      }
       if (!isCurrentSession(operationEpoch, call.callId)) return;
 
       createPeerConnection();
@@ -725,7 +676,7 @@ export function CallProvider({
         statusMessage: "Conectando…",
       }));
 
-      const response = await emitWithAck("call:accept", {
+      const response = await emitWithAck(SOCKET_EVENTS.callAccept, {
         callId: call.callId,
         chatId: call.chatId,
       });
@@ -757,7 +708,7 @@ export function CallProvider({
     } catch (error) {
       if (!isCurrentSession(operationEpoch, call.callId)) return;
 
-      emitTerminal("call:reject", call);
+      emitTerminal(SOCKET_EVENTS.callReject, call);
       const isMediaFailure =
         error instanceof DOMException ||
         (error instanceof Error &&
@@ -814,7 +765,7 @@ export function CallProvider({
       const operationEpoch = sessionEpochRef.current;
 
       try {
-        const response = await emitWithAck("call:reject", {
+        const response = await emitWithAck(SOCKET_EVENTS.callReject, {
           callId: call.callId,
           chatId: call.chatId,
         });
@@ -865,7 +816,7 @@ export function CallProvider({
     const operationEpoch = sessionEpochRef.current;
 
     try {
-      const response = await emitWithAck("call:end", {
+      const response = await emitWithAck(SOCKET_EVENTS.callEnd, {
         callId: call.callId,
         chatId: call.chatId,
       });
@@ -1016,7 +967,7 @@ export function CallProvider({
 
     cleanupResources();
     setDurationSeconds(0);
-    updateState(INITIAL_STATE);
+    updateState(INITIAL_CALL_STATE);
   }, [cleanupResources, updateState]);
 
   useEffect(() => {
@@ -1025,7 +976,9 @@ export function CallProvider({
     const updateDuration = () => {
       const startedAt = activeSinceRef.current;
       if (startedAt === null) return;
-      setDurationSeconds(Math.max(0, Math.floor((Date.now() - startedAt) / 1000)));
+      setDurationSeconds(
+        Math.max(0, Math.floor((Date.now() - startedAt) / 1000)),
+      );
     };
 
     updateDuration();
@@ -1050,7 +1003,7 @@ export function CallProvider({
       } else if (stateRef.current.phase === "outgoing") {
         void cancelCall();
       }
-    }, RING_TIMEOUT_MS);
+    }, CALL_TIMEOUTS.ringing);
 
     return () => window.clearTimeout(timer);
   }, [cancelCall, rejectCall, state.call, state.phase]);
@@ -1066,214 +1019,22 @@ export function CallProvider({
       ) {
         failActiveCall("A outra pessoa não conseguiu estabelecer a conexão.");
       }
-    }, CONNECT_TIMEOUT_MS);
+    }, CALL_TIMEOUTS.connecting);
 
     return () => window.clearTimeout(timer);
   }, [failActiveCall, state.call, state.phase]);
 
-  useEffect(() => {
-    if (!socket) return;
-    const boundSocket = socket;
+  const resetDuration = useCallback(() => setDurationSeconds(0), []);
 
-    function invalidEvent(name: string) {
-      if (import.meta.env.DEV) {
-        console.warn(`[LG Chat] Evento ${name} inválido.`);
-      }
-    }
-
-    function handleIncoming(payload: unknown) {
-      const parsed = incomingCallSchema.safeParse(payload);
-      if (!parsed.success) {
-        invalidEvent("call:incoming");
-        return;
-      }
-
-      if (isBusyPhase(stateRef.current.phase)) {
-        boundSocket.emit("call:reject", {
-          callId: parsed.data.callId,
-          chatId: parsed.data.chatId,
-        });
-        return;
-      }
-
-      cleanupResources();
-      setDurationSeconds(0);
-      const { fromUser, ...details } = parsed.data;
-
-      updateState({
-        phase: "incoming",
-        call: {
-          ...details,
-          direction: "incoming",
-          participant: {
-            ...fromUser,
-            avatarUrl: null,
-          },
-        },
-        statusMessage: callStatusForType(
-          details.type,
-          "Chamada de vídeo recebida",
-          "Chamada de voz recebida",
-        ),
-        errorMessage: null,
-      });
-    }
-
-    function handleAccepted(payload: unknown) {
-      const parsed = acceptedCallSchema.safeParse(payload);
-      if (!parsed.success) {
-        invalidEvent("call:accepted");
-        return;
-      }
-
-      const current = stateRef.current;
-      if (
-        current.call?.callId !== parsed.data.callId ||
-        current.call.direction !== "outgoing" ||
-        current.phase !== "outgoing"
-      ) {
-        return;
-      }
-
-      updateState({
-        ...current,
-        phase: "connecting",
-        call: {
-          ...current.call,
-          callId: parsed.data.callId,
-          chatId: parsed.data.chatId,
-          callerId: parsed.data.callerId,
-          receiverId: parsed.data.receiverId,
-          type: parsed.data.type,
-          startedAt: parsed.data.startedAt,
-          acceptedAt: parsed.data.acceptedAt,
-        },
-        statusMessage: "Conectando…",
-        errorMessage: null,
-      });
-      const operationEpoch = sessionEpochRef.current;
-      const callId = parsed.data.callId;
-
-      void (async () => {
-        try {
-          const peer = createPeerConnection();
-          const offer = await peer.createOffer();
-          if (
-            peerRef.current !== peer ||
-            !isCurrentSession(operationEpoch, callId)
-          ) {
-            return;
-          }
-
-          await peer.setLocalDescription(offer);
-          if (
-            peerRef.current !== peer ||
-            !isCurrentSession(operationEpoch, callId)
-          ) {
-            return;
-          }
-
-          if (!offer.sdp) throw new Error("EMPTY_OFFER_SDP");
-
-          emitSignal({
-            type: "offer",
-            sdp: {
-              type: "offer",
-              sdp: offer.sdp,
-            },
-          });
-
-          const pendingAnswer = pendingAnswerRef.current;
-          pendingAnswerRef.current = null;
-          if (pendingAnswer) await handleAnswer(pendingAnswer);
-        } catch {
-          if (isCurrentSession(operationEpoch, callId)) {
-            failActiveCall("Não foi possível conectar a chamada.");
-          }
-        }
-      })();
-    }
-
-    function handleRejected(payload: unknown) {
-      const parsed = rejectedCallSchema.safeParse(payload);
-      if (!parsed.success) {
-        invalidEvent("call:rejected");
-        return;
-      }
-
-      if (stateRef.current.call?.callId !== parsed.data.callId) return;
-      finalizeCall("ended", "Chamada recusada ou cancelada");
-    }
-
-    function handleEnded(payload: unknown) {
-      const parsed = endedCallSchema.safeParse(payload);
-      if (!parsed.success) {
-        invalidEvent("call:ended");
-        return;
-      }
-
-      if (stateRef.current.call?.callId !== parsed.data.callId) return;
-      finalizeCall("ended", "Chamada encerrada");
-    }
-
-    function handleSignalEvent(payload: unknown) {
-      const parsed = callSignalEventSchema.safeParse(payload);
-      if (!parsed.success) {
-        invalidEvent("call:signal");
-        return;
-      }
-
-      const call = stateRef.current.call;
-      if (
-        !call ||
-        call.callId !== parsed.data.callId ||
-        call.chatId !== parsed.data.chatId
-      ) {
-        return;
-      }
-      const operationEpoch = sessionEpochRef.current;
-      const callId = call.callId;
-
-      void processSignal(parsed.data.signal).catch(() => {
-        if (isCurrentSession(operationEpoch, callId)) {
-          failActiveCall("O sinal da chamada não pôde ser processado.");
-        }
-      });
-    }
-
-    function handleDisconnect() {
-      if (!isBusyPhase(stateRef.current.phase)) return;
-      finalizeCall(
-        "ended",
-        "Chamada encerrada",
-        "A conexão em tempo real foi interrompida.",
-      );
-    }
-
-    boundSocket.on("call:incoming", handleIncoming);
-    boundSocket.on("call:accepted", handleAccepted);
-    boundSocket.on("call:rejected", handleRejected);
-    boundSocket.on("call:ended", handleEnded);
-    boundSocket.on("call:signal", handleSignalEvent);
-    boundSocket.on("disconnect", handleDisconnect);
-
-    return () => {
-      boundSocket.off("call:incoming", handleIncoming);
-      boundSocket.off("call:accepted", handleAccepted);
-      boundSocket.off("call:rejected", handleRejected);
-      boundSocket.off("call:ended", handleEnded);
-      boundSocket.off("call:signal", handleSignalEvent);
-      boundSocket.off("disconnect", handleDisconnect);
-
-      const call = stateRef.current.call;
-      if (call && isBusyPhase(stateRef.current.phase) && boundSocket.connected) {
-        emitTerminal(call.acceptedAt ? "call:end" : "call:reject", call);
-      }
-
-      cleanupResources();
-    };
-  }, [
+  useCallSocketEvents({
+    socket,
+    stateRef,
+    sessionEpochRef,
+    peerRef,
+    pendingAnswerRef,
     cleanupResources,
+    resetDuration,
+    updateState,
     createPeerConnection,
     emitSignal,
     emitTerminal,
@@ -1282,9 +1043,7 @@ export function CallProvider({
     handleAnswer,
     isCurrentSession,
     processSignal,
-    socket,
-    updateState,
-  ]);
+  });
 
   useEffect(() => {
     mountedRef.current = true;

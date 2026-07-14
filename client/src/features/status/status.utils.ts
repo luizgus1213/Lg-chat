@@ -8,7 +8,7 @@ export function getStatusErrorMessage(error: unknown) {
 export function getInitials(name: string) {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   const first = parts[0]?.[0] ?? "?";
-  const last = parts.length > 1 ? parts.at(-1)?.[0] ?? "" : "";
+  const last = parts.length > 1 ? (parts.at(-1)?.[0] ?? "") : "";
   return `${first}${last}`.toLocaleUpperCase("pt-BR");
 }
 
@@ -21,7 +21,9 @@ const dateFormatter = new Intl.DateTimeFormat("pt-BR", {
 
 export function formatStatusDate(value: string) {
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? "Horário indisponível" : dateFormatter.format(date);
+  return Number.isNaN(date.getTime())
+    ? "Horário indisponível"
+    : dateFormatter.format(date);
 }
 
 export function safeStatusBackground(value: string | null) {

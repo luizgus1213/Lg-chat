@@ -51,7 +51,6 @@ export function toClientError(error: unknown): ClientError {
     };
   }
 
-
   if (
     error &&
     typeof error === "object" &&

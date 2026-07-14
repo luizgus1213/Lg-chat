@@ -1,6 +1,6 @@
 import { AppError } from "../errors/AppError";
 import { env } from "../config/env";
-import { logger } from "../utils/logger";
+import { logger, toSafeLogError } from "../utils/logger";
 
 type SendVerificationEmailInput = {
   toEmail: string;
@@ -34,10 +34,6 @@ function assertEmailJsConfigured() {
       "EMAIL_PROVIDER_NOT_CONFIGURED",
     );
   }
-}
-
-function getTextPreview(text: string) {
-  return text.length > 800 ? `${text.slice(0, 800)}...` : text;
 }
 
 async function fetchWithTimeout(url: string, init: RequestInit) {
@@ -86,17 +82,11 @@ export async function sendVerificationEmail(input: SendVerificationEmailInput) {
       body: JSON.stringify(payload),
     });
 
-    const responseText = await response.text().catch(() => "");
-
     if (!response.ok) {
       logger.error(
         {
           status: response.status,
           statusText: response.statusText,
-          responseText: getTextPreview(responseText),
-          email: toEmail,
-          serviceId: env.EMAILJS_SERVICE_ID,
-          templateId: env.EMAILJS_TEMPLATE_ID,
         },
         "EmailJS recusou o envio do email",
       );
@@ -110,9 +100,7 @@ export async function sendVerificationEmail(input: SendVerificationEmailInput) {
 
     logger.info(
       {
-        email: toEmail,
         status: response.status,
-        responseText: getTextPreview(responseText || "OK"),
       },
       "Código de verificação enviado pelo EmailJS",
     );
@@ -123,10 +111,7 @@ export async function sendVerificationEmail(input: SendVerificationEmailInput) {
 
     logger.error(
       {
-        err: error,
-        email: toEmail,
-        serviceId: env.EMAILJS_SERVICE_ID,
-        templateId: env.EMAILJS_TEMPLATE_ID,
+        error: toSafeLogError(error),
       },
       "Falha inesperada ao enviar email de verificação",
     );

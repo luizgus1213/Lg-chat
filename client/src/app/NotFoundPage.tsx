@@ -17,10 +17,7 @@ export function NotFoundPage() {
         </p>
 
         <div className={styles.actions}>
-          <Link
-            className={`${styles.button} ${styles.primary}`}
-            to="/"
-          >
+          <Link className={`${styles.button} ${styles.primary}`} to="/">
             Voltar ao início
           </Link>
         </div>

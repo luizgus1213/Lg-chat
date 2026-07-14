@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 
 import type { ChatMessage } from "../../messages.schemas";
+import { MediaViewer } from "../MediaViewer";
+import { MessageMedia } from "./MessageMedia";
 
 import styles from "./styles.module.css";
 
@@ -18,9 +20,8 @@ type MessageItemProps = {
   onEdit: (messageId: number, text: string) => Promise<boolean>;
   onDelete: (messageId: number) => Promise<boolean>;
   onForward: (message: ChatMessage) => void;
+  onRetry: (messageId: number) => Promise<void>;
 };
-
-type MediaStatus = "loading" | "ready" | "error";
 
 function formatMessageTime(value: string) {
   const date = new Date(value);
@@ -32,33 +33,10 @@ function formatMessageTime(value: string) {
   }).format(date);
 }
 
-function formatFileSize(value?: number | null) {
-  if (!value || value <= 0) return "Tamanho não informado";
-
-  const units = ["B", "KB", "MB", "GB"];
-  const unitIndex = Math.min(
-    Math.floor(Math.log(value) / Math.log(1024)),
-    units.length - 1,
-  );
-  const size = value / 1024 ** unitIndex;
-
-  return size.toFixed(unitIndex === 0 ? 0 : 1) + " " + units[unitIndex];
-}
-
-function getSafeMediaUrl(value?: string | null) {
-  if (!value) return null;
-
-  try {
-    const url = new URL(value, window.location.origin);
-    return ["http:", "https:"].includes(url.protocol) ? url.href : null;
-  } catch {
-    return null;
-  }
-}
-
 function getStatus(message: ChatMessage) {
   if (message.clientStatus === "sending") return "…";
   if (message.clientStatus === "error") return "!";
+  if (message.deliveryStatus === "read") return "✓✓";
   return "✓";
 }
 
@@ -66,110 +44,8 @@ function getStatusLabel(message: ChatMessage) {
   if (message.localError) return message.localError;
   if (message.clientStatus === "sending") return "Enviando";
   if (message.clientStatus === "error") return "Falha no envio";
+  if (message.deliveryStatus === "read") return "Lida";
   return "Enviada";
-}
-
-function MessageMedia({ message }: { message: ChatMessage }) {
-  const mediaUrl = getSafeMediaUrl(message.mediaUrl);
-  const [status, setStatus] = useState<MediaStatus>("loading");
-
-  if (!mediaUrl || message.deletedAt) return null;
-
-  if (message.type === "file") {
-    return (
-      <div className={styles.media}>
-        <a
-          className={styles.fileLink}
-          href={mediaUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <span className={styles.fileIcon} aria-hidden="true">
-            📎
-          </span>
-          <span className={styles.fileInfo}>
-            <strong>{message.mediaOriginalName || "Abrir arquivo"}</strong>
-            <span>
-              {message.mediaMimeType || "Arquivo"} ·{" "}
-              {formatFileSize(message.mediaSize)}
-            </span>
-          </span>
-        </a>
-      </div>
-    );
-  }
-
-  const loadingLabel =
-    message.type === "image"
-      ? "Carregando imagem…"
-      : message.type === "video"
-        ? "Carregando vídeo…"
-        : "Carregando áudio…";
-
-  return (
-    <div className={styles.media}>
-      {status === "loading" ? (
-        <span className={styles.mediaStatus} role="status" aria-live="polite">
-          {loadingLabel}
-        </span>
-      ) : null}
-      {status === "error" ? (
-        <span className={styles.mediaError} role="alert">
-          Não foi possível carregar esta mídia.{" "}
-          <a href={mediaUrl} target="_blank" rel="noopener noreferrer">
-            Abrir em outra aba
-          </a>
-        </span>
-      ) : null}
-
-      {message.type === "image" ? (
-        <a
-          href={mediaUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className={styles.mediaLink}
-          hidden={status === "error"}
-        >
-          <img
-            className={styles.image}
-            src={mediaUrl}
-            alt={message.text?.trim() || "Imagem enviada na conversa"}
-            loading="lazy"
-            onLoad={() => setStatus("ready")}
-            onError={() => setStatus("error")}
-          />
-        </a>
-      ) : null}
-
-      {message.type === "video" ? (
-        <video
-          className={styles.video}
-          src={mediaUrl}
-          controls
-          preload="metadata"
-          hidden={status === "error"}
-          onLoadedMetadata={() => setStatus("ready")}
-          onError={() => setStatus("error")}
-        >
-          Seu navegador não suporta a reprodução deste vídeo.
-        </video>
-      ) : null}
-
-      {message.type === "audio" ? (
-        <audio
-          className={styles.audio}
-          src={mediaUrl}
-          controls
-          preload="metadata"
-          hidden={status === "error"}
-          onLoadedMetadata={() => setStatus("ready")}
-          onError={() => setStatus("error")}
-        >
-          Seu navegador não suporta a reprodução deste áudio.
-        </audio>
-      ) : null}
-    </div>
-  );
 }
 
 export function MessageItem({
@@ -184,11 +60,17 @@ export function MessageItem({
   onEdit,
   onDelete,
   onForward,
+  onRetry,
 }: MessageItemProps) {
   const [isReactionPickerOpen, setIsReactionPickerOpen] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [editingText, setEditingText] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [viewer, setViewer] = useState<{
+    url: string;
+    type: "image" | "video";
+    label: string;
+  } | null>(null);
   const wrapperRef = useRef<HTMLElement | null>(null);
   const isOwn = message.fromUserId === currentUserId;
 
@@ -266,6 +148,7 @@ export function MessageItem({
             <MessageMedia
               key={message.mediaUrl || "media-" + message.id}
               message={message}
+              onOpen={(url, type, label) => setViewer({ url, type, label })}
             />
             {editingText !== null ? (
               <form
@@ -280,14 +163,34 @@ export function MessageItem({
               >
                 <label>
                   <span>Editar mensagem</span>
-                  <textarea autoFocus value={editingText} maxLength={1_000} rows={3} disabled={isActionPending} onChange={(event) => setEditingText(event.target.value)} />
+                  <textarea
+                    autoFocus
+                    value={editingText}
+                    maxLength={1_000}
+                    rows={3}
+                    disabled={isActionPending}
+                    onChange={(event) => setEditingText(event.target.value)}
+                  />
                 </label>
                 <div>
-                  <button type="button" disabled={isActionPending} onClick={() => setEditingText(null)}>Cancelar</button>
-                  <button type="submit" disabled={isActionPending || !editingText.trim()}>Salvar</button>
+                  <button
+                    type="button"
+                    disabled={isActionPending}
+                    onClick={() => setEditingText(null)}
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isActionPending || !editingText.trim()}
+                  >
+                    Salvar
+                  </button>
                 </div>
               </form>
-            ) : visibleText ? <p className={styles.text}>{visibleText}</p> : null}
+            ) : visibleText ? (
+              <p className={styles.text}>{visibleText}</p>
+            ) : null}
           </>
         )}
 
@@ -353,12 +256,72 @@ export function MessageItem({
             </button>
             {isMenuOpen ? (
               <div className={styles.actions} role="menu">
-                <button type="button" role="menuitem" onClick={() => { setIsMenuOpen(false); onReply(message); }}>Responder</button>
-                <button type="button" role="menuitem" aria-pressed={message.isStarred} onClick={() => { setIsMenuOpen(false); onToggleStar(message.id, !message.isStarred); }}>{message.isStarred ? "Desfavoritar" : "Favoritar"}</button>
-                <button type="button" role="menuitem" onClick={() => { setIsMenuOpen(false); setIsReactionPickerOpen(true); }}>Reagir</button>
-                <button type="button" role="menuitem" onClick={() => { setIsMenuOpen(false); onForward(message); }}>Encaminhar</button>
-                {isOwn ? <button type="button" role="menuitem" onClick={() => { setIsMenuOpen(false); setEditingText(message.text ?? ""); }}>Editar</button> : null}
-                {isOwn ? <button className={styles.dangerAction} type="button" role="menuitem" onClick={() => { setIsMenuOpen(false); setConfirmDelete(true); }}>Excluir</button> : null}
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setIsMenuOpen(false);
+                    onReply(message);
+                  }}
+                >
+                  Responder
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  aria-pressed={message.isStarred}
+                  onClick={() => {
+                    setIsMenuOpen(false);
+                    onToggleStar(message.id, !message.isStarred);
+                  }}
+                >
+                  {message.isStarred ? "Desfavoritar" : "Favoritar"}
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setIsMenuOpen(false);
+                    setIsReactionPickerOpen(true);
+                  }}
+                >
+                  Reagir
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setIsMenuOpen(false);
+                    onForward(message);
+                  }}
+                >
+                  Encaminhar
+                </button>
+                {isOwn && message.type === "text" && visibleText ? (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setIsMenuOpen(false);
+                      setEditingText(message.text ?? "");
+                    }}
+                  >
+                    Editar
+                  </button>
+                ) : null}
+                {isOwn ? (
+                  <button
+                    className={styles.dangerAction}
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setIsMenuOpen(false);
+                      setConfirmDelete(true);
+                    }}
+                  >
+                    Excluir
+                  </button>
+                ) : null}
               </div>
             ) : null}
           </div>
@@ -384,21 +347,54 @@ export function MessageItem({
         ) : null}
 
         {confirmDelete ? (
-          <div className={styles.deleteConfirm} role="alertdialog" aria-label="Confirmar exclusão da mensagem">
+          <div
+            className={styles.deleteConfirm}
+            role="alertdialog"
+            aria-label="Confirmar exclusão da mensagem"
+          >
             <span>Apagar para todos?</span>
             <div>
-              <button type="button" disabled={isActionPending} onClick={() => setConfirmDelete(false)}>Cancelar</button>
-              <button type="button" disabled={isActionPending} onClick={() => void onDelete(message.id).then((success) => {
-                if (success) setConfirmDelete(false);
-              })}>Apagar</button>
+              <button
+                type="button"
+                disabled={isActionPending}
+                onClick={() => setConfirmDelete(false)}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={isActionPending}
+                onClick={() =>
+                  void onDelete(message.id).then((success) => {
+                    if (success) setConfirmDelete(false);
+                  })
+                }
+              >
+                Apagar
+              </button>
             </div>
           </div>
         ) : null}
 
         {message.localError ? (
-          <span className={styles.localError}>{message.localError}</span>
+          <span className={styles.localError}>
+            {message.localError}
+            {message.clientStatus === "error" && message.type === "text" ? (
+              <button type="button" onClick={() => void onRetry(message.id)}>
+                Tentar novamente
+              </button>
+            ) : null}
+          </span>
         ) : null}
       </div>
+      {viewer ? (
+        <MediaViewer
+          url={viewer.url}
+          type={viewer.type}
+          label={viewer.label}
+          onClose={() => setViewer(null)}
+        />
+      ) : null}
     </article>
   );
 }

@@ -3,10 +3,8 @@
   min-width: 0;
   flex: 0 0 auto;
   gap: 8px;
-  padding:
-    11px max(14px, env(safe-area-inset-right))
-    max(11px, env(safe-area-inset-bottom))
-    max(14px, env(safe-area-inset-left));
+  padding: 11px max(14px, env(safe-area-inset-right))
+    max(11px, env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-left));
   border-top: 1px solid var(--border);
   background: var(--surface-raised);
 }
@@ -82,6 +80,53 @@
   justify-self: end;
   color: var(--text-subtle);
   font-size: 0.68rem;
+}
+
+.recorder,
+.recorderPreview {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 12px;
+  border-radius: 12px;
+  color: #dce9e6;
+  background: #15222a;
+}
+
+.recorder button,
+.recorderPreview button {
+  border: 0;
+  border-radius: 8px;
+  padding: 7px 10px;
+  color: inherit;
+  background: #263740;
+  cursor: pointer;
+}
+
+.recorderPreview audio {
+  flex: 1;
+  min-width: 200px;
+}
+.recordingDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #ff5f65;
+  box-shadow: 0 0 0 5px rgb(255 95 101 / 14%);
+}
+.recordButton {
+  flex: 0 0 42px;
+  height: 42px;
+  border: 0;
+  border-radius: 50%;
+  color: #ff7b80;
+  background: #1d2a32;
+  cursor: pointer;
+}
+.recordButton:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .fileInput,
@@ -198,10 +243,8 @@
 
 @media (max-width: 520px) {
   .wrapper {
-    padding:
-      9px max(9px, env(safe-area-inset-right))
-      max(9px, env(safe-area-inset-bottom))
-      max(9px, env(safe-area-inset-left));
+    padding: 9px max(9px, env(safe-area-inset-right))
+      max(9px, env(safe-area-inset-bottom)) max(9px, env(safe-area-inset-left));
   }
 
   .row button {

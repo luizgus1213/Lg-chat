@@ -1,4 +1,10 @@
-import { Op, QueryTypes, Transaction, WhereOptions } from "sequelize";
+import {
+  Op,
+  QueryTypes,
+  Transaction,
+  UniqueConstraintError,
+  WhereOptions,
+} from "sequelize";
 import { sequelize } from "../db/connection";
 import { AppError } from "../errors/AppError";
 import { Chat } from "../models/Chat";
@@ -7,8 +13,8 @@ import { Message, type MessageAttributes } from "../models/Message";
 import { User } from "../models/User";
 import { UserBlock } from "../models/UserBlock";
 import fs from "fs/promises";
-import path from "path";
-import { logger } from "../utils/logger";
+import { resolveUploadUrlToPath } from "../config/uploadPaths";
+import { logger, toSafeLogError } from "../utils/logger";
 type PublicChat = {
   id: number;
   type: string;
@@ -76,7 +82,6 @@ async function getPrivateChatUser(chatId: number, currentUserId: number) {
   return user ? publicUserDTO(user) : null;
 }
 
-
 async function getPrivateChatMembers(chatId: number, currentUserId: number) {
   const chat = await Chat.findByPk(chatId);
 
@@ -119,7 +124,10 @@ async function getPrivateChatMembers(chatId: number, currentUserId: number) {
   };
 }
 
-async function getBlockStatusBetween(currentUserId: number, otherUserId?: number | null) {
+async function getBlockStatusBetween(
+  currentUserId: number,
+  otherUserId?: number | null,
+) {
   if (!otherUserId) {
     return {
       blockedByMe: false,
@@ -150,7 +158,10 @@ async function getBlockStatusBetween(currentUserId: number, otherUserId?: number
   };
 }
 
-async function getBlockStatusForPrivateChat(chatId: number, currentUserId: number) {
+async function getBlockStatusForPrivateChat(
+  chatId: number,
+  currentUserId: number,
+) {
   const { otherUserId } = await getPrivateChatMembers(chatId, currentUserId);
 
   return {
@@ -192,7 +203,10 @@ function messageVisibilityCutoff(member: ChatMember) {
   return new Date(Math.max(...dates));
 }
 
-function applyMessageVisibility(where: WhereOptions<MessageAttributes>, member: ChatMember) {
+function applyMessageVisibility(
+  where: WhereOptions<MessageAttributes>,
+  member: ChatMember,
+) {
   const cutoff = messageVisibilityCutoff(member);
 
   if (!cutoff) return where;
@@ -205,9 +219,9 @@ function applyMessageVisibility(where: WhereOptions<MessageAttributes>, member: 
   };
 }
 
-
-
-function getChatFileMessageType(mimeType: string): "image" | "video" | "audio" | "file" {
+function getChatFileMessageType(
+  mimeType: string,
+): "image" | "video" | "audio" | "file" {
   if (mimeType.startsWith("image/")) return "image";
   if (mimeType.startsWith("video/")) return "video";
   if (mimeType.startsWith("audio/")) return "audio";
@@ -241,7 +255,8 @@ function messageDTO(message: Message, clientId?: string | null) {
     deletedAt: message.deletedAt,
     createdAt: message.createdAt,
     updatedAt: message.updatedAt,
-    clientId: clientId ?? null,
+    clientId: clientId ?? message.clientId ?? null,
+    deliveryStatus: "sent" as const,
   };
 }
 
@@ -350,7 +365,10 @@ async function getReplyPreviewMap(messages: Message[]) {
   return new Map(replies.map((reply) => [reply.id, replyPreviewDTO(reply)]));
 }
 
-async function getReactionSummaryMap(messageIds: number[], currentUserId: number) {
+async function getReactionSummaryMap(
+  messageIds: number[],
+  currentUserId: number,
+) {
   const uniqueIds = Array.from(
     new Set(messageIds.filter((id) => Number.isInteger(id) && id > 0)),
   );
@@ -406,7 +424,10 @@ async function getReactionSummaryMap(messageIds: number[], currentUserId: number
   return map;
 }
 
-async function getStarredMessageIdSet(messageIds: number[], currentUserId: number) {
+async function getStarredMessageIdSet(
+  messageIds: number[],
+  currentUserId: number,
+) {
   const uniqueIds = Array.from(
     new Set(messageIds.filter((id) => Number.isInteger(id) && id > 0)),
   );
@@ -445,20 +466,57 @@ async function messagesDTOWithExtras(
 
   const messageIds = messages.map((message) => message.id);
 
-  const [replyMap, reactionMap, starredSet] = await Promise.all([
+  const ownMessages = messages.filter(
+    (message) =>
+      message.senderId === currentUserId &&
+      typeof message.chatId === "number" &&
+      message.id > 0,
+  );
+  const chatIds = Array.from(
+    new Set(ownMessages.map((message) => Number(message.chatId))),
+  );
+
+  const [replyMap, reactionMap, starredSet, otherMembers] = await Promise.all([
     getReplyPreviewMap(messages),
     getReactionSummaryMap(messageIds, currentUserId),
     getStarredMessageIdSet(messageIds, currentUserId),
+    chatIds.length > 0
+      ? ChatMember.findAll({
+          where: {
+            chatId: { [Op.in]: chatIds },
+            userId: { [Op.ne]: currentUserId },
+            leftAt: null,
+          },
+          attributes: ["chatId", "lastReadMessageId"],
+        })
+      : Promise.resolve([]),
   ]);
+
+  const readersByChatId = new Map<number, ChatMember[]>();
+  for (const member of otherMembers) {
+    const readers = readersByChatId.get(member.chatId) ?? [];
+    readers.push(member);
+    readersByChatId.set(member.chatId, readers);
+  }
 
   return messages.map((message) => {
     const replyToMessageId = message.replyToMessageId ?? null;
 
     return {
       ...messageDTO(message, clientIdMap.get(message.id) ?? null),
-      replyTo: replyToMessageId ? replyMap.get(replyToMessageId) ?? null : null,
+      replyTo: replyToMessageId
+        ? (replyMap.get(replyToMessageId) ?? null)
+        : null,
       reactions: reactionMap.get(message.id) ?? [],
       isStarred: starredSet.has(message.id),
+      deliveryStatus:
+        message.senderId === currentUserId &&
+        (readersByChatId.get(Number(message.chatId)) ?? []).length > 0 &&
+        (readersByChatId.get(Number(message.chatId)) ?? []).every(
+          (member) => (member.lastReadMessageId ?? 0) >= message.id,
+        )
+          ? ("read" as const)
+          : ("sent" as const),
     };
   });
 }
@@ -474,7 +532,11 @@ async function messageDTOWithExtras(
     clientIdMap.set(message.id, clientId);
   }
 
-  const [dto] = await messagesDTOWithExtras([message], currentUserId, clientIdMap);
+  const [dto] = await messagesDTOWithExtras(
+    [message],
+    currentUserId,
+    clientIdMap,
+  );
 
   return dto;
 }
@@ -531,14 +593,14 @@ async function touchChat(chatId: number, transaction?: Transaction) {
 async function assertUserExists(userId: number) {
   const user = await User.findByPk(userId, {
     attributes: [
-          "id",
-          "nome",
-          "email",
-          "avatarUrl",
-          "about",
-          "isOnline",
-          "lastSeenAt",
-        ],
+      "id",
+      "nome",
+      "email",
+      "avatarUrl",
+      "about",
+      "isOnline",
+      "lastSeenAt",
+    ],
   });
 
   if (!user) {
@@ -741,7 +803,10 @@ export async function createGroupChat(params: {
   return chatDTO(chat);
 }
 
-export async function listMyChats(currentUserId: number, options: { archived?: boolean } = {}) {
+export async function listMyChats(
+  currentUserId: number,
+  options: { archived?: boolean } = {},
+) {
   const memberships = await ChatMember.findAll({
     where: {
       userId: currentUserId,
@@ -774,7 +839,10 @@ export async function listMyChats(currentUserId: number, options: { archived?: b
     .filter((chat) => chat.type === "private")
     .map((chat) => chat.id);
 
-  const privateUserByChatId = new Map<number, ReturnType<typeof publicUserDTO>>();
+  const privateUserByChatId = new Map<
+    number,
+    ReturnType<typeof publicUserDTO>
+  >();
 
   if (privateChatIds.length) {
     const privateMembers = await ChatMember.findAll({
@@ -883,9 +951,9 @@ export async function listMyChats(currentUserId: number, options: { archived?: b
     .map((membership) => {
       const cutoff = messageVisibilityCutoff(membership);
       const cutoffSql = cutoff
-        ? `${(sequelize as unknown as { escape(value: unknown): string }).escape(
-            cutoff.toISOString(),
-          )}::timestamptz`
+        ? `${(
+            sequelize as unknown as { escape(value: unknown): string }
+          ).escape(cutoff.toISOString())}::timestamptz`
         : "NULL::timestamptz";
 
       return `(${Number(membership.chatId)}, ${Number(
@@ -953,11 +1021,14 @@ export async function listMyChats(currentUserId: number, options: { archived?: b
   const publicChats = memberships.map((membership) => {
     const chat = membership.get("chat") as Chat;
     const privateUser =
-      chat.type === "private" ? privateUserByChatId.get(chat.id) ?? null : null;
+      chat.type === "private"
+        ? (privateUserByChatId.get(chat.id) ?? null)
+        : null;
 
     return {
       ...chatDTO(chat),
-      name: chat.type === "private" && privateUser ? privateUser.nome : chat.name,
+      name:
+        chat.type === "private" && privateUser ? privateUser.nome : chat.name,
       avatarUrl:
         chat.type === "private" && privateUser
           ? privateUser.avatarUrl
@@ -974,11 +1045,11 @@ export async function listMyChats(currentUserId: number, options: { archived?: b
       chatDeletedAt: membership.chatDeletedAt ?? null,
       block:
         chat.type === "private" && privateUser
-          ? blockByOtherUserId.get(privateUser.id) ?? {
+          ? (blockByOtherUserId.get(privateUser.id) ?? {
               blockedByMe: false,
               blockedMe: false,
               isBlocked: false,
-            }
+            })
           : null,
       lastMessage: lastMessageByChatId.has(chat.id)
         ? messageDTO(lastMessageByChatId.get(chat.id)!)
@@ -1385,25 +1456,72 @@ export async function sendMessageToChat(params: {
     replyToMessageId: params.replyToMessageId,
   });
 
-  const message = await sequelize.transaction(async (transaction) => {
-    const createdMessage = await Message.create(
-      {
-        chatId: params.chatId,
+  const findIdempotentMessage = async () => {
+    if (!params.clientId) return null;
+
+    const existing = await Message.findOne({
+      where: {
         senderId: params.currentUserId,
-        receiverId: null,
-        text: params.text,
-        type: "text",
-        replyToMessageId: params.replyToMessageId ?? null,
+        clientId: params.clientId,
       },
-      { transaction },
-    );
+    });
 
-    await touchChat(params.chatId, transaction);
+    if (!existing) return null;
 
-    return createdMessage;
-  });
+    const sameOperation =
+      existing.chatId === params.chatId &&
+      existing.type === "text" &&
+      existing.text === params.text &&
+      (existing.replyToMessageId ?? null) === (params.replyToMessageId ?? null);
 
-  return messageDTOWithExtras(message, params.currentUserId, params.clientId ?? null);
+    if (!sameOperation) {
+      throw new AppError(
+        409,
+        "Esta identificação de envio já foi usada em outra mensagem.",
+        "MESSAGE_CLIENT_ID_REUSED",
+      );
+    }
+
+    return existing;
+  };
+
+  const existing = await findIdempotentMessage();
+  if (existing) {
+    return messageDTOWithExtras(existing, params.currentUserId);
+  }
+
+  let message: Message;
+
+  try {
+    message = await sequelize.transaction(async (transaction) => {
+      const createdMessage = await Message.create(
+        {
+          chatId: params.chatId,
+          senderId: params.currentUserId,
+          receiverId: null,
+          text: params.text,
+          type: "text",
+          clientId: params.clientId ?? null,
+          replyToMessageId: params.replyToMessageId ?? null,
+        },
+        { transaction },
+      );
+
+      await touchChat(params.chatId, transaction);
+
+      return createdMessage;
+    });
+  } catch (error) {
+    if (!(error instanceof UniqueConstraintError) || !params.clientId) {
+      throw error;
+    }
+
+    const racedMessage = await findIdempotentMessage();
+    if (!racedMessage) throw error;
+    message = racedMessage;
+  }
+
+  return messageDTOWithExtras(message, params.currentUserId);
 }
 
 export async function getChatMessages(params: {
@@ -1437,6 +1555,59 @@ export async function getChatMessages(params: {
   return messagesDTOWithExtras(messages.reverse(), params.currentUserId);
 }
 
+export async function getMessageContext(params: {
+  currentUserId: number;
+  chatId: number;
+  messageId: number;
+  radius: number;
+}) {
+  const member = await assertChatMember(params.chatId, params.currentUserId);
+  const targetWhere = applyMessageVisibility(
+    { id: params.messageId, chatId: params.chatId },
+    member,
+  );
+  const target = await Message.findOne({ where: targetWhere });
+
+  if (!target) {
+    throw new AppError(
+      404,
+      "A mensagem não está mais disponível nesta conversa.",
+      "MESSAGE_NOT_FOUND",
+    );
+  }
+
+  const [beforeAndTarget, after] = await Promise.all([
+    Message.findAll({
+      where: applyMessageVisibility(
+        {
+          chatId: params.chatId,
+          id: { [Op.lte]: params.messageId },
+        },
+        member,
+      ),
+      order: [["id", "DESC"]],
+      limit: params.radius + 1,
+    }),
+    Message.findAll({
+      where: applyMessageVisibility(
+        {
+          chatId: params.chatId,
+          id: { [Op.gt]: params.messageId },
+        },
+        member,
+      ),
+      order: [["id", "ASC"]],
+      limit: params.radius,
+    }),
+  ]);
+
+  const messages = [...beforeAndTarget.reverse(), ...after];
+
+  return {
+    targetId: target.id,
+    messages: await messagesDTOWithExtras(messages, params.currentUserId),
+  };
+}
 
 export async function searchChatMessages(params: {
   currentUserId: number;
@@ -1586,7 +1757,6 @@ export async function updateChatPreferences(params: {
   };
 }
 
-
 export async function updatePrivateChatBlock(params: {
   currentUserId: number;
   chatId: number;
@@ -1639,7 +1809,8 @@ export async function clearChatForMe(params: {
   });
 
   member.chatClearedAt = new Date();
-  member.lastReadMessageId = lastMessage?.id ?? member.lastReadMessageId ?? null;
+  member.lastReadMessageId =
+    lastMessage?.id ?? member.lastReadMessageId ?? null;
 
   await member.save();
 
@@ -1799,26 +1970,35 @@ export async function leaveGroupChat(params: {
 function isLocalGroupAvatar(avatarUrl: string | null) {
   return Boolean(avatarUrl && avatarUrl.startsWith("/uploads/groups/"));
 }
-
 async function removeOldGroupAvatar(avatarUrl: string | null) {
   if (!isLocalGroupAvatar(avatarUrl)) {
     return;
   }
 
+  const filePath = resolveUploadUrlToPath(avatarUrl!, "groups");
+
+  if (!filePath) {
+    logger.warn(
+      {
+        avatarUrl,
+      },
+      "Caminho inválido ao tentar remover avatar antigo do grupo",
+    );
+
+    return;
+  }
+
   try {
-    const filePath = path.resolve("public", avatarUrl!.replace(/^\//, ""));
     await fs.unlink(filePath);
   } catch (error) {
     logger.warn(
       {
-        err: error,
-        avatarUrl,
+        error: toSafeLogError(error),
       },
       "Não foi possível remover avatar antigo do grupo",
     );
   }
 }
-
 
 function isLocalChatMedia(mediaUrl: string | null) {
   return Boolean(mediaUrl && mediaUrl.startsWith("/uploads/chat-media/"));
@@ -1840,20 +2020,30 @@ async function removeOldChatMedia(mediaUrl: string | null) {
     return;
   }
 
+  const filePath = resolveUploadUrlToPath(mediaUrl!, "chat-media");
+
+  if (!filePath) {
+    logger.warn(
+      {
+        mediaUrl,
+      },
+      "Caminho inválido ao tentar remover mídia antiga da mensagem",
+    );
+
+    return;
+  }
+
   try {
-    const filePath = path.resolve("public", mediaUrl!.replace(/^\//, ""));
     await fs.unlink(filePath);
   } catch (error) {
     logger.warn(
       {
-        err: error,
-        mediaUrl,
+        error: toSafeLogError(error),
       },
       "Não foi possível remover mídia antiga da mensagem",
     );
   }
 }
-
 async function getEditableMessage(params: {
   currentUserId: number;
   chatId: number;
@@ -1952,11 +2142,7 @@ export async function toggleMessageReaction(params: {
   const emoji = params.emoji.trim();
 
   if (!allowedEmojis.has(emoji)) {
-    throw new AppError(
-      400,
-      "Reação inválida.",
-      "INVALID_REACTION_EMOJI",
-    );
+    throw new AppError(400, "Reação inválida.", "INVALID_REACTION_EMOJI");
   }
 
   await assertChatMember(params.chatId, params.currentUserId);
@@ -2010,15 +2196,12 @@ export async function toggleMessageReaction(params: {
     const current = existing[0];
 
     if (current && current.emoji === emoji) {
-      await sequelize.query(
-        `DELETE FROM message_reactions WHERE id = :id`,
-        {
-          replacements: {
-            id: current.id,
-          },
-          transaction,
+      await sequelize.query(`DELETE FROM message_reactions WHERE id = :id`, {
+        replacements: {
+          id: current.id,
         },
-      );
+        transaction,
+      });
 
       return;
     }
@@ -2061,7 +2244,6 @@ export async function toggleMessageReaction(params: {
 
   return messageDTOWithExtras(message, params.currentUserId);
 }
-
 
 async function getVisibleMessageForUser(params: {
   currentUserId: number;
@@ -2223,6 +2405,108 @@ export async function listStarredMessages(params: {
   return messagesDTOWithExtras(messages, params.currentUserId);
 }
 
+export async function listAllStarredMessages(params: {
+  currentUserId: number;
+  limit: number;
+  beforeId?: number;
+}) {
+  type StarredRow = {
+    message_id: number;
+    chat_id: number;
+    chat_type: "private" | "group";
+    chat_name: string | null;
+    chat_avatar_url: string | null;
+    chat_updated_at: Date;
+  };
+
+  const rows = await sequelize.query<StarredRow>(
+    `
+      SELECT
+        m.id AS message_id,
+        c.id AS chat_id,
+        c.type AS chat_type,
+        CASE WHEN c.type = 'private' THEN private_user.nome ELSE c.name END AS chat_name,
+        CASE WHEN c.type = 'private' THEN private_user.avatar_url ELSE c.avatar_url END AS chat_avatar_url,
+        c.updated_at AS chat_updated_at
+      FROM message_stars ms
+      INNER JOIN messages m ON m.id = ms.message_id
+      INNER JOIN chats c ON c.id = m.chat_id
+      INNER JOIN chat_members cm
+        ON cm.chat_id = c.id
+       AND cm.user_id = :currentUserId
+       AND cm.left_at IS NULL
+      LEFT JOIN chat_members private_member
+        ON c.type = 'private'
+       AND private_member.chat_id = c.id
+       AND private_member.user_id <> :currentUserId
+       AND private_member.left_at IS NULL
+      LEFT JOIN users private_user ON private_user.id = private_member.user_id
+      WHERE ms.user_id = :currentUserId
+        AND m.deleted_at IS NULL
+        AND m.type <> 'system'
+        AND (:beforeId IS NULL OR m.id < :beforeId)
+        AND (
+          GREATEST(cm.chat_cleared_at, cm.chat_deleted_at) IS NULL
+          OR m.created_at > GREATEST(cm.chat_cleared_at, cm.chat_deleted_at)
+        )
+      ORDER BY m.id DESC
+      LIMIT :resultLimit
+    `,
+    {
+      replacements: {
+        currentUserId: params.currentUserId,
+        beforeId: params.beforeId ?? null,
+        resultLimit: params.limit + 1,
+      },
+      type: QueryTypes.SELECT,
+    },
+  );
+
+  const hasMore = rows.length > params.limit;
+  const pageRows = hasMore ? rows.slice(0, params.limit) : rows;
+  const messageIds = pageRows.map((row) => Number(row.message_id));
+
+  if (messageIds.length === 0) {
+    return { items: [], nextCursor: null };
+  }
+
+  const messages = await Message.findAll({
+    where: { id: { [Op.in]: messageIds } },
+  });
+  const messageById = new Map(messages.map((message) => [message.id, message]));
+  const messageDtos = await messagesDTOWithExtras(
+    pageRows
+      .map((row) => messageById.get(Number(row.message_id)))
+      .filter((message): message is Message => Boolean(message)),
+    params.currentUserId,
+  );
+  const dtoById = new Map(messageDtos.map((message) => [message.id, message]));
+
+  const items = pageRows.flatMap((row) => {
+    const message = dtoById.get(Number(row.message_id));
+    if (!message) return [];
+
+    return [
+      {
+        conversation: {
+          id: Number(row.chat_id),
+          type: row.chat_type,
+          name: row.chat_name,
+          avatarUrl: row.chat_avatar_url,
+          updatedAt: row.chat_updated_at,
+        },
+        message,
+      },
+    ];
+  });
+
+  return {
+    items,
+    nextCursor:
+      hasMore && items.length > 0 ? items[items.length - 1].message.id : null,
+  };
+}
+
 export async function forwardMessageToChats(params: {
   currentUserId: number;
   sourceChatId: number;
@@ -2250,7 +2534,10 @@ export async function forwardMessageToChats(params: {
   const forwardedMessages: Message[] = [];
 
   for (const targetChatId of targetChatIds) {
-    const targetMember = await assertChatMember(targetChatId, params.currentUserId);
+    const targetMember = await assertChatMember(
+      targetChatId,
+      params.currentUserId,
+    );
 
     if (targetMember.chatDeletedAt) {
       targetMember.chatDeletedAt = null;
@@ -2260,7 +2547,11 @@ export async function forwardMessageToChats(params: {
     const targetChat = await Chat.findByPk(targetChatId);
 
     if (!targetChat) {
-      throw new AppError(404, "Chat de destino não encontrado.", "TARGET_CHAT_NOT_FOUND");
+      throw new AppError(
+        404,
+        "Chat de destino não encontrado.",
+        "TARGET_CHAT_NOT_FOUND",
+      );
     }
 
     await assertCanSendToPrivateChat(targetChat, params.currentUserId);
@@ -2412,4 +2703,3 @@ export async function sendMediaMessageToChat(params: {
 
   return messageDTOWithExtras(message, params.currentUserId);
 }
-

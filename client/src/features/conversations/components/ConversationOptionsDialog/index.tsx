@@ -13,12 +13,7 @@ import {
 import styles from "./styles.module.css";
 
 export type ConversationAction =
-  | "pin"
-  | "mute"
-  | "archive"
-  | "block"
-  | "clear"
-  | "delete";
+  "pin" | "mute" | "archive" | "block" | "clear" | "delete";
 
 type Props = {
   conversation: Conversation;
@@ -28,7 +23,11 @@ type Props = {
 
 type Confirmation = "clear" | "delete" | null;
 
-export function ConversationOptionsDialog({ conversation, onClose, onChanged }: Props) {
+export function ConversationOptionsDialog({
+  conversation,
+  onClose,
+  onChanged,
+}: Props) {
   const requestRef = useRef<AbortController | null>(null);
   const confirmationFocusRef = useRef<HTMLButtonElement | null>(null);
   const busyRef = useRef(false);
@@ -39,11 +38,16 @@ export function ConversationOptionsDialog({ conversation, onClose, onChanged }: 
   useEffect(() => () => requestRef.current?.abort(), []);
   useEffect(() => {
     if (!confirmation) return;
-    const frame = window.requestAnimationFrame(() => confirmationFocusRef.current?.focus());
+    const frame = window.requestAnimationFrame(() =>
+      confirmationFocusRef.current?.focus(),
+    );
     return () => window.cancelAnimationFrame(frame);
   }, [confirmation]);
 
-  async function run(action: ConversationAction, request: (signal: AbortSignal) => Promise<unknown>) {
+  async function run(
+    action: ConversationAction,
+    request: (signal: AbortSignal) => Promise<unknown>,
+  ) {
     if (busyRef.current) return;
     const controller = new AbortController();
     requestRef.current = controller;
@@ -56,7 +60,8 @@ export function ConversationOptionsDialog({ conversation, onClose, onChanged }: 
       await onChanged(action);
       if (!controller.signal.aborted) onClose();
     } catch (requestError: unknown) {
-      if (!controller.signal.aborted) setError(getAuthErrorMessage(requestError));
+      if (!controller.signal.aborted)
+        setError(getAuthErrorMessage(requestError));
     } finally {
       if (requestRef.current === controller) requestRef.current = null;
       busyRef.current = false;
@@ -64,7 +69,10 @@ export function ConversationOptionsDialog({ conversation, onClose, onChanged }: 
     }
   }
 
-  function changePreference(action: "pin" | "mute" | "archive", changes: Partial<Pick<Conversation, "isPinned" | "isArchived" | "isMuted">>) {
+  function changePreference(
+    action: "pin" | "mute" | "archive",
+    changes: Partial<Pick<Conversation, "isPinned" | "isArchived" | "isMuted">>,
+  ) {
     return run(action, (signal) =>
       updateConversationPreferences(
         conversation.id,
@@ -72,7 +80,8 @@ export function ConversationOptionsDialog({ conversation, onClose, onChanged }: 
           isPinned: changes.isPinned ?? conversation.isPinned,
           isArchived: changes.isArchived ?? conversation.isArchived,
           isMuted: changes.isMuted ?? conversation.isMuted,
-          mutedUntil: changes.isMuted === false ? null : conversation.mutedUntil,
+          mutedUntil:
+            changes.isMuted === false ? null : conversation.mutedUntil,
         },
         { signal },
       ),
@@ -93,65 +102,150 @@ export function ConversationOptionsDialog({ conversation, onClose, onChanged }: 
       size="small"
     >
       {confirmation ? (
-        <div className={styles.confirm} role="alertdialog" aria-label="Confirmar ação">
-          <strong>{confirmation === "clear" ? "Limpar esta conversa?" : "Excluir esta conversa da sua lista?"}</strong>
-          <span>Essa ação afeta somente a sua conta e não pode ser desfeita pela interface.</span>
+        <div
+          className={styles.confirm}
+          role="alertdialog"
+          aria-label="Confirmar ação"
+        >
+          <strong>
+            {confirmation === "clear"
+              ? "Limpar esta conversa?"
+              : "Excluir esta conversa da sua lista?"}
+          </strong>
+          <span>
+            Essa ação afeta somente a sua conta e não pode ser desfeita pela
+            interface.
+          </span>
           <div>
-            <button ref={confirmationFocusRef} type="button" disabled={isBusy} onClick={() => setConfirmation(null)}>Cancelar</button>
+            <button
+              ref={confirmationFocusRef}
+              type="button"
+              disabled={isBusy}
+              onClick={() => setConfirmation(null)}
+            >
+              Cancelar
+            </button>
             <button
               className={styles.confirmDanger}
               type="button"
               disabled={isBusy}
-              onClick={() => void run(
-                confirmation === "clear" ? "clear" : "delete",
-                (signal) => confirmation === "clear"
-                  ? clearConversationForMe(conversation.id, { signal })
-                  : deleteConversationForMe(conversation.id, { signal }),
-              )}
+              onClick={() =>
+                void run(
+                  confirmation === "clear" ? "clear" : "delete",
+                  (signal) =>
+                    confirmation === "clear"
+                      ? clearConversationForMe(conversation.id, { signal })
+                      : deleteConversationForMe(conversation.id, { signal }),
+                )
+              }
             >
               {busyAction ? "Processando…" : "Confirmar"}
             </button>
           </div>
         </div>
       ) : (
-      <div className={styles.options}>
-        <button type="button" disabled={isBusy} onClick={() => void changePreference("pin", { isPinned: !conversation.isPinned })}>
-          <span>{conversation.isPinned ? "Desafixar conversa" : "Fixar conversa"}</span>
-          <small>{conversation.isPinned ? "Remover do topo da lista" : "Manter no topo da lista"}</small>
-        </button>
-        <button type="button" disabled={isBusy} onClick={() => void changePreference("mute", { isMuted: !conversation.isMuted })}>
-          <span>{conversation.isMuted ? "Ativar notificações" : "Silenciar conversa"}</span>
-          <small>{conversation.isMuted ? "Voltar a receber alertas" : "Não tocar som para novas mensagens"}</small>
-        </button>
-        <button type="button" disabled={isBusy} onClick={() => void changePreference("archive", { isArchived: !conversation.isArchived })}>
-          <span>{conversation.isArchived ? "Desarquivar conversa" : "Arquivar conversa"}</span>
-          <small>Organize sua lista sem apagar mensagens</small>
-        </button>
-
-        {conversation.type === "private" ? (
+        <div className={styles.options}>
           <button
-            className={conversation.block?.blockedByMe ? "" : styles.danger}
             type="button"
             disabled={isBusy}
-            onClick={() => void run("block", (signal) => updateConversationBlock(conversation.id, !conversation.block?.blockedByMe, { signal }))}
+            onClick={() =>
+              void changePreference("pin", { isPinned: !conversation.isPinned })
+            }
           >
-            <span>{conversation.block?.blockedByMe ? "Desbloquear contato" : "Bloquear contato"}</span>
-            <small>O backend continuará validando todas as permissões</small>
+            <span>
+              {conversation.isPinned ? "Desafixar conversa" : "Fixar conversa"}
+            </span>
+            <small>
+              {conversation.isPinned
+                ? "Remover do topo da lista"
+                : "Manter no topo da lista"}
+            </small>
           </button>
-        ) : null}
+          <button
+            type="button"
+            disabled={isBusy}
+            onClick={() =>
+              void changePreference("mute", { isMuted: !conversation.isMuted })
+            }
+          >
+            <span>
+              {conversation.isMuted
+                ? "Ativar notificações"
+                : "Silenciar conversa"}
+            </span>
+            <small>
+              {conversation.isMuted
+                ? "Voltar a receber alertas"
+                : "Não tocar som para novas mensagens"}
+            </small>
+          </button>
+          <button
+            type="button"
+            disabled={isBusy}
+            onClick={() =>
+              void changePreference("archive", {
+                isArchived: !conversation.isArchived,
+              })
+            }
+          >
+            <span>
+              {conversation.isArchived
+                ? "Desarquivar conversa"
+                : "Arquivar conversa"}
+            </span>
+            <small>Organize sua lista sem apagar mensagens</small>
+          </button>
 
-        <button className={styles.danger} type="button" disabled={isBusy} onClick={() => setConfirmation("clear")}>
-          <span>Limpar conversa para mim</span>
-          <small>Oculta o histórico anterior somente para você</small>
-        </button>
-        <button className={styles.danger} type="button" disabled={isBusy} onClick={() => setConfirmation("delete")}>
-          <span>Excluir conversa para mim</span>
-          <small>Remove a conversa da sua lista</small>
-        </button>
-      </div>
+          {conversation.type === "private" ? (
+            <button
+              className={conversation.block?.blockedByMe ? "" : styles.danger}
+              type="button"
+              disabled={isBusy}
+              onClick={() =>
+                void run("block", (signal) =>
+                  updateConversationBlock(
+                    conversation.id,
+                    !conversation.block?.blockedByMe,
+                    { signal },
+                  ),
+                )
+              }
+            >
+              <span>
+                {conversation.block?.blockedByMe
+                  ? "Desbloquear contato"
+                  : "Bloquear contato"}
+              </span>
+              <small>O backend continuará validando todas as permissões</small>
+            </button>
+          ) : null}
+
+          <button
+            className={styles.danger}
+            type="button"
+            disabled={isBusy}
+            onClick={() => setConfirmation("clear")}
+          >
+            <span>Limpar conversa para mim</span>
+            <small>Oculta o histórico anterior somente para você</small>
+          </button>
+          <button
+            className={styles.danger}
+            type="button"
+            disabled={isBusy}
+            onClick={() => setConfirmation("delete")}
+          >
+            <span>Excluir conversa para mim</span>
+            <small>Remove a conversa da sua lista</small>
+          </button>
+        </div>
       )}
 
-      {error ? <div className={styles.error} role="alert">{error}</div> : null}
+      {error ? (
+        <div className={styles.error} role="alert">
+          {error}
+        </div>
+      ) : null}
     </Modal>
   );
 }

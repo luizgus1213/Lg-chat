@@ -1,4 +1,11 @@
-import { useEffect, useId, useMemo, useRef, useState, type FormEvent } from "react";
+import {
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+} from "react";
 import { z } from "zod";
 
 import { Modal } from "../../../../components/Modal";
@@ -42,7 +49,10 @@ export function CreateStatusDialog({
   const textAreaRef = useRef<HTMLTextAreaElement | null>(null);
   const captionId = useId();
 
-  const previewUrl = useMemo(() => (file ? URL.createObjectURL(file) : null), [file]);
+  const previewUrl = useMemo(
+    () => (file ? URL.createObjectURL(file) : null),
+    [file],
+  );
   useEffect(
     () => () => {
       if (previewUrl) URL.revokeObjectURL(previewUrl);
@@ -62,7 +72,10 @@ export function CreateStatusDialog({
       return;
     }
 
-    const result = statusMediaInputSchema.safeParse({ file: selectedFile, text: caption });
+    const result = statusMediaInputSchema.safeParse({
+      file: selectedFile,
+      text: caption,
+    });
     if (!result.success) {
       setFile(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
@@ -84,11 +97,15 @@ export function CreateStatusDialog({
     try {
       const response =
         mode === "text"
-          ? await createTextStatus(createTextStatusInputSchema.parse({
-              text,
-              backgroundColor: color,
-            }))
-          : await createMediaStatus(statusMediaInputSchema.parse({ file, text: caption }));
+          ? await createTextStatus(
+              createTextStatusInputSchema.parse({
+                text,
+                backgroundColor: color,
+              }),
+            )
+          : await createMediaStatus(
+              statusMediaInputSchema.parse({ file, text: caption }),
+            );
 
       onCreated(response.data);
       onClose();
@@ -113,16 +130,30 @@ export function CreateStatusDialog({
       initialFocusRef={mode === "text" ? textAreaRef : undefined}
       footer={
         <>
-          <button className={styles.secondaryButton} type="button" onClick={onClose} disabled={submitting}>
+          <button
+            className={styles.secondaryButton}
+            type="button"
+            onClick={onClose}
+            disabled={submitting}
+          >
             Cancelar
           </button>
-          <button className={styles.primaryButton} type="submit" form="status-composer-form" disabled={submitting}>
+          <button
+            className={styles.primaryButton}
+            type="submit"
+            form="status-composer-form"
+            disabled={submitting}
+          >
             {submitting ? "Publicando…" : "Publicar"}
           </button>
         </>
       }
     >
-      <div className={styles.modeTabs} role="tablist" aria-label="Tipo de status">
+      <div
+        className={styles.modeTabs}
+        role="tablist"
+        aria-label="Tipo de status"
+      >
         <button
           type="button"
           role="tab"
@@ -143,13 +174,19 @@ export function CreateStatusDialog({
         </button>
       </div>
 
-      <form id="status-composer-form" className={styles.form} onSubmit={handleSubmit}>
+      <form
+        id="status-composer-form"
+        className={styles.form}
+        onSubmit={handleSubmit}
+      >
         {mode === "text" ? (
           <>
             <div className={styles.textPreview} style={{ background: color }}>
               <p>{text.trim() || "Seu texto aparecerá aqui"}</p>
             </div>
-            <label className={styles.fieldLabel} htmlFor="status-text">Texto</label>
+            <label className={styles.fieldLabel} htmlFor="status-text">
+              Texto
+            </label>
             <textarea
               ref={textAreaRef}
               id="status-text"
@@ -160,7 +197,9 @@ export function CreateStatusDialog({
               onChange={(event) => setText(event.target.value)}
               aria-describedby="status-text-counter"
             />
-            <span id="status-text-counter" className={styles.counter}>{text.length}/700</span>
+            <span id="status-text-counter" className={styles.counter}>
+              {text.length}/700
+            </span>
 
             <fieldset className={styles.palette}>
               <legend>Cor de fundo</legend>
@@ -183,7 +222,9 @@ export function CreateStatusDialog({
         ) : (
           <>
             <label className={styles.filePicker} htmlFor="status-media">
-              <strong>{file ? "Trocar arquivo" : "Escolher foto ou vídeo"}</strong>
+              <strong>
+                {file ? "Trocar arquivo" : "Escolher foto ou vídeo"}
+              </strong>
               <span>Imagem até 8 MB ou vídeo até 30 MB</span>
             </label>
             <input
@@ -193,13 +234,21 @@ export function CreateStatusDialog({
               type="file"
               accept={STATUS_MEDIA_ACCEPT}
               disabled={submitting}
-              onChange={(event) => handleFileChange(event.target.files?.[0] ?? null)}
+              onChange={(event) =>
+                handleFileChange(event.target.files?.[0] ?? null)
+              }
             />
 
             {file && previewUrl ? (
               <div className={styles.mediaPreview}>
                 {file.type.startsWith("video/") ? (
-                  <video src={previewUrl} controls muted playsInline aria-label="Prévia do vídeo selecionado" />
+                  <video
+                    src={previewUrl}
+                    controls
+                    muted
+                    playsInline
+                    aria-label="Prévia do vídeo selecionado"
+                  />
                 ) : (
                   <img src={previewUrl} alt="Prévia da imagem selecionada" />
                 )}
@@ -207,7 +256,9 @@ export function CreateStatusDialog({
               </div>
             ) : null}
 
-            <label className={styles.fieldLabel} htmlFor={captionId}>Legenda opcional</label>
+            <label className={styles.fieldLabel} htmlFor={captionId}>
+              Legenda opcional
+            </label>
             <textarea
               id={captionId}
               value={caption}
@@ -217,11 +268,17 @@ export function CreateStatusDialog({
               onChange={(event) => setCaption(event.target.value)}
               aria-describedby={`${captionId}-counter`}
             />
-            <span id={`${captionId}-counter`} className={styles.counter}>{caption.length}/700</span>
+            <span id={`${captionId}-counter`} className={styles.counter}>
+              {caption.length}/700
+            </span>
           </>
         )}
 
-        {errorMessage ? <p className={styles.error} role="alert">{errorMessage}</p> : null}
+        {errorMessage ? (
+          <p className={styles.error} role="alert">
+            {errorMessage}
+          </p>
+        ) : null}
         <span className={styles.liveRegion} aria-live="polite">
           {submitting ? "Publicando status. Aguarde." : ""}
         </span>

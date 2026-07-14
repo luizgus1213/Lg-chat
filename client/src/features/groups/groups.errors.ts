@@ -13,6 +13,7 @@ const messages: Readonly<Record<string, string>> = {
 };
 
 export function getGroupErrorMessage(error: unknown) {
-  if (error instanceof ApiError && messages[error.code]) return messages[error.code];
+  if (error instanceof ApiError && messages[error.code])
+    return messages[error.code];
   return getAuthErrorMessage(error);
 }

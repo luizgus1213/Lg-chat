@@ -124,15 +124,13 @@
     }
 
     state.socket = io({
-      auth: {
-        token: state.token,
-      },
+      withCredentials: true,
       reconnection: true,
       reconnectionAttempts: 10,
       reconnectionDelay: 700,
       reconnectionDelayMax: 5000,
       timeout: 12000,
-      transports: ["websocket", "polling"],
+      transports: ["websocket"],
     });
 
     state.socket.on("connect", () => {

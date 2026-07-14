@@ -25,17 +25,24 @@ export function ArchivedConversationsPage({ onOpen }: Props) {
     setLoading(true);
     setError(null);
     try {
-      const response = await listConversations({ signal: controller.signal, archived: true });
+      const response = await listConversations({
+        signal: controller.signal,
+        archived: true,
+      });
       if (!controller.signal.aborted) setItems(response.data);
     } catch (requestError: unknown) {
-      if (!controller.signal.aborted) setError(getAuthErrorMessage(requestError));
+      if (!controller.signal.aborted)
+        setError(getAuthErrorMessage(requestError));
     } finally {
       if (requestRef.current === controller) requestRef.current = null;
       if (!controller.signal.aborted) setLoading(false);
     }
   }, []);
 
-  useEffect(() => { queueMicrotask(() => void load()); return () => requestRef.current?.abort(); }, [load]);
+  useEffect(() => {
+    queueMicrotask(() => void load());
+    return () => requestRef.current?.abort();
+  }, [load]);
 
   async function restore(conversation: Conversation) {
     if (restoringId !== null) return;
@@ -51,19 +58,59 @@ export function ArchivedConversationsPage({ onOpen }: Props) {
 
   return (
     <section className={styles.page} aria-labelledby="archived-title">
-      <header><div><h1 id="archived-title">Conversas arquivadas</h1><p>Conversas removidas da lista principal.</p></div><button type="button" disabled={loading} onClick={() => void load()}>Atualizar</button></header>
+      <header>
+        <div>
+          <h1 id="archived-title">Conversas arquivadas</h1>
+          <p>Conversas removidas da lista principal.</p>
+        </div>
+        <button type="button" disabled={loading} onClick={() => void load()}>
+          Atualizar
+        </button>
+      </header>
       <div className={styles.content}>
-        {loading ? <div className={styles.state} role="status">Carregando arquivadas…</div> : null}
-        {error ? <div className={styles.state} role="alert">{error}</div> : null}
-        {actionError ? <div className={styles.actionError} role="alert">{actionError}</div> : null}
-        {!loading && !error && items.length === 0 ? <div className={styles.state}>Nenhuma conversa arquivada.</div> : null}
+        {loading ? (
+          <div className={styles.state} role="status">
+            Carregando arquivadas…
+          </div>
+        ) : null}
+        {error ? (
+          <div className={styles.state} role="alert">
+            {error}
+          </div>
+        ) : null}
+        {actionError ? (
+          <div className={styles.actionError} role="alert">
+            {actionError}
+          </div>
+        ) : null}
+        {!loading && !error && items.length === 0 ? (
+          <div className={styles.state}>Nenhuma conversa arquivada.</div>
+        ) : null}
         {!loading && !error && items.length > 0 ? (
           <ul className={styles.list}>
             {items.map((conversation) => (
               <li key={conversation.id}>
-                <ConversationAvatar name={getConversationTitle(conversation)} src={conversation.avatarUrl} />
-                <span><strong>{getConversationTitle(conversation)}</strong><small>{conversation.type === "group" ? "Grupo" : "Conversa privada"}</small></span>
-                <button type="button" disabled={restoringId !== null} onClick={() => void restore(conversation)}>{restoringId === conversation.id ? "Restaurando…" : "Desarquivar"}</button>
+                <ConversationAvatar
+                  name={getConversationTitle(conversation)}
+                  src={conversation.avatarUrl}
+                />
+                <span>
+                  <strong>{getConversationTitle(conversation)}</strong>
+                  <small>
+                    {conversation.type === "group"
+                      ? "Grupo"
+                      : "Conversa privada"}
+                  </small>
+                </span>
+                <button
+                  type="button"
+                  disabled={restoringId !== null}
+                  onClick={() => void restore(conversation)}
+                >
+                  {restoringId === conversation.id
+                    ? "Restaurando…"
+                    : "Desarquivar"}
+                </button>
               </li>
             ))}
           </ul>
