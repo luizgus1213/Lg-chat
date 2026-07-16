@@ -143,7 +143,7 @@ app.use(
 
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
 
-    allowedHeaders: ["Content-Type", "X-CSRF-Token"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-CSRF-Token"],
 
     exposedHeaders: [
       "RateLimit-Limit",
