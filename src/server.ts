@@ -194,10 +194,11 @@ app.get("/favicon.ico", (_req, res) => {
 app.get("/.well-known/appspecific/com.chrome.devtools.json", (_req, res) => {
   return res.status(204).end();
 });
+const uploadsPublicPath = path.resolve("public", "uploads");
 
 app.use(
   "/uploads",
-  express.static(path.resolve("public", "uploads"), {
+  express.static(uploadsPublicPath, {
     etag: true,
     maxAge: "30d",
     immutable: true,
@@ -206,7 +207,10 @@ app.use(
     index: false,
 
     setHeaders: (res) => {
+      res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+
       res.setHeader("X-Content-Type-Options", "nosniff");
+
       res.setHeader("Cache-Control", "public, max-age=2592000, immutable");
     },
   }),
