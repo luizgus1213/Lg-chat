@@ -6,7 +6,9 @@ import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import compression from "compression";
 import { Server } from "socket.io";
+
 import { ensureUploadDirectories, uploadPaths } from "./config/uploadPaths";
+
 import { env } from "./config/env";
 import { logger, toSafeLogError } from "./utils/logger";
 import { testarConexaoBanco } from "./db/connection";
@@ -92,11 +94,26 @@ app.use(
         upgradeInsecureRequests: env.IS_PRODUCTION ? [] : null,
       },
     },
+
     crossOriginEmbedderPolicy: false,
-    crossOriginResourcePolicy: { policy: "same-origin" },
-    referrerPolicy: { policy: "strict-origin-when-cross-origin" },
+
+    /*
+      Não deixa o Helmet definir globalmente:
+      Cross-Origin-Resource-Policy: same-origin
+
+      Os uploads recebem uma política própria mais abaixo.
+    */
+    crossOriginResourcePolicy: false,
+
+    referrerPolicy: {
+      policy: "strict-origin-when-cross-origin",
+    },
+
     strictTransportSecurity: env.IS_PRODUCTION
-      ? { maxAge: 31_536_000, includeSubDomains: true }
+      ? {
+          maxAge: 31_536_000,
+          includeSubDomains: true,
+        }
       : false,
   }),
 );
@@ -184,7 +201,7 @@ app.use((req, res, next) => {
 /*
   Arquivos públicos ficam antes do rate limit.
 
-  Assim CSS, JS, HTML, imagens e partials não recebem 429.
+  Assim CSS, JS, HTML e imagens não recebem 429.
 */
 
 app.get("/favicon.ico", (_req, res) => {
@@ -194,10 +211,26 @@ app.get("/favicon.ico", (_req, res) => {
 app.get("/.well-known/appspecific/com.chrome.devtools.json", (_req, res) => {
   return res.status(204).end();
 });
+
 const uploadsPublicPath = path.resolve("public", "uploads");
 
+/*
+  Permite que o frontend carregue imagens, vídeos, áudios e documentos
+  hospedados no backend mesmo quando estiver em outra origem,
+  como http://localhost:5173.
+
+  Isso não libera as rotas privadas da API.
+  A política é aplicada somente em /uploads.
+*/
 app.use(
   "/uploads",
+
+  (_req, res, next) => {
+    res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+
+    next();
+  },
+
   express.static(uploadsPublicPath, {
     etag: true,
     maxAge: "30d",
@@ -207,6 +240,9 @@ app.use(
     index: false,
 
     setHeaders: (res) => {
+      /*
+        Reforça o cabeçalho diretamente na resposta do arquivo.
+      */
       res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
 
       res.setHeader("X-Content-Type-Options", "nosniff");
@@ -272,6 +308,7 @@ if (env.IS_PRODUCTION) {
       index: false,
       etag: true,
       maxAge: 0,
+
       setHeaders: (res, filePath) => {
         const normalizedPath = filePath.replace(/\\/g, "/");
 
@@ -291,15 +328,21 @@ if (env.IS_PRODUCTION) {
   );
 
   app.use((req, res, next) => {
-    if (req.method !== "GET" || !req.accepts("html")) return next();
+    if (req.method !== "GET" || !req.accepts("html")) {
+      return next();
+    }
 
     const excludedPrefixes = ["/api", "/socket.io", "/uploads", "/health"];
+
     const isExcluded = excludedPrefixes.some(
       (prefix) => req.path === prefix || req.path.startsWith(`${prefix}/`),
     );
+
     const hasFileExtension = path.posix.extname(req.path) !== "";
 
-    if (isExcluded || hasFileExtension) return next();
+    if (isExcluded || hasFileExtension) {
+      return next();
+    }
 
     return res.sendFile(clientIndexPath, {
       headers: {
@@ -327,6 +370,7 @@ async function bootstrap() {
       },
       "Diretórios de upload preparados",
     );
+
     initModels();
 
     await testarConexaoBanco();
