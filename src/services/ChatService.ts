@@ -236,7 +236,63 @@ function getChatFileTypeLabel(mimeType: string) {
 
   return "arquivo";
 }
+async function getHiddenMessageIdsForUser(
+  currentUserId: number,
+  chatId: number,
+): Promise<number[]> {
+  const rows = await sequelize.query<{
+    message_id: number;
+  }>(
+    `
+      SELECT mh.message_id
+      FROM message_hidden_for_users mh
 
+      INNER JOIN messages m
+        ON m.id = mh.message_id
+
+      WHERE mh.user_id = :currentUserId
+        AND m.chat_id = :chatId
+    `,
+    {
+      replacements: {
+        currentUserId,
+        chatId,
+      },
+
+      type: QueryTypes.SELECT,
+    },
+  );
+
+  return rows.map((row) => Number(row.message_id));
+}
+async function isMessageHiddenForUser(
+  currentUserId: number,
+  messageId: number,
+): Promise<boolean> {
+  const rows = await sequelize.query<{
+    hidden: boolean;
+  }>(
+    `
+      SELECT EXISTS (
+        SELECT 1
+        FROM message_hidden_for_users
+
+        WHERE message_id = :messageId
+          AND user_id = :currentUserId
+      ) AS hidden
+    `,
+    {
+      replacements: {
+        currentUserId,
+        messageId,
+      },
+
+      type: QueryTypes.SELECT,
+    },
+  );
+
+  return Boolean(rows[0]?.hidden);
+}
 function messageDTO(message: Message, clientId?: string | null) {
   return {
     id: message.id,
@@ -964,16 +1020,42 @@ export async function listMyChats(
 
   const lastMessages = await sequelize.query<Message>(
     `
-      WITH member_state(chat_id, last_read_message_id, cutoff) AS (
+      WITH member_state(
+        chat_id,
+        last_read_message_id,
+        cutoff
+      ) AS (
         VALUES ${memberStateValues}
       )
+
       SELECT DISTINCT ON (m.chat_id) m.*
+
       FROM messages m
-      INNER JOIN member_state ms ON ms.chat_id = m.chat_id
-      WHERE ms.cutoff IS NULL OR m.created_at > ms.cutoff
+
+      INNER JOIN member_state ms
+        ON ms.chat_id = m.chat_id
+
+      WHERE (
+        ms.cutoff IS NULL
+        OR m.created_at > ms.cutoff
+      )
+
+      AND NOT EXISTS (
+        SELECT 1
+
+        FROM message_hidden_for_users mh
+
+        WHERE mh.message_id = m.id
+          AND mh.user_id = :currentUserId
+      )
+
       ORDER BY m.chat_id, m.id DESC
     `,
     {
+      replacements: {
+        currentUserId,
+      },
+
       model: Message,
       mapToModel: true,
     },
@@ -1004,6 +1086,13 @@ export async function listMyChats(
         AND m.type <> 'system'
         AND m.id > COALESCE(ms.last_read_message_id, 0)
         AND (ms.cutoff IS NULL OR m.created_at > ms.cutoff)
+        AND NOT EXISTS (
+  SELECT 1
+  FROM message_hidden_for_users mh
+
+  WHERE mh.message_id = m.id
+    AND mh.user_id = :currentUserId
+)
       GROUP BY m.chat_id
     `,
     {
@@ -1532,14 +1621,36 @@ export async function getChatMessages(params: {
 }) {
   const member = await assertChatMember(params.chatId, params.currentUserId);
 
+  const hiddenMessageIds = await getHiddenMessageIdsForUser(
+    params.currentUserId,
+    params.chatId,
+  );
+
+  const condicoesId: WhereOptions<MessageAttributes>[] = [];
+
+  if (params.beforeId) {
+    condicoesId.push({
+      id: {
+        [Op.lt]: params.beforeId,
+      },
+    });
+  }
+
+  if (hiddenMessageIds.length > 0) {
+    condicoesId.push({
+      id: {
+        [Op.notIn]: hiddenMessageIds,
+      },
+    });
+  }
+
   const where: WhereOptions<MessageAttributes> = applyMessageVisibility(
     {
       chatId: params.chatId,
-      ...(params.beforeId
+
+      ...(condicoesId.length > 0
         ? {
-            id: {
-              [Op.lt]: params.beforeId,
-            },
+            [Op.and]: condicoesId,
           }
         : {}),
     },
@@ -1548,7 +1659,9 @@ export async function getChatMessages(params: {
 
   const messages = await Message.findAll({
     where,
+
     order: [["id", "DESC"]],
+
     limit: params.limit,
   });
 
@@ -1562,11 +1675,31 @@ export async function getMessageContext(params: {
   radius: number;
 }) {
   const member = await assertChatMember(params.chatId, params.currentUserId);
+
+  const hiddenMessageIds = await getHiddenMessageIdsForUser(
+    params.currentUserId,
+    params.chatId,
+  );
+
+  if (hiddenMessageIds.includes(params.messageId)) {
+    throw new AppError(
+      404,
+      "A mensagem não está mais disponível nesta conversa.",
+      "MESSAGE_NOT_FOUND",
+    );
+  }
+
   const targetWhere = applyMessageVisibility(
-    { id: params.messageId, chatId: params.chatId },
+    {
+      id: params.messageId,
+      chatId: params.chatId,
+    },
     member,
   );
-  const target = await Message.findOne({ where: targetWhere });
+
+  const target = await Message.findOne({
+    where: targetWhere,
+  });
 
   if (!target) {
     throw new AppError(
@@ -1576,27 +1709,51 @@ export async function getMessageContext(params: {
     );
   }
 
+  const filtroOcultadas =
+    hiddenMessageIds.length > 0
+      ? {
+          [Op.notIn]: hiddenMessageIds,
+        }
+      : {};
+
   const [beforeAndTarget, after] = await Promise.all([
     Message.findAll({
       where: applyMessageVisibility(
         {
           chatId: params.chatId,
-          id: { [Op.lte]: params.messageId },
+
+          id: {
+            [Op.lte]: params.messageId,
+
+            ...filtroOcultadas,
+          },
         },
+
         member,
       ),
+
       order: [["id", "DESC"]],
+
       limit: params.radius + 1,
     }),
+
     Message.findAll({
       where: applyMessageVisibility(
         {
           chatId: params.chatId,
-          id: { [Op.gt]: params.messageId },
+
+          id: {
+            [Op.gt]: params.messageId,
+
+            ...filtroOcultadas,
+          },
         },
+
         member,
       ),
+
       order: [["id", "ASC"]],
+
       limit: params.radius,
     }),
   ]);
@@ -1605,6 +1762,7 @@ export async function getMessageContext(params: {
 
   return {
     targetId: target.id,
+
     messages: await messagesDTOWithExtras(messages, params.currentUserId),
   };
 }
@@ -1617,7 +1775,10 @@ export async function searchChatMessages(params: {
   limit: number;
 }) {
   const member = await assertChatMember(params.chatId, params.currentUserId);
-
+  const hiddenMessageIds = await getHiddenMessageIdsForUser(
+    params.currentUserId,
+    params.chatId,
+  );
   const query = (params.q ?? "").trim();
   const type = params.type ?? "all";
 
@@ -1628,6 +1789,13 @@ export async function searchChatMessages(params: {
       [Op.ne]: "system",
     },
   };
+  if (hiddenMessageIds.length > 0) {
+    Object.assign(where, {
+      id: {
+        [Op.notIn]: hiddenMessageIds,
+      },
+    });
+  }
 
   if (type === "media") {
     Object.assign(where, {
@@ -1688,7 +1856,18 @@ export async function markChatAsRead(params: {
   messageId: number;
 }) {
   const member = await assertChatMember(params.chatId, params.currentUserId);
+  const hiddenMessageIds = await getHiddenMessageIdsForUser(
+    params.currentUserId,
+    params.chatId,
+  );
 
+  if (hiddenMessageIds.includes(params.messageId)) {
+    throw new AppError(
+      404,
+      "A mensagem não está mais disponível nesta conversa.",
+      "MESSAGE_NOT_FOUND",
+    );
+  }
   const message = await Message.findOne({
     where: {
       id: params.messageId,
@@ -2106,7 +2285,92 @@ export async function editMessageInChat(params: {
 
   return messageDTOWithExtras(message, params.currentUserId);
 }
+export async function deleteMessageForMe(params: {
+  currentUserId: number;
+  chatId: number;
+  messageId: number;
+}) {
+  await assertChatMember(params.chatId, params.currentUserId);
 
+  const message = await Message.findOne({
+    where: {
+      id: params.messageId,
+      chatId: params.chatId,
+    },
+
+    attributes: ["id", "chatId", "type"],
+  });
+
+  if (!message) {
+    throw new AppError(404, "Mensagem não encontrada.", "MESSAGE_NOT_FOUND");
+  }
+
+  if (message.type === "system") {
+    throw new AppError(
+      400,
+      "Mensagens do sistema não podem ser apagadas dessa forma.",
+      "SYSTEM_MESSAGE_CANNOT_DELETE_FOR_ME",
+    );
+  }
+
+  await sequelize.transaction(async (transaction) => {
+    await sequelize.query(
+      `
+          INSERT INTO message_hidden_for_users (
+            message_id,
+            user_id,
+            created_at,
+            updated_at
+          )
+          VALUES (
+            :messageId,
+            :userId,
+            NOW(),
+            NOW()
+          )
+
+          ON CONFLICT (message_id, user_id)
+          DO NOTHING
+        `,
+      {
+        replacements: {
+          messageId: params.messageId,
+          userId: params.currentUserId,
+        },
+
+        transaction,
+      },
+    );
+
+    /*
+     * Favoritar é uma preferência pessoal.
+     * Se a mensagem deixou de existir para esse usuário,
+     * também removemos dos favoritos dele.
+     */
+    await sequelize.query(
+      `
+          DELETE FROM message_stars
+
+          WHERE message_id = :messageId
+            AND user_id = :userId
+        `,
+      {
+        replacements: {
+          messageId: params.messageId,
+          userId: params.currentUserId,
+        },
+
+        transaction,
+      },
+    );
+  });
+
+  return {
+    deletedForMe: true,
+    chatId: params.chatId,
+    messageId: params.messageId,
+  };
+}
 export async function deleteMessageForEveryone(params: {
   currentUserId: number;
   chatId: number;
@@ -2252,6 +2516,15 @@ async function getVisibleMessageForUser(params: {
 }) {
   const member = await assertChatMember(params.chatId, params.currentUserId);
 
+  const hiddenForCurrentUser = await isMessageHiddenForUser(
+    params.currentUserId,
+    params.messageId,
+  );
+
+  if (hiddenForCurrentUser) {
+    throw new AppError(404, "Mensagem não encontrada.", "MESSAGE_NOT_FOUND");
+  }
+
   const visibleWhere = applyMessageVisibility(
     {
       id: params.messageId,
@@ -2361,22 +2634,40 @@ export async function listStarredMessages(params: {
     member,
   );
 
-  const rows = await sequelize.query<{ message_id: number }>(
+  const rows = await sequelize.query<{
+    message_id: number;
+  }>(
     `
-      SELECT ms.message_id
-      FROM message_stars ms
-      INNER JOIN messages m ON m.id = ms.message_id
-      WHERE ms.user_id = :currentUserId
-        AND m.chat_id = :chatId
-      ORDER BY ms.created_at DESC
-      LIMIT :limit
-    `,
+    SELECT ms.message_id
+
+    FROM message_stars ms
+
+    INNER JOIN messages m
+      ON m.id = ms.message_id
+
+    WHERE ms.user_id = :currentUserId
+      AND m.chat_id = :chatId
+
+      AND NOT EXISTS (
+        SELECT 1
+
+        FROM message_hidden_for_users mh
+
+        WHERE mh.message_id = m.id
+          AND mh.user_id = :currentUserId
+      )
+
+    ORDER BY ms.created_at DESC
+
+    LIMIT :limit
+  `,
     {
       replacements: {
         currentUserId: params.currentUserId,
         chatId: params.chatId,
         limit: params.limit,
       },
+
       type: QueryTypes.SELECT,
     },
   );
@@ -2425,39 +2716,86 @@ export async function listAllStarredMessages(params: {
         m.id AS message_id,
         c.id AS chat_id,
         c.type AS chat_type,
-        CASE WHEN c.type = 'private' THEN private_user.nome ELSE c.name END AS chat_name,
-        CASE WHEN c.type = 'private' THEN private_user.avatar_url ELSE c.avatar_url END AS chat_avatar_url,
+
+        CASE
+          WHEN c.type = 'private'
+            THEN private_user.nome
+          ELSE c.name
+        END AS chat_name,
+
+        CASE
+          WHEN c.type = 'private'
+            THEN private_user.avatar_url
+          ELSE c.avatar_url
+        END AS chat_avatar_url,
+
         c.updated_at AS chat_updated_at
+
       FROM message_stars ms
-      INNER JOIN messages m ON m.id = ms.message_id
-      INNER JOIN chats c ON c.id = m.chat_id
+
+      INNER JOIN messages m
+        ON m.id = ms.message_id
+
+      INNER JOIN chats c
+        ON c.id = m.chat_id
+
       INNER JOIN chat_members cm
         ON cm.chat_id = c.id
-       AND cm.user_id = :currentUserId
-       AND cm.left_at IS NULL
+        AND cm.user_id = :currentUserId
+        AND cm.left_at IS NULL
+
       LEFT JOIN chat_members private_member
         ON c.type = 'private'
-       AND private_member.chat_id = c.id
-       AND private_member.user_id <> :currentUserId
-       AND private_member.left_at IS NULL
-      LEFT JOIN users private_user ON private_user.id = private_member.user_id
+        AND private_member.chat_id = c.id
+        AND private_member.user_id <> :currentUserId
+        AND private_member.left_at IS NULL
+
+      LEFT JOIN users private_user
+        ON private_user.id =
+          private_member.user_id
+
       WHERE ms.user_id = :currentUserId
+
         AND m.deleted_at IS NULL
+
         AND m.type <> 'system'
-        AND (:beforeId IS NULL OR m.id < :beforeId)
+
+        AND cm.chat_deleted_at IS NULL
+
         AND (
-          GREATEST(cm.chat_cleared_at, cm.chat_deleted_at) IS NULL
-          OR m.created_at > GREATEST(cm.chat_cleared_at, cm.chat_deleted_at)
+          cm.chat_cleared_at IS NULL
+          OR m.created_at >
+            cm.chat_cleared_at
         )
+
+        AND (
+          :beforeId IS NULL
+          OR m.id < :beforeId
+        )
+
+        AND NOT EXISTS (
+          SELECT 1
+
+          FROM message_hidden_for_users mh
+
+          WHERE mh.message_id = m.id
+            AND mh.user_id =
+              :currentUserId
+        )
+
       ORDER BY m.id DESC
+
       LIMIT :resultLimit
     `,
     {
       replacements: {
         currentUserId: params.currentUserId,
+
         beforeId: params.beforeId ?? null,
+
         resultLimit: params.limit + 1,
       },
+
       type: QueryTypes.SELECT,
     },
   );
@@ -2538,6 +2876,15 @@ export async function forwardMessageToChats(params: {
       targetChatId,
       params.currentUserId,
     );
+
+    const hiddenForCurrentUser = await isMessageHiddenForUser(
+      params.currentUserId,
+      params.messageId,
+    );
+
+    if (hiddenForCurrentUser) {
+      throw new AppError(404, "Mensagem não encontrada.", "MESSAGE_NOT_FOUND");
+    }
 
     if (targetMember.chatDeletedAt) {
       targetMember.chatDeletedAt = null;
