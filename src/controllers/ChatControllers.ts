@@ -45,7 +45,6 @@ import {
   updateGroupAvatar,
   editMessageInChat,
   deleteMessageForEveryone,
-  deleteMessageForMe,
   toggleMessageReaction,
   updateChatPreferences,
   updatePrivateChatBlock,
@@ -330,21 +329,6 @@ export async function deleteChatMessageController(req: Request, res: Response) {
   });
 
   return ok(res, message, "Mensagem apagada com sucesso.");
-}
-
-export async function deleteChatMessageForMeController(
-  req: Request,
-  res: Response,
-) {
-  const { chatId, messageId } = messageIdParamsSchema.parse(req.params);
-
-  const result = await deleteMessageForMe({
-    currentUserId: req.user!.id,
-    chatId,
-    messageId,
-  });
-
-  return ok(res, result, "Mensagem excluída somente para você.");
 }
 
 export async function toggleMessageReactionController(
