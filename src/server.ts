@@ -212,7 +212,7 @@ app.get("/.well-known/appspecific/com.chrome.devtools.json", (_req, res) => {
   return res.status(204).end();
 });
 
-const uploadsPublicPath = path.resolve("public", "uploads");
+const uploadsPublicPath = uploadPaths.root;
 
 /*
   Permite que o frontend carregue imagens, vídeos, áudios e documentos
@@ -248,6 +248,42 @@ app.use(
       res.setHeader("X-Content-Type-Options", "nosniff");
 
       res.setHeader("Cache-Control", "public, max-age=2592000, immutable");
+    },
+  }),
+);
+
+/*
+  Frontend legado publicado junto com o backend.
+
+  O frontend novo continua independente e pode consumir /api normalmente.
+*/
+app.use(
+  express.static(path.resolve("public"), {
+    dotfiles: "deny",
+    index: "index.html",
+    etag: true,
+    maxAge: "5m",
+
+    setHeaders: (res, filePath) => {
+      const normalizedPath = filePath.replace(/\\/g, "/");
+
+      if (
+        normalizedPath.endsWith("/index.html") ||
+        normalizedPath.endsWith("/sw.js") ||
+        normalizedPath.endsWith("/manifest.webmanifest")
+      ) {
+        res.setHeader("Cache-Control", "no-store");
+        return;
+      }
+
+      if (/\.(js|css)$/i.test(normalizedPath)) {
+        res.setHeader("Cache-Control", "public, max-age=300, must-revalidate");
+        return;
+      }
+
+      if (/\.(png|jpg|jpeg|webp|gif|svg|ico|woff|woff2)$/i.test(normalizedPath)) {
+        res.setHeader("Cache-Control", "public, max-age=604800");
+      }
     },
   }),
 );
@@ -297,60 +333,6 @@ app.use("/api/messages", messagesRoutes);
 app.use("/api/chats", chatRoutes);
 app.use("/api/status", statusRoutes);
 app.use("/api/calls", callsRoutes);
-
-const clientDistPath = path.resolve("client", "dist");
-const clientIndexPath = path.join(clientDistPath, "index.html");
-
-if (env.IS_PRODUCTION) {
-  app.use(
-    express.static(clientDistPath, {
-      dotfiles: "deny",
-      index: false,
-      etag: true,
-      maxAge: 0,
-
-      setHeaders: (res, filePath) => {
-        const normalizedPath = filePath.replace(/\\/g, "/");
-
-        if (normalizedPath.includes("/assets/")) {
-          res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
-        } else if (
-          normalizedPath.endsWith("/index.html") ||
-          normalizedPath.endsWith("/sw.js") ||
-          normalizedPath.endsWith("/manifest.webmanifest")
-        ) {
-          res.setHeader("Cache-Control", "no-store");
-        } else {
-          res.setHeader("Cache-Control", "public, max-age=0, must-revalidate");
-        }
-      },
-    }),
-  );
-
-  app.use((req, res, next) => {
-    if (req.method !== "GET" || !req.accepts("html")) {
-      return next();
-    }
-
-    const excludedPrefixes = ["/api", "/socket.io", "/uploads", "/health"];
-
-    const isExcluded = excludedPrefixes.some(
-      (prefix) => req.path === prefix || req.path.startsWith(`${prefix}/`),
-    );
-
-    const hasFileExtension = path.posix.extname(req.path) !== "";
-
-    if (isExcluded || hasFileExtension) {
-      return next();
-    }
-
-    return res.sendFile(clientIndexPath, {
-      headers: {
-        "Cache-Control": "no-store",
-      },
-    });
-  });
-}
 
 app.use((req, _res, next) => {
   return next(

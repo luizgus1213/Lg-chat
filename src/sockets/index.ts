@@ -25,16 +25,23 @@ type ClientAck = (response: {
 }) => void;
 
 async function authenticateSocket(socket: Socket): Promise<AuthenticatedUser> {
+  const socketToken =
+    typeof socket.handshake.auth?.token === "string"
+      ? socket.handshake.auth.token.trim()
+      : "";
+
   const cookieToken = getCookieValue(
     socket.handshake.headers.cookie,
     env.SESSION_COOKIE_NAME,
   );
 
-  if (!cookieToken) {
+  const token = socketToken || cookieToken;
+
+  if (!token) {
     throw new AppError(401, "Sessão não encontrada.", "SOCKET_AUTH_REQUIRED");
   }
 
-  const payload = verificarToken(cookieToken);
+  const payload = verificarToken(token);
 
   const user = await User.findByPk(payload.id, {
     attributes: ["id", "nome"],

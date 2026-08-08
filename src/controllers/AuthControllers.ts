@@ -27,18 +27,18 @@ export async function registerUserController(req: Request, res: Response) {
 
 export async function loginUserController(req: Request, res: Response) {
   const data = loginSchema.parse(req.body);
-  const { token, ...result } = await loginUser(data);
+  const result = await loginUser(data);
 
-  setSessionCookies(res, token);
+  setSessionCookies(res, result.token);
 
   return ok(res, result, "Login realizado com sucesso.");
 }
 
 export async function verifyEmailController(req: Request, res: Response) {
   const data = verifyEmailSchema.parse(req.body);
-  const { token, ...result } = await verifyEmail(data);
+  const result = await verifyEmail(data);
 
-  setSessionCookies(res, token);
+  setSessionCookies(res, result.token);
 
   return ok(res, result, "Email verificado com sucesso.");
 }

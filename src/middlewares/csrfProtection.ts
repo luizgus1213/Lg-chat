@@ -26,6 +26,12 @@ export function csrfProtection(
     return next();
   }
 
+  const authorization = req.headers.authorization;
+
+  if (authorization?.startsWith("Bearer ")) {
+    return next();
+  }
+
   const cookieToken = getCookieValue(req.headers.cookie, env.CSRF_COOKIE_NAME);
   const headerToken = req.get("x-csrf-token")?.trim() ?? "";
 

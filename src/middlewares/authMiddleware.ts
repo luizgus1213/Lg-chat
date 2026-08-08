@@ -27,15 +27,24 @@ export async function authMiddleware(
   next: NextFunction,
 ) {
   try {
+    const authHeader = req.headers.authorization;
+    const bearerToken =
+      authHeader?.startsWith("Bearer ")
+        ? authHeader.slice("Bearer ".length).trim()
+        : "";
+
     const sessionCookie = getCookieValue(
       req.headers.cookie,
       env.SESSION_COOKIE_NAME,
     );
-    if (!sessionCookie) {
+
+    const token = bearerToken || sessionCookie;
+
+    if (!token) {
       throw new AppError(401, "Você precisa estar logado.", "AUTH_REQUIRED");
     }
 
-    const payload = verificarToken(sessionCookie);
+    const payload = verificarToken(token);
 
     const user = await User.findByPk(payload.id, {
       attributes: [
