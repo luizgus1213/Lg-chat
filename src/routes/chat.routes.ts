@@ -31,7 +31,6 @@ import {
   listAllStarredMessagesController,
   getMessageContextController,
   forwardMessageController,
-  deleteChatMessageForMeController,
 } from "../controllers/ChatControllers";
 import { groupAvatarUpload } from "../middlewares/groupAvatarUpload";
 import {
@@ -48,10 +47,6 @@ chatRoutes.get("/", asyncHandler(listMyChatsController));
 chatRoutes.get(
   "/messages/starred",
   asyncHandler(listAllStarredMessagesController),
-);
-chatRoutes.post(
-  "/:chatId/messages/:messageId/delete-for-me",
-  asyncHandler(deleteChatMessageForMeController),
 );
 chatRoutes.post("/private", asyncHandler(createPrivateChatController));
 chatRoutes.post("/groups", asyncHandler(createGroupChatController));

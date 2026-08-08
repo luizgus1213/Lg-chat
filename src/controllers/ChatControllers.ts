@@ -55,7 +55,6 @@ import {
   listAllStarredMessages,
   getMessageContext,
   forwardMessageToChats,
-  deleteMessageForMe,
 } from "../services/ChatService";
 
 import { created, ok } from "../utils/httpResponse";
@@ -436,20 +435,7 @@ export async function deleteGroupController(req: Request, res: Response) {
 
   return ok(res, result, "Grupo excluído com sucesso.");
 }
-export async function deleteChatMessageForMeController(
-  req: Request,
-  res: Response,
-) {
-  const { chatId, messageId } = messageIdParamsSchema.parse(req.params);
 
-  const result = await deleteMessageForMe({
-    currentUserId: req.user!.id,
-    chatId,
-    messageId,
-  });
-
-  return ok(res, result, "Mensagem apagada somente para você.");
-}
 export async function leaveGroupController(req: Request, res: Response) {
   const { chatId } = chatIdParamsSchema.parse(req.params);
 
