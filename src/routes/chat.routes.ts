@@ -21,6 +21,7 @@ import {
   sendChatMediaController,
   editChatMessageController,
   deleteChatMessageController,
+  deleteChatMessageForMeController,
   toggleMessageReactionController,
   updateChatPreferencesController,
   blockContactController,
@@ -102,6 +103,10 @@ chatRoutes.patch(
 chatRoutes.delete(
   "/:chatId/messages/:messageId",
   asyncHandler(deleteChatMessageController),
+);
+chatRoutes.post(
+  "/:chatId/messages/:messageId/delete-for-me",
+  asyncHandler(deleteChatMessageForMeController),
 );
 chatRoutes.post(
   "/:chatId/messages/:messageId/reactions",
