@@ -20,7 +20,7 @@
     "build": "npm run build:server && npm run build:client",
     "build:server": "tsc",
     "build:server:analysis": "tsc --sourceMap",
-    "build:client": "npm run pwa:icons && npm --prefix client run build",
+    "build:client": "npm --prefix client ci --include=dev && npm run pwa:icons && npm --prefix client run build",
     "build:analysis": "npm run build:server:analysis && npm --prefix client run build:analysis",
     "format:client": "prettier --write \"client/src/**/*.{ts,tsx,css}\" \"client/*.{ts,js,json,html,md}\" \"client/public/*.{js,json,webmanifest}\"",
     "format": "prettier --write \"src/**/*.ts\" \"src/migrations/20260713010000-adicionar-client-id-idempotente-messages.cjs\" \"*.{json,ts,cjs,md}\" \".github/**/*.yml\" && npm run format:client",
